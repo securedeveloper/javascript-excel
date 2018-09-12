@@ -1,6 +1,10 @@
 {
   "name": "javascript-excel",
-  "author": "Afzal Ahmad (securedeveloper@gmail.com)",
+  "author": {
+    "name": "Afzal Ahmad",
+    "email": "securedeveloper@gmail.com",
+    "url": "https://github.com/securedeveloper"
+  },
   "description": "A lightweight library to build excel sheet with JavaScript",
   "keywords": [
     "js-excel",
@@ -11,17 +15,22 @@
     "javascript-csv",
     "csv"
   ],
-  "version": "1.0.0",
-  "main": "lib/index.js",
+  "version": "1.0.3",
+  "main": "lib/javascript-excel.js",
   "license": "MIT",
   "scripts": {
     "type-check": "tsc --noEmit",
     "type-check:watch": "npm run type-check -- --watch",
     "bundle": "webpack",
-    "build": "npm run build:types && npm run build:js",
+    "build": "npm run clean && npm run test && npm run build:types && npm run build:js",
     "build:types": "tsc --emitDeclarationOnly",
-    "build:js": "babel src --out-dir lib --extensions \".ts,.tsx\" --source-maps inline",
-    "test": "mocha test/**/*.js"
+    "build:js": "babel src --out-dir lib --extensions \".ts,.tsx\"",
+    "test": "mocha test/**/*.js",
+    "clean": "rm -rf ./lib && mkdir ./lib",
+    "build:watch": "babel -w src --out-dir lib",
+    "lint": "eslint .",
+    "lint:watch": "esw -w lib/**",
+    "prepare": "npm run build && browserify lib/index.js > lib/javascript-excel.js"
   },
   "devDependencies": {
     "@babel/cli": "7.0.0",
@@ -49,7 +58,8 @@
     "url": "git+https://github.com/securedeveloper/javascript-excel.git"
   },
   "bugs": {
-    "url": "https://github.com/securedeveloper/javascript-excel/issues"
+    "url": "https://github.com/securedeveloper/javascript-excel/issues",
+    "email": "securedeveloper@gmail.com"
   },
   "homepage": "https://github.com/securedeveloper/javascript-excel#readme"
 }
