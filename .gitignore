@@ -1,5 +1,4 @@
 .idea
-coverage
-node_modules
-javascript-excel.iml
-lib
+node_modules/
+lib/
+lib-playground/
