@@ -1,0 +1,11 @@
+export const Xmlns_Types: string = "http://schemas.openxmlformats.org/package/2006/content-types";
+export const Extension_Rels: string = "application/vnd.openxmlformats-package.relationships+xml";
+export const Extension_Xml: string = "application/xml";
+export const PartName_Xl_Workbook: string = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml";
+export const PartName_Xl_Sheet: string = "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
+export const PartName_Xl_Theme: string = "application/vnd.openxmlformats-officedocument.theme+xm";
+export const PartName_Xl_Styles: string = "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml";
+export const PartName_Xl_SharedStrings: string = "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml";
+export const PartName_DocProps_Core: string = "application/vnd.openxmlformats-package.core-properties+xml";
+export const PartName_DocProps_App: string = "application/vnd.openxmlformats-officedocument.extended-properties+xml";
+export const PartName_DocProps_Custom: string = "application/vnd.openxmlformats-officedocument.custom-properties+xml";

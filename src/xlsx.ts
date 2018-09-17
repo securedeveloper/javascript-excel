@@ -50,6 +50,7 @@ type ___JSE_XLSX___FileName =
     "[Content_Types]"
     | "app"
     | "core"
+    | "custom"
     | "workbook"
     | "sharedStrings"
     | "styles"
@@ -80,18 +81,18 @@ interface ___JSE_XLSX___NodeAttribute {
     value: string; // TODO: Improve if needed
 }
 
-interface ___JSE_XLSX___Node {
+export interface ___JSE_XLSX___Node {
     name: string | ___JSE_XLSX___NodeName; // TODO: Make Precise if possible
     values?: Array<___JSE_XLSX___NodeAttribute>;
     content?: ___JSE_XLSX___Node | Array<___JSE_XLSX___Node>;
 }
 
-interface ___JSE_XLSX___FileContent {
+export interface ___JSE_XLSX___FileContent {
     xml?: ___JSE_XLSX___XMLTag;
     content: ___JSE_XLSX___Node; // TODO: Verify if nested Nodes are needed in any file
 }
 
-interface ___JSE_XLSX___File {
+export interface ___JSE_XLSX___File {
     fileName: ___JSE_XLSX___FileName;
     fileExtension: ___JSE_XLSX___FileExtension;
     fileContent: ___JSE_XLSX___FileContent;

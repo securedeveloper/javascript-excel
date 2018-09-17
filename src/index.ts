@@ -8,6 +8,7 @@ interface IJavaScriptExcel {
 export declare module JSExcel {
     export type JSEFileExtension = ___JSE_DownloadFileExtension;
     export type JSXLX = IJavaScriptExcel;
+    //TODO: Complete module export here
 }
 
 export default JavascriptExcel;
