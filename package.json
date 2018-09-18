@@ -26,6 +26,7 @@
     "build:watch": "babel -w src --out-dir lib",
     "prepare": "npm run build",
     "test": "jest",
+    "test:size": "bundlesize",
     "coverage:publish": "codecov",
     "type-check": "tsc --noEmit",
     "type-check:watch": "npm run type-check -- --watch"
@@ -39,11 +40,18 @@
     "@babel/preset-typescript": "7.0.0",
     "@types/jest": "23.3.2",
     "babel-loader": "8.0.0",
+    "bundlesize": "0.17.0",
     "codecov": "3.1.0",
     "jest": "23.6.0",
     "ts-jest": "23.1.4",
     "typescript": "3.0.3"
   },
+  "bundlesize": [
+    {
+      "path": "./lib/*.js",
+      "maxSize": "5 kB"
+    }
+  ],
   "dependencies": {},
   "repository": {
     "type": "git",
