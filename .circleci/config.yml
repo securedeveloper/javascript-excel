@@ -105,14 +105,14 @@ jobs:
         command: |
           yarn run test
 
-  test_size:
-    <<: *defaults
-    <<: *default_executor
-    steps:
-    - *restore_repo
-    - run:
-        name: Test size
-        command: yarn test:size
+  #  test_size:
+  #    <<: *defaults
+  #    <<: *default_executor
+  #    steps:
+  #    - *restore_repo
+  #    - run:
+  #        name: Test size
+  #        command: yarn test:size
 
   coverage:
     <<: *defaults
@@ -161,5 +161,4 @@ workflows:
         - test_node8
         - test_node9
         - test_node10
-        - test_size
         <<: *ignore_non_dev_branches
