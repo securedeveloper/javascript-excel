@@ -1,39 +1,167 @@
-# Javascript Node CircleCI 2.0 configuration file
-#
-# Check https://circleci.com/docs/2.0/language-javascript/ for more details
-#
 version: 2
+
+aliases:
+- &defaults
+  working_directory: ~/javascript-excel
+- &node6_executor
+  docker:
+  - image: circleci/node:6
+- &node8_executor
+  docker:
+  - image: circleci/node:8
+- &node9_executor
+  docker:
+  - image: circleci/node:9
+- &node10_executor
+  docker:
+  - image: circleci/node:10
+- &default_executor
+  <<: *node9_executor
+- &repo_key
+    repo-{{ .Branch }}-{{ .Revision }}
+- &coverage_key
+    coverage-{{ .Branch }}-{{ .Revision }}
+- &base_config_key
+    base-config-{{ .Branch }}-{{ .Revision }}
+- &restore_repo
+  restore_cache:
+    keys:
+    - *repo_key
+- &ignore_non_dev_branches
+  filters:
+    tags:
+      only: /.*/
+    branches:
+      ignore:
+      - /release\/.*/
+- &execute_on_release
+  filters:
+    tags:
+      only: /(v)?[0-9]+(\.[0-9]+)*/
+    branches:
+      ignore:
+      - /.*/
+
 jobs:
-  build:
-    docker:
-    # specify the version you desire here
-    - image: circleci/node:7.10
-
-    # Specify service dependencies here if necessary
-    # CircleCI maintains a library of pre-built images
-    # documented at https://circleci.com/docs/2.0/circleci-images/
-    # - image: circleci/mongo:3.4.4
-
-    working_directory: ~/javascript-excel
-
+  prepare:
+    <<: *defaults
+    <<: *default_executor
     steps:
+    - *restore_repo
     - checkout
-
-    # Download and cache dependencies
     - restore_cache:
-        keys:
-        - v1-dependencies-{{ checksum "package.json" }}
-        # fallback to using the latest cache if no exact match is found
-        - v1-dependencies-
-
-    - run: yarn install
-
+        key: *base_config_key
+    - run:
+        name: Install Js dependencies
+        command: yarn install --no-progress
+    - run:
+        name: Build project
+        command: yarn run build
     - save_cache:
+        key: *repo_key
         paths:
-        - node_modules
-        key: v1-dependencies-{{ checksum "package.json" }}
+        - ~/javascript-excel
 
-    # run tests!
-    - run: yarn test
+  test_node6:
+    <<: *defaults
+    <<: *node6_executor
+    steps:
+    - *restore_repo
+    - run:
+        name: Test with Node 6
+        command: yarn run test
 
+  test_node8:
+    <<: *defaults
+    <<: *node8_executor
+    steps:
+    - *restore_repo
+    - run:
+        name: Test with Node 8
+        command: |
+          yarn test
+          yarn test:functional
 
+  test_node9:
+    <<: *defaults
+    <<: *default_executor
+    steps:
+    - *restore_repo
+    - run:
+        name: Test with Node 9
+        command: |
+          yarn test
+          yarn test:functional
+    - save_cache:
+        key: *coverage_key
+        paths:
+        - coverage
+
+  test_node10:
+    <<: *defaults
+    <<: *node10_executor
+    steps:
+    - *restore_repo
+    - run:
+        name: Test with Node 10
+        command: |
+          yarn run test
+
+  test_size:
+    <<: *defaults
+    <<: *default_executor
+    steps:
+    - *restore_repo
+    - run:
+        name: Test size
+        command: yarn test:size
+
+  coverage:
+    <<: *defaults
+    <<: *default_executor
+    steps:
+    - *restore_repo
+    - restore_cache:
+        key: *coverage_key
+    - run:
+        name: Publish coverage
+        command: yarn run coverage:publish
+    - store_artifacts:
+        path: coverage/clover.xml
+        prefix: tests
+    - store_artifacts:
+        path: coverage
+        prefix: coverage
+    - store_test_results:
+        path: coverage/clover.xml
+
+workflows:
+  version: 2
+  workflow:
+    jobs:
+    - prepare:
+        <<: *ignore_non_dev_branches
+    - test_node6:
+        requires:
+        - prepare
+        <<: *ignore_non_dev_branches
+    - test_node8:
+        requires:
+        - prepare
+        <<: *ignore_non_dev_branches
+    - test_node9:
+        requires:
+        - prepare
+        <<: *ignore_non_dev_branches
+    - test_node10:
+        requires:
+        - prepare
+        <<: *ignore_non_dev_branches
+    - coverage:
+        requires:
+        - test_node6
+        - test_node8
+        - test_node9
+        - test_node10
+        - test_size
+        <<: *ignore_non_dev_branches
