@@ -1,5 +1,5 @@
-import {___JSE_DownloadFileExtension} from "./constants";
-import JavascriptExcel from "./JavaScriptExcel";
+import {___JSE_DownloadFileExtension} from "./api/constants";
+import JavascriptExcel from "./api/JavaScriptExcel";
 
 interface IJavaScriptExcel {
     new(jszip: any, saveAs: Function): JavascriptExcel;
