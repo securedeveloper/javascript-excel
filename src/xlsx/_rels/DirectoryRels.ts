@@ -1,5 +1,5 @@
-import {JSExcel} from "./Types";
-import {___JSE_XLSX___Directory, ___JSE_XLSX___File, ___JSE_XLSX___FileContent, ___JSE_XLSX___Node} from "./xlsx";
+import {JSExcel} from "../../Types";
+import {___JSE_XLSX___Directory, ___JSE_XLSX___File, ___JSE_XLSX___FileContent, ___JSE_XLSX___Node} from "../../api/xlsx";
 import {
     Relationship_Target_App,
     Relationship_Target_Core,
@@ -10,7 +10,7 @@ import {
     Relationship_Type_Custom,
     Relationship_Type_Workbook,
     Xmlns_RelationShips
-} from "./Internals";
+} from "../../api/Internals";
 
 const fileProps: any = {
     name: null,
