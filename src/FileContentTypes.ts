@@ -33,7 +33,7 @@ const fileProps: any = {
     }
 };
 
-export const fileContentTypes = (excel: JSExcel): ___JSE_XLSX___File => ({
+export default (excel: JSExcel): ___JSE_XLSX___File => ({
     fileName: fileProps.name,
     fileExtension: fileProps.extension,
     fileContent: getContentTypeNodes(excel)

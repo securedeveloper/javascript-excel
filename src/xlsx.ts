@@ -99,7 +99,7 @@ export interface ___JSE_XLSX___File {
     // TODO: add further file info as needed and verify later on
 }
 
-interface ___JSE_XLSX___Directory {
+export interface ___JSE_XLSX___Directory {
     directoryName: ___JSE_XLSX___DirectoryName;
     content?: ___JSE_XLSX___File | Array<___JSE_XLSX___File> | ___JSE_XLSX___Directory | Array<___JSE_XLSX___Directory>;
 }
