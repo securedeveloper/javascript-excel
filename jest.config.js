@@ -4,6 +4,8 @@ module.exports = {
             "skipBabel": true
         }
     },
+    "collectCoverage": true,
+    "coverageDirectory": "./coverage/",
     "collectCoverageFrom": [
         "**/*.{ts,tsx}",
         "!**/.circleci/**",
