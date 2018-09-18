@@ -1,4 +1,5 @@
 export const Xmlns_Types: string = "http://schemas.openxmlformats.org/package/2006/content-types";
+export const Xmlns_RelationShips: string = "http://schemas.openxmlformats.org/package/2006/relationships";
 export const Extension_Rels: string = "application/vnd.openxmlformats-package.relationships+xml";
 export const Extension_Xml: string = "application/xml";
 export const PartName_Xl_Workbook: string = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml";
@@ -9,3 +10,11 @@ export const PartName_Xl_SharedStrings: string = "application/vnd.openxmlformats
 export const PartName_DocProps_Core: string = "application/vnd.openxmlformats-package.core-properties+xml";
 export const PartName_DocProps_App: string = "application/vnd.openxmlformats-officedocument.extended-properties+xml";
 export const PartName_DocProps_Custom: string = "application/vnd.openxmlformats-officedocument.custom-properties+xml";
+export const Relationship_Type_App: string = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties";
+export const Relationship_Type_Core: string = "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties";
+export const Relationship_Type_Custom: string = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties";
+export const Relationship_Type_Workbook: string = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument";
+export const Relationship_Target_App: string = "docProps/app.xml";
+export const Relationship_Target_Core: string = "docProps/core.xml";
+export const Relationship_Target_Custom: string = "xl/workbook.xml";
+export const Relationship_Target_Workbook: string = "docProps/custom.xml";
