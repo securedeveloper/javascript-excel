@@ -1,4 +1,4 @@
-import {cleanAlphaNumericString} from "../../src/Helper";
+import {cleanAlphaNumericString} from "../../src/api/Helper";
 
 describe("Helper --> ", () => {
     describe("String --> ", () => {

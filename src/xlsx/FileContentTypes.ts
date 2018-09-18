@@ -1,4 +1,4 @@
-import {___JSE_XLSX___File, ___JSE_XLSX___FileContent, ___JSE_XLSX___Node} from "./xlsx";
+import {___JSE_XLSX___File, ___JSE_XLSX___FileContent, ___JSE_XLSX___Node} from "../api/xlsx";
 import {
     Extension_Rels,
     Extension_Xml, PartName_DocProps_App, PartName_DocProps_Core, PartName_DocProps_Custom, PartName_Xl_SharedStrings,
@@ -6,8 +6,8 @@ import {
     PartName_Xl_Theme,
     PartName_Xl_Workbook,
     Xmlns_Types
-} from "./Internals";
-import {JSESheet, JSExcel} from "./Types";
+} from "../api/Internals";
+import {JSESheet, JSExcel} from "../Types";
 
 const fileProps: any = {
     name: "[Content_Types]",

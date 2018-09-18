@@ -1,4 +1,4 @@
-import {JSEData, JSERow} from "./Types";
+import {JSEData, JSERow} from "../Types";
 
 export default class JavaScriptExcel {
     private ___Excel___: any;
