@@ -1,20 +1,27 @@
 import {___JSE_XLSX___File, ___JSE_XLSX___FileContent, ___JSE_XLSX___Node} from "../api/xlsx";
 import {
-    Extension_Rels,
-    Extension_Xml, PartName_DocProps_App, PartName_DocProps_Core, PartName_DocProps_Custom, PartName_Xl_SharedStrings,
-    PartName_Xl_Sheet, PartName_Xl_Styles,
-    PartName_Xl_Theme,
-    PartName_Xl_Workbook,
-    Xmlns_Types
+    EXTENSION_RELS_SCHEMA,
+    EXTENSION_XML_SCHEMA,
+    PART_NAME_DOC_PROPS_APP,
+    PART_NAME_DOC_PROPS_CORE,
+    PART_NAME_DOC_PROPS_CUSTOM,
+    PART_NAME_XL_SHARED_STRINGS,
+    PART_NAME_XL_WORKSHEET,
+    PART_NAME_XL_STYLES,
+    PART_NAME_XL_THEME,
+    PART_NAME_XL_WORKBOOK,
+    XMLNS_CONTENT_TYPES,
+    DEFAULT_XML_VERSION, ENCODING_UTF_8, DEFAULT_STAND_ALONE
 } from "../api/Internals";
 import {JSESheet, JSExcel} from "../Types";
+import {DEFAULT_FILE_EXTENSION} from "../api/constants";
 
 const fileProps: any = {
     name: "[Content_Types]",
-    extension: ".xml",
-    version: "1.0",
-    encoding: "UTF-8",
-    standalone: true,
+    extension: DEFAULT_FILE_EXTENSION,
+    version: DEFAULT_XML_VERSION,
+    encoding: ENCODING_UTF_8,
+    standalone: DEFAULT_STAND_ALONE,
     nodes: {
         Types: "Types",
         Default: "Default",
@@ -48,14 +55,14 @@ function getContentTypeNodes(excel: JSExcel): ___JSE_XLSX___FileContent {
         },
         content: {
             name: fileProps.nodes.Types,
-            values: [{key: fileProps.keys.xmlns, value: Xmlns_Types}],
+            values: [{key: fileProps.keys.xmlns, value: XMLNS_CONTENT_TYPES}],
             content: [
                 {
                     name: fileProps.nodes.Default,
                     values:
                         [
                             {key: fileProps.keys.Extension, value: fileProps.values.rels},
-                            {key: fileProps.keys.ContentType, value: Extension_Rels}
+                            {key: fileProps.keys.ContentType, value: EXTENSION_RELS_SCHEMA}
                         ]
                 },
                 {
@@ -63,7 +70,7 @@ function getContentTypeNodes(excel: JSExcel): ___JSE_XLSX___FileContent {
                     values:
                         [
                             {key: fileProps.keys.Extension, value: fileProps.values.xml},
-                            {key: fileProps.keys.ContentType, value: Extension_Xml}
+                            {key: fileProps.keys.ContentType, value: EXTENSION_XML_SCHEMA}
                         ]
                 },
                 //xl folder contents
@@ -73,7 +80,7 @@ function getContentTypeNodes(excel: JSExcel): ___JSE_XLSX___FileContent {
                     values:
                         [
                             {key: fileProps.keys.PartName, value: fileProps.values.PartName_xml},
-                            {key: fileProps.keys.ContentType, value: PartName_Xl_Workbook}
+                            {key: fileProps.keys.ContentType, value: PART_NAME_XL_WORKBOOK}
                         ]
                 },
                 ...getWorkSheetsOverrides(excel),
@@ -93,7 +100,7 @@ function getWorkSheetsOverrides(excel: JSExcel): Array<___JSE_XLSX___Node> {
         name: fileProps.nodes.Override,
         values: [
             {key: fileProps.keys.PartName, value: `${partNameOverride}${sheet.name}${fileProps.extension}`},
-            {key: fileProps.keys.ContentType, value: PartName_Xl_Sheet}
+            {key: fileProps.keys.ContentType, value: PART_NAME_XL_WORKSHEET}
         ]
     }));
 }
@@ -106,7 +113,7 @@ function getThemesOverrides(excel: JSExcel): Array<___JSE_XLSX___Node> {
         name: fileProps.nodes.Override,
         values: [
             {key: fileProps.keys.PartName, value: `${partNameOverride}theme1${fileProps.extension}`},
-            {key: fileProps.keys.ContentType, value: PartName_Xl_Theme}
+            {key: fileProps.keys.ContentType, value: PART_NAME_XL_THEME}
         ]
     }];
 }
@@ -119,7 +126,7 @@ function getStylesOverrides(excel: JSExcel): Array<___JSE_XLSX___Node> {
         name: fileProps.nodes.Override,
         values: [
             {key: fileProps.keys.PartName, value: `${partNameOverride}${fileProps.extension}`},
-            {key: fileProps.keys.ContentType, value: PartName_Xl_Styles}
+            {key: fileProps.keys.ContentType, value: PART_NAME_XL_STYLES}
         ]
     }];
 }
@@ -132,7 +139,7 @@ function getSharedStringsOverrides(excel: JSExcel): Array<___JSE_XLSX___Node> {
         name: fileProps.nodes.Override,
         values: [
             {key: fileProps.keys.PartName, value: `${partNameOverride}${fileProps.extension}`},
-            {key: fileProps.keys.ContentType, value: PartName_Xl_SharedStrings}
+            {key: fileProps.keys.ContentType, value: PART_NAME_XL_SHARED_STRINGS}
         ]
     }];
 }
@@ -145,14 +152,14 @@ function getPropsOverrides(excel: JSExcel): Array<___JSE_XLSX___Node> {
             name: fileProps.nodes.Override,
             values: [
                 {key: fileProps.keys.PartName, value: `${partNameOverride}core${fileProps.extension}`},
-                {key: fileProps.keys.ContentType, value: PartName_DocProps_Core}
+                {key: fileProps.keys.ContentType, value: PART_NAME_DOC_PROPS_CORE}
             ]
         },
         {
             name: fileProps.nodes.Override,
             values: [
                 {key: fileProps.keys.PartName, value: `${partNameOverride}app${fileProps.extension}`},
-                {key: fileProps.keys.ContentType, value: PartName_DocProps_App}
+                {key: fileProps.keys.ContentType, value: PART_NAME_DOC_PROPS_APP}
             ]
         },
         // ...getCustomPropsOverrider(excel) TODO: Implement when doc props interface is available and only custom props are provided
@@ -168,7 +175,7 @@ function getCustomPropsOverrider(excel: JSExcel): ___JSE_XLSX___Node {
         name: fileProps.nodes.Override,
         values: [
             {key: fileProps.keys.PartName, value: `${partNameOverride}${fileProps.extension}`},
-            {key: fileProps.keys.ContentType, value: PartName_DocProps_Custom}
+            {key: fileProps.keys.ContentType, value: PART_NAME_DOC_PROPS_CUSTOM}
         ]
     };
 }
