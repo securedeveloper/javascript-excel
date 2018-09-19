@@ -11,10 +11,13 @@ import {
     PART_NAME_XL_THEME,
     PART_NAME_XL_WORKBOOK,
     XMLNS_CONTENT_TYPES,
-    DEFAULT_XML_VERSION, ENCODING_UTF_8, DEFAULT_STAND_ALONE
+    DEFAULT_XML_VERSION,
+    ENCODING_UTF_8,
+    DEFAULT_STAND_ALONE
 } from "../api/Internals";
 import {JSESheet, JSExcel} from "../Types";
 import {DEFAULT_FILE_EXTENSION} from "../api/constants";
+import {cleanAlphaNumericString} from "../util/Helper";
 
 const fileProps: any = {
     name: "[Content_Types]",
@@ -99,7 +102,10 @@ function getWorkSheetsOverrides(excel: JSExcel): Array<___JSE_XLSX___Node> {
     return excel.sheets.map((sheet: JSESheet) => ({
         name: fileProps.nodes.Override,
         values: [
-            {key: fileProps.keys.PartName, value: `${partNameOverride}${sheet.name}${fileProps.extension}`},
+            {
+                key: fileProps.keys.PartName,
+                value: `${partNameOverride}${cleanAlphaNumericString(sheet.name)}${fileProps.extension}`
+            },
             {key: fileProps.keys.ContentType, value: PART_NAME_XL_WORKSHEET}
         ]
     }));
