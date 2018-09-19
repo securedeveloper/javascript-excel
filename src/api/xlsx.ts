@@ -78,13 +78,13 @@ interface ___JSE_XLSX___XMLTag {
 
 interface ___JSE_XLSX___NodeAttribute {
     key: string | ___JSE_XLSX___NodeKey; // TODO: Make precise if possible
-    value: string; // TODO: Improve if needed
+    value: string | number | boolean; // TODO: Improve if needed
 }
 
 export interface ___JSE_XLSX___Node {
     name: string | ___JSE_XLSX___NodeName; // TODO: Make Precise if possible
     values?: Array<___JSE_XLSX___NodeAttribute>;
-    content?: ___JSE_XLSX___Node | Array<___JSE_XLSX___Node>;
+    content?: ___JSE_XLSX___Node | Array<___JSE_XLSX___Node> | string | number | boolean;
 }
 
 export interface ___JSE_XLSX___FileContent {
