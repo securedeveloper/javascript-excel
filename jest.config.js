@@ -1,13 +1,10 @@
 module.exports = {
-    "globals": {
-        "ts-jest": {
-            "skipBabel": true
-        }
-    },
     "collectCoverage": true,
     "coverageDirectory": "./coverage/",
     "collectCoverageFrom": [
-        "**/*.{ts,tsx}",
+        "**/src/util/*.{ts,tsx}",
+        "!**/src/api/*.{ts,tsx}",
+        "!**/src/xlsx/*.{ts,tsx}",
         "!**/.circleci/**",
         "!**/.idea/**",
         "!**/lib/**",
@@ -25,7 +22,7 @@ module.exports = {
     "moduleDirectories": [
         "node_modules"
     ],
-    modulePathIgnorePatterns: [
+    "modulePathIgnorePatterns": [
         "<rootDir>/.circleci",
         "<rootDir>/.idea",
         "<rootDir>/coverage",

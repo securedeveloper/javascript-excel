@@ -1,9 +1,9 @@
 export function cleanAlphaNumericString(str: string): string {
-    return str ? str.replace(/\W/g, '') : str;
+    return (str && typeof str === "string") ? str.replace(/\W/g, '') : str;
 }
 
 export function getISOFormattedDate(date?: Date): string {
-    if (!date) {
+    if (!date || typeof date !== "object") {
         date = new Date();
     }
 

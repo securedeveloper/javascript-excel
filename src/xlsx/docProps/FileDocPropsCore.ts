@@ -1,7 +1,7 @@
 // TODO: Tier-02 Replace values when file properties module is implemented
 import {JSExcel} from "../../Types";
 import {___JSE_XLSX___File, ___JSE_XLSX___Node} from "../../api/xlsx";
-import {getISOFormattedDate} from "../../api/Helper";
+import {getISOFormattedDate} from "../../util/Helper";
 import {
     DEFAULT_PROPS_CREATOR,
     DEFAULT_PROPS_DESCRIPTION,
