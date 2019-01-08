@@ -1,6 +1,7 @@
 export const XMLNS_MAIN: string = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 export const XMLNS_CONTENT_TYPES: string = "http://schemas.openxmlformats.org/package/2006/content-types";
 export const XMLNS_RELATIONSHIPS: string = "http://schemas.openxmlformats.org/package/2006/relationships";
+export const XMLNS_OFFICE_DOCUMENT_RELATIONSHIPS: string = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 export const XMLNS_EXTENDED_PROPERTIES: string = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties";
 export const XMLNS_CUSTOM_PROPERTIES: string = "http://schemas.openxmlformats.org/officeDocument/2006/custom-properties";
 export const XMLNS_METADATA_CORE_PROPERTIES: string = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties";
@@ -69,6 +70,7 @@ export const FILE_CUSTOM: string = "custom";
 export const FILE_RELS: string = "_rels";
 export const FILE_SHARED_STRINGS: string = "sharedStrings";
 export const FILE_STYLES: string = "styles";
+export const FILE_WORKBOOK: string = "workbook";
 export const EXTENSION_XML: string = ".xml";
 export const EXTENSION_RELS: string = ".rels";
 export const DIRECTORY_DOC_PROPS: string = "docProps";
