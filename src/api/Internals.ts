@@ -1,12 +1,18 @@
+export const XMLNS_MAIN: string = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 export const XMLNS_CONTENT_TYPES: string = "http://schemas.openxmlformats.org/package/2006/content-types";
 export const XMLNS_RELATIONSHIPS: string = "http://schemas.openxmlformats.org/package/2006/relationships";
+export const XMLNS_OFFICE_DOCUMENT_RELATIONSHIPS: string = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 export const XMLNS_EXTENDED_PROPERTIES: string = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties";
 export const XMLNS_CUSTOM_PROPERTIES: string = "http://schemas.openxmlformats.org/officeDocument/2006/custom-properties";
 export const XMLNS_METADATA_CORE_PROPERTIES: string = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties";
 export const XMLNS_DC_CORE_PROPERTIES: string = "http://purl.org/dc/elements/1.1/";
 export const XMLNS_DC_TERMS_CORE_PROPERTIES: string = "http://purl.org/dc/terms/";
 export const XMLNS_DCMI_TYPE_CORE_PROPERTIES: string = "http://purl.org/dc/dcmitype/";
+export const XMLNS_MC: string = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 export const XMLNS_XSI_XML_SCHEMA_INSTANCE: string = "http://www.w3.org/2001/XMLSchema-instance";
+export const XMLNS_X14AC: string = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac";
+export const XMLNS_X16R2: string = "http://schemas.microsoft.com/office/spreadsheetml/2015/02/main";
+export const XMLNS_XR: string = "http://schemas.microsoft.com/office/spreadsheetml/2014/revision";
 export const XMLNS_DOC_PROPS_V_TYPES: string = "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes";
 export const EXTENSION_RELS_SCHEMA: string = "application/vnd.openxmlformats-package.relationships+xml";
 export const EXTENSION_XML_SCHEMA: string = "application/xml";
@@ -26,6 +32,7 @@ export const RELATIONSHIP_TARGET_APP: string = "docProps/app.xml";
 export const RELATIONSHIP_TARGET_CORE: string = "docProps/core.xml";
 export const RELATIONSHIP_TARGET_CUSTOM: string = "xl/workbook.xml";
 export const RELATIONSHIP_TARGET_WORKBOOK: string = "docProps/custom.xml";
+export const XMLNS_SST: string = XMLNS_MAIN;
 
 
 /**
@@ -61,6 +68,9 @@ export const FILE_APP: string = "app";
 export const FILE_CORE: string = "core";
 export const FILE_CUSTOM: string = "custom";
 export const FILE_RELS: string = "_rels";
+export const FILE_SHARED_STRINGS: string = "sharedStrings";
+export const FILE_STYLES: string = "styles";
+export const FILE_WORKBOOK: string = "workbook";
 export const EXTENSION_XML: string = ".xml";
 export const EXTENSION_RELS: string = ".rels";
 export const DIRECTORY_DOC_PROPS: string = "docProps";

@@ -40,7 +40,7 @@ export type JSEBorderType = "thin"; //TODO: complete the list
 
 export interface JSEBorder {
     type?: JSEBorderType;
-    color?: JSEColor; // TODO: find a better way
+    color?: number; // TODO: find a better way
 }
 
 export interface JSECellBorder {

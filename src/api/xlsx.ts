@@ -81,10 +81,12 @@ interface ___JSE_XLSX___NodeAttribute {
     value: string | number | boolean; // TODO: Improve if needed
 }
 
+type ___JSE_XLSX___Node_CONTENT_TYPE = ___JSE_XLSX___Node | string | number | boolean | undefined;
+
 export interface ___JSE_XLSX___Node {
     name: string | ___JSE_XLSX___NodeName; // TODO: Make Precise if possible
     values?: Array<___JSE_XLSX___NodeAttribute>;
-    content?: ___JSE_XLSX___Node | Array<___JSE_XLSX___Node> | string | number | boolean;
+    content?: ___JSE_XLSX___Node_CONTENT_TYPE | Array<___JSE_XLSX___Node_CONTENT_TYPE>;
 }
 
 export interface ___JSE_XLSX___FileContent {
