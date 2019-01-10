@@ -1,4 +1,4 @@
-# JavaScript-Excel
+# JavaScript-Excel [WIP]
 A lightweight Excel file build API built with :heart:, powered by `JavaScript`
 
 [![npm version](https://badge.fury.io/js/javascript-excel.svg)](https://badge.fury.io/js/javascript-excel)
