@@ -41,7 +41,7 @@
     "@types/jest": "23.3.2",
     "babel-loader": "8.0.0",
     "bundlesize": "0.17.0",
-    "codecov": "3.1.0",
+    "codecov": "3.6.5",
     "jest": "23.6.0",
     "ts-jest": "23.1.4",
     "typescript": "3.0.3"
