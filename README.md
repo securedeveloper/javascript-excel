@@ -6,7 +6,7 @@
 
 ## Goal
 
-A TypeScript library, with no runtime dependencies, for reading and writing `.xlsx` and `.csv` files in browsers, Web Workers and Node. Each feature is documented here once it ships.
+A TypeScript library, with no runtime dependencies, for reading and writing `.xlsx` and `.csv` files in browsers, Web Workers and Node 22+. Each feature is documented here once it ships.
 
 ## Repository layout
 
@@ -17,7 +17,7 @@ A TypeScript library, with no runtime dependencies, for reading and writing `.xl
 
 ## Development
 
-Requires Node 22.18+ or 24.11+ for the toolchain (the published package targets Node 20+).
+The published package supports Node 22 and later. Working on this repository needs Node 22.18+ or 24.11+ (the build tools require it); CI runs on Node 22 and 24.
 
 ```sh
 npm ci

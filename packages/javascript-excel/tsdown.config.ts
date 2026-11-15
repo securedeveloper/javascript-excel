@@ -1,6 +1,9 @@
-import { defineConfig } from "tsdown";
+import { defineConfig, type UserConfig } from "tsdown";
 
-export default defineConfig({
+// `isolatedDeclarations` (tsconfig) makes tsdown emit .d.ts with Oxc, so the
+// declaration build does not depend on the TypeScript compiler API. It also
+// means every export needs an explicit type, including this one.
+const config: UserConfig = defineConfig({
   entry: {
     index: "src/index.ts",
     read: "src/read.ts",
@@ -15,3 +18,5 @@ export default defineConfig({
   sourcemap: false,
   clean: true,
 });
+
+export default config;

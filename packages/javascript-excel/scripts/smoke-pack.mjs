@@ -110,7 +110,11 @@ try {
   writeFileSync(join(app, "esm.mts"), typed);
   writeFileSync(join(app, "cjs.cts"), typed);
   writeFileSync(join(app, "bundler.ts"), typed);
-  const tsc = require.resolve("typescript/bin/tsc");
+  // TypeScript 7 no longer exports `bin/tsc` through its exports map, so locate
+  // the binary from the package's own `bin` field.
+  const tsPkgPath = require.resolve("typescript/package.json");
+  const tsc = join(dirname(tsPkgPath), JSON.parse(readFileSync(tsPkgPath, "utf8")).bin.tsc);
+  console.log(`using tsc ${JSON.parse(readFileSync(tsPkgPath, "utf8")).version}`);
   const strict = ["--strict", "--noEmit"];
   for (const [label, args] of [
     ["node16", ["--module", "node16", "--moduleResolution", "node16", "esm.mts", "cjs.cts"]],

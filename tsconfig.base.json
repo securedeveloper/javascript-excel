@@ -13,6 +13,8 @@
     "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
+    "declaration": true,
+    "isolatedDeclarations": true,
     "noEmit": true
   }
 }
