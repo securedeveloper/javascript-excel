@@ -15,6 +15,8 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   CHECKS as checks,
+  MARKERS,
+  runtimeCheck,
   SUBPATHS,
   TS_MODES,
   packAndInstall,
@@ -51,7 +53,7 @@ try {
       .map(
         ({ spec, name, value }, i) =>
           `import * as m${i} from ${JSON.stringify(spec)};\n` +
-          `if (m${i}.${name} !== ${JSON.stringify(value)}) throw new Error(${JSON.stringify(`${spec} ${name}`)});\n` +
+          `if (!(${runtimeCheck(`m${i}.${name}`, value)})) throw new Error(${JSON.stringify(`${spec} ${name}`)});\n` +
           `console.log("ok import", ${JSON.stringify(spec)});`,
       )
       .join("\n"),
@@ -64,7 +66,7 @@ try {
     checks
       .map(
         ({ spec, name, value }) =>
-          `if (require(${JSON.stringify(spec)}).${name} !== ${JSON.stringify(value)}) throw new Error(${JSON.stringify(`${spec} ${name}`)});\n` +
+          `if (!(${runtimeCheck(`require(${JSON.stringify(spec)}).${name}`, value)})) throw new Error(${JSON.stringify(`${spec} ${name}`)});\n` +
           `console.log("ok require", ${JSON.stringify(spec)});`,
       )
       .join("\n"),
@@ -104,7 +106,7 @@ try {
     .join("\n");
   if (!code.includes(pkg.version)) throw new Error("bundle is missing VERSION");
   for (const sub of SUBPATHS.filter((s) => s !== ".")) {
-    if (code.includes(`javascript-excel/${sub.slice(2)}`)) {
+    if (code.includes(MARKERS[sub])) {
       throw new Error(`bundle still contains ${sub} although it is unused`);
     }
   }

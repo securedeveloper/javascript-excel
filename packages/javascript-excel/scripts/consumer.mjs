@@ -13,20 +13,37 @@ export const pkg = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf8")
 export const SUBPATHS = Object.keys(pkg.exports).filter((k) => k !== "./package.json");
 const specifier = (sub) => (sub === "." ? pkg.name : `${pkg.name}/${sub.slice(2)}`);
 
-// What each subpath must export, by value and by literal type.
+// What each subpath must export. A string, number or boolean is checked by
+// value and by literal type; FUNCTION means "a function", checked with typeof
+// and against a function type.
+export const FUNCTION = Symbol("function");
 const expected = {
   ".": { VERSION: pkg.version },
   "./read": { ENTRY: "javascript-excel/read" },
-  "./csv": { ENTRY: "javascript-excel/csv" },
+  "./csv": { CSV_MIME: "text/csv;charset=utf-8", parseCsv: FUNCTION, readCsv: FUNCTION, toCsv: FUNCTION, toCsvBlob: FUNCTION },
   "./dom": { ENTRY: "javascript-excel/dom" },
   "./worker": { ENTRY: "javascript-excel/worker" },
 };
+
+// A string only that subpath's code contains, so the tree-shaking check can
+// tell whether a bundle kept it.
+export const MARKERS = {
+  "./read": "javascript-excel/read",
+  "./csv": "CSV_STRAY_QUOTE",
+  "./dom": "javascript-excel/dom",
+  "./worker": "javascript-excel/worker",
+};
+
 const missing = SUBPATHS.filter((s) => !(s in expected));
 if (missing.length) throw new Error(`no expectation for subpath ${missing.join(", ")}`);
 
 export const CHECKS = SUBPATHS.flatMap((sub) =>
   Object.entries(expected[sub]).map(([name, value]) => ({ spec: specifier(sub), name, value })),
 );
+
+/** JS expression that is true when `expr` matches the expectation. */
+export const runtimeCheck = (expr, value) =>
+  value === FUNCTION ? `typeof ${expr} === "function"` : `${expr} === ${JSON.stringify(value)}`;
 
 export const run = (cmd, args, cwd) => {
   try {
@@ -80,6 +97,21 @@ void wb;
 `;
 
 /**
+ * CSV API usage: option and result types resolve, the result is typed, and a
+ * Blob-or-structural return type is usable without DOM types.
+ */
+const CSV_FIXTURE = `
+import { parseCsv, readCsv, toCsv, toCsvBlob, type CsvParseResult, type CsvWriteOptions } from ${JSON.stringify(`${pkg.name}/csv`)};
+const parsed: CsvParseResult = parseCsv("a,b\\r\\n1,2\\r\\n", { delimiter: "auto", inferTypes: true, mode: undefined });
+const first: string | number | boolean | Date | object | undefined = parsed.rows[0]?.[0];
+const opts: CsvWriteOptions = { delimiter: ";", bom: undefined, escapeFormulas: true, dates: (d: Date) => d.toISOString() };
+const text: string = toCsv([["x", 1, true, null, undefined, { value: 2, formula: "A1*2" }]], opts);
+const size: number = toCsvBlob([["x"]]).size;
+const later: Promise<CsvParseResult> = readCsv(text, { encoding: "utf-8", signal: undefined });
+void first; void size; void later;
+`;
+
+/**
  * The TypeScript consumer fixture. Each export is assigned to its literal
  * type, so a missing declaration (`any`, TS7016 under --strict) or a wrong
  * type fails the check. The same source is written as .mts (node16/nodenext
@@ -90,10 +122,11 @@ export function writeTypeFixture(app) {
     CHECKS.map(
       ({ spec, name, value }, i) =>
         `import { ${name} as v${i} } from ${JSON.stringify(spec)};\n` +
-        `const t${i}: ${JSON.stringify(value)} = v${i};\nvoid t${i};`,
+        `const t${i}: ${value === FUNCTION ? "(...args: never[]) => unknown" : JSON.stringify(value)} = v${i};\nvoid t${i};`,
     ).join("\n") +
     "\n" +
-    MODEL_FIXTURE;
+    MODEL_FIXTURE +
+    CSV_FIXTURE;
   writeFileSync(join(app, "esm.mts"), typed);
   writeFileSync(join(app, "cjs.cts"), typed);
   writeFileSync(join(app, "bundler.ts"), typed);
