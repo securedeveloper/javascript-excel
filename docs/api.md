@@ -1,6 +1,6 @@
 # javascript-excel 2.0: API design
 
-Status: **draft for review**. No engine code exists yet. Everything below is a proposal until this document is merged, and the "Open questions for review" section (§12) lists the choices that most need a decision.
+Status: **approved** (2026-11-16). This is the design that implementation follows. §12 records the decisions taken in review. Any change to the design is made by editing this document in a PR.
 
 Conventions in this document:
 
@@ -22,7 +22,7 @@ Conventions in this document:
 9. [Versioning, compatibility, runtime support](#9-versioning-compatibility-runtime-support)
 10. [Worked examples](#10-worked-examples)
 11. [Appendix: OOXML reference tables](#11-appendix-ooxml-reference-tables)
-12. [Open questions for review](#12-open-questions-for-review)
+12. [Design decisions](#12-design-decisions)
 
 ---
 
@@ -296,7 +296,7 @@ Elapsed-time formats (`[h]:mm:ss`) are durations, not dates. The reader returns 
 - `formula` is stored verbatim in `<f>`, after the leading `=` is stripped and the text is XML-escaped. The library does not parse or validate it.
 - `value` on a formula cell is the **cached result**, written to `<v>`. Excel recalculates on open. LibreOffice, by default, and file previewers, mail previews and the future viewer show the cached value, so callers should supply one when they know it. `fromDataset` totals compute it (§4.3).
 - When any formula cell has no cached value and `calc.fullCalcOnLoad` is `'auto'` (the default), the writer sets `calcPr/@fullCalcOnLoad="1"`.
-- Functions added after Excel 2007 must carry the `_xlfn.` prefix in the file (for example `_xlfn.XLOOKUP`), or Excel shows `#NAME?`. In 2.0 the writer stores text verbatim and the reader returns it verbatim, prefix included (§12 Q11).
+- Functions added after Excel 2007 must carry the `_xlfn.` prefix in the file (for example `_xlfn.XLOOKUP`), or Excel shows `#NAME?`. In 2.0 the writer stores text verbatim and the reader returns it verbatim, prefix included (§12 Q11). A later 2.x minor adds opt-in auto-prefixing for post-2007 functions, plus a reader option that strips the prefixes for display.
 - **Shared formulas** (`<f t="shared">`): the reader expands them into per-cell formula text by shifting relative A1 references (§12 Q6). **Array formulas** come back as `formula` plus `arrayRef` on the anchor cell; the other cells of the range carry only cached values. Dynamic-array metadata (`metadata.xml`) is not modelled.
 - Maximum formula length is 8,192 characters (Excel limit). The writer does not enforce it.
 
@@ -477,7 +477,7 @@ A cell's written style is a deep merge, with later layers winning field by field
 
 `font`, `alignment`, `protection` and each `border` side merge by field. `fill` and `numFmt` replace as a whole. Excel itself does not inherit like this: each cell's `xf` is complete, and row and column styles only apply to cells created later. The writer therefore resolves each cell's full style. It also writes the row and column styles themselves (`row/@s`, `col/@style`), so new cells typed in Excel pick them up (§12 Q4).
 
-The reader does the reverse: `cell.style` is the cell's own complete `xf`, and `rowProps`/`colProps` carry the row and column styles. It does not try to factor shared parts back out. Cells that use the same `xf` share one frozen `Style` object (§12 Q8). A cell whose `xf` is the default (index 0) has no `style`.
+The reader does the reverse: `cell.style` is the cell's own complete `xf`, and `rowProps`/`colProps` carry the row and column styles. It does not try to factor shared parts back out. Cells that use the same `xf` share one frozen (`Object.freeze`) `Style` object (§12 Q8). To change a style, copy it first: `{ ...cell, style: mergeStyles(cell.style, change) }`. A cell whose `xf` is the default (index 0) has no `style`.
 
 ### 3.6 Sheet view, freeze panes, RTL, autofilter, merges, hyperlinks
 
@@ -610,7 +610,7 @@ export interface LeafColumn<T> {
 }
 
 export interface DatasetOptions<T> {
-  name?: string;                       // sheet name, default 'Sheet1'
+  name?: string;                       // sheet name, default 'Sheet1'; an invalid name throws (§12 Q19)
   origin?: string;                     // top-left cell of the block, default 'A1'
   header?: boolean;                    // write header rows, default true
   headerStyle?: Style;                 // default { font: { bold: true } }
@@ -800,7 +800,7 @@ How the reader works, as far as the API is concerned:
 - The whole archive is held in memory, because the zip central directory sits at the end of the file. Parts are inflated one at a time and streamed through the XML pull tokenizer, so a sheet's XML is never held whole. The shared strings table is held whole.
 - Parts are found through relationships (`_rels/.rels` → workbook → sheets), never by fixed path, so files from Google Sheets, Numbers and LibreOffice, which use different part names, work. Part names are compared case-insensitively, as OPC requires. Absolute and relative relationship targets are both resolved.
 - Cells and rows without an `r` attribute (allowed by the schema) are placed by position. A missing or wrong `<dimension>` is ignored; `sheet.dimension` is computed from the cells.
-- ISO/IEC 29500 Strict files use different namespaces; whether 2.0 reads them is §12 Q9.
+- ISO/IEC 29500 Strict files use different namespaces. JSE-6 reads them by mapping the Strict namespaces to the transitional ones, if that proves cheap. Otherwise the reader throws `UNSUPPORTED_FORMAT` with `details.format: 'strict'` (§12 Q9). The writer writes transitional only.
 
 ### 5.3 CSV (`javascript-excel/csv`)
 
@@ -860,7 +860,7 @@ export function fromTable(table: HTMLTableElement, options?: FromTableOptions): 
 export function download(data: Uint8Array | Blob | string, filename: string, options?: { mimeType?: string }): void;
 
 export interface FromTableOptions {
-  name?: string;                       // sheet name, default 'Sheet1'
+  name?: string;                       // sheet name, default 'Sheet1'; an invalid name throws (§12 Q19)
   /** Which rows are header rows: 'thead' (default) or a fixed row count, or false. Header rows get headerStyle. */
   header?: 'thead' | number | false;
   headerStyle?: Style;                 // default { font: { bold: true } }
@@ -914,13 +914,13 @@ export interface WorkerClient {
 - **Transfer:** results (`Uint8Array`) are transferred back, not copied. Inputs are copied by default. With `transfer: true`, an input `ArrayBuffer` or `Uint8Array` is transferred and becomes detached in the caller. `Blob`s are always cheap to send.
 - The model crosses the boundary through structured clone, which is why it is plain data (§3.1). Functions (dataset accessors, `cell` hooks, `rowStyle`) cannot cross, so `fromDataset` and `fromTable` run on the main thread and the resulting `Sheet` is sent to the worker.
 - Several calls may be in flight on one client; they run one after another in the worker.
-- Node `worker_threads` is not supported by `/worker` in 2.0: Node users call `read`/`toUint8Array` directly, or in their own worker.
+- Node `worker_threads` is not supported by `/worker` in 2.0. Node users call `read`/`toUint8Array` directly, or in their own worker. Support may come in a later minor.
 
 ---
 
 ## 6. Zip codec
 
-Internal. Not exported in 2.0 (§12 Q10).
+Internal. Not exported in 2.0, so its shape can still change; this is revisited when a real need appears (§12 Q10).
 
 ```ts
 /** Compression only. The container format (headers, central directory, CRC-32) is in-house and not pluggable. */
@@ -992,7 +992,7 @@ Aborts are not `ExcelError`s: they reject with `signal.reason`, as `fetch` does.
 | `INVALID_COLUMN` | Validation | `fromDataset`: no usable accessor, or a forbidden path segment |
 | `TOO_MANY_STYLES` | Validation | More than 64,000 distinct cell formats, Excel's limit `[to verify]` |
 | `ZIP64_REQUIRED` | Validation | §6 |
-| `UNSUPPORTED_FORMAT` | Format | `.xls`/encrypted (CFB), `.xlsb`, `.ods`; `details.format` says which |
+| `UNSUPPORTED_FORMAT` | Format | `.xls`/encrypted (CFB), `.xlsb`, `.ods`, and Strict OOXML if not mapped (§5.2); `details.format` says which |
 | `NOT_XLSX` | Format | A zip without a workbook part |
 | `ZIP_INVALID` / `ZIP_UNSUPPORTED_METHOD` / `ZIP_ENCRYPTED` / `ZIP_CRC_MISMATCH` | Format | §6 |
 | `XML_MALFORMED` | Format | Not well-formed XML in a required part |
@@ -1297,44 +1297,44 @@ The style model keeps the familiar shape (`font`, `fill`, `border`, `alignment`,
 
 ---
 
-## 12. Open questions for review
+## 12. Design decisions
 
-Each question has a recommendation. Accepting the recommendation means no change to the text above.
+These were the open questions of the review. Each one is decided, and the sections above state the outcome as the design. The numbering is kept stable so references such as "§12 Q6" stay valid.
 
-**Q1. Node floor. Decided (2026-11-15): Node ≥ 22.** `engines: { "node": ">=22" }`, CI on 22 and 24 (§6, §9.3). Kept here so the question numbers stay stable.
+**Q1. Node floor.** Decided (2026-11-15): **Node ≥ 22**. `engines: { "node": ">=22" }`, CI on 22 and 24 (§6, §9.3). Kept here so the question numbers stay stable.
 
-**Q2. Date time zone default.** `'local'` (a `new Date(2024, 0, 15)` built in the browser shows as 15 Jan in Excel, and read-then-write round-trips in the same zone) or `'utc'` (deterministic across machines; what servers usually want). *Recommendation:* `'local'` by default everywhere, with `dateZone: 'utc'` on every read, write and CSV call. Servers in UTC behave the same either way.
+**Q2. Date time zone default.** Decided (2026-11-16): `'local'` by default everywhere, with `dateZone: 'utc'` available on every read, write and CSV call. A `new Date(2024, 0, 15)` built in the browser shows as 15 Jan in Excel, and read-then-write round-trips in the same zone. Servers running in UTC behave the same either way.
 
-**Q3. Plain-data model vs classes.** A fluent API (`wb.addSheet('A').cell('A1').value = 1`) is friendlier to type but cannot cross `postMessage`, and makes tree-shaking and serialisation harder. *Recommendation:* plain data plus free functions (as designed); a fluent wrapper can come later as a separate entry if users ask for it.
+**Q3. Plain-data model vs classes.** Decided (2026-11-16): plain data plus free functions (§3.1). The model can cross `postMessage`, and stays tree-shakable and serialisable. A fluent wrapper may come later as a separate entry if users ask for it.
 
-**Q4. Style inheritance on write.** Deep-merge `defaultStyle` → column → row → cell into each cell (§3.5.7), or write cell styles exactly as given. *Recommendation:* merge. It matches what users mean by "make column B bold", and `fromDataset` relies on it.
+**Q4. Style inheritance on write.** Decided (2026-11-16): the writer deep-merges `defaultStyle`, then column, then row, then cell into each cell's style (§3.5.7). That is what users mean by "make column B bold", and `fromDataset` relies on it.
 
-**Q5. Number format strings.** Should a string that equals a built-in code (for example `'0.00'`) be written as the built-in id? *Recommendation:* no. Only `'General'` maps to id 0, so a string always renders literally and a number always means the built-in, locale-aware format.
+**Q5. Number format strings.** Decided (2026-11-16): strings are never mapped to built-in ids, except `'General'` to id 0 (§3.5.5). A string always renders literally, and a number always means the built-in, locale-aware format.
 
-**Q6. Shared formulas.** Expanding them needs a small A1 reference shifter (relative refs, `$` anchors, ranges, sheet-qualified refs; structured references and R1C1 left alone). *Recommendation:* build the shifter in JSE-6. When a formula cannot be shifted safely, return the cached value only, with `SHARED_FORMULA_UNRESOLVED`.
+**Q6. Shared formulas.** Decided (2026-11-16): JSE-6 builds a small A1 reference shifter that handles relative refs, `$` anchors, ranges and sheet-qualified refs, and leaves structured references and R1C1 alone. When a formula cannot be shifted safely, the cell carries the cached value only, with warning `SHARED_FORMULA_UNRESOLVED` (§3.4.2, §7.3).
 
-**Q7. `read()` return shape.** `{ workbook, warnings }` or the workbook alone with warnings via callback. *Recommendation:* `{ workbook, warnings }` (as designed). Warnings stay visible without polluting the model, and `onWarning` remains for streaming UIs.
+**Q7. `read()` return shape.** Decided (2026-11-16): `read()` returns `{ workbook, warnings }` (§5.2). Warnings stay visible without polluting the model, and `onWarning` is there for streaming UIs.
 
-**Q8. Shared, frozen style objects in reader output.** Cells with the same `xf` share one `Object.freeze`d `Style`. That is cheap on memory and fast to compare, but `cell.style.font.bold = true` throws in strict mode. *Recommendation:* share and freeze, and document "copy before you edit" (`{ ...cell, style: mergeStyles(cell.style, change) }`).
+**Q8. Shared, frozen style objects in reader output.** Decided (2026-11-16): cells with the same `xf` share one `Object.freeze`d `Style` (§3.5.7). That is cheap on memory and fast to compare. The docs say to copy before editing.
 
-**Q9. ISO/IEC 29500 Strict files.** Rare in the wild; they differ mostly in namespaces. *Recommendation:* read them by namespace mapping if JSE-6 finds it costs little; otherwise throw `UNSUPPORTED_FORMAT` with `details.format: 'strict'`. The writer only writes transitional.
+**Q9. ISO/IEC 29500 Strict files.** Decided (2026-11-16): the reader reads them by namespace mapping if JSE-6 finds that cheap. Otherwise it throws `UNSUPPORTED_FORMAT` with `details.format: 'strict'` (§5.2). The writer writes transitional only.
 
-**Q10. Public `ZipCodec`.** Exporting it would let users plug in fflate for a synchronous path or older runtimes. *Recommendation:* keep it internal in 2.0, so its shape can still change; revisit with the first real request.
+**Q10. Public `ZipCodec`.** Decided (2026-11-16): internal in 2.0, so its shape can still change (§6). It is revisited with the first real request, for example a synchronous fflate path.
 
-**Q11. `_xlfn.` prefixes.** Users who write `XLOOKUP(...)` get `#NAME?` in Excel unless the file says `_xlfn.XLOOKUP`. *Recommendation:* 2.0 writes verbatim and documents it. A 2.x minor adds opt-in auto-prefixing from a list of post-2007 functions, plus a reader option to strip the prefixes for display.
+**Q11. `_xlfn.` prefixes.** Decided (2026-11-16): 2.0 writes and reads formula text verbatim, and the docs explain the prefix (§3.4.2). A 2.x minor adds opt-in auto-prefixing for post-2007 functions, plus a reader option that strips the prefixes for display.
 
-**Q12. CSV BOM default.** *Recommendation:* `bom: true` for `toCsvBlob` (the file goes to Excel, which needs the BOM to detect UTF-8) and `bom: false` for `toCsv` (a string for the program to use).
+**Q12. CSV BOM default.** Decided (2026-11-16): `bom: true` for `toCsvBlob`, because that file goes to Excel, which needs the BOM to detect UTF-8. `bom: false` for `toCsv`, which returns a string for the program to use (§5.3).
 
-**Q13. `toDataset` in 2.0.** *Recommendation:* ship the minimal version in §4.3 (fixed header row, dedup keys, null-prototype rows), which react-data-import builds on. Header auto-detection, multi-row header flattening, column mapping and type inference follow with react-data-import, and live in the engine.
+**Q13. `toDataset` in 2.0.** Decided (2026-11-16): 2.0 ships the minimal version in §4.3: a fixed header row, deduplicated keys and null-prototype rows. Header auto-detection, multi-row header flattening, column mapping and type inference follow with react-data-import, and live in the engine.
 
-**Q14. Number-format rendering.** The viewer, the importer and accurate auto-width all eventually need "render this value with this format code". It is a sizeable module (sections, colours, conditions, fractions, locales). *Recommendation:* not in 2.0. Plan it as `javascript-excel/format` in a 2.x minor; 2.0's `autoWidth` uses `cellText()`.
+**Q14. Number-format rendering.** Decided (2026-11-16): not in 2.0 (§3.5.5). It is planned as `javascript-excel/format` in a 2.x minor. 2.0's `autoWidth` uses `cellText()`.
 
-**Q15. Worker packaging.** The app writes a two-line worker file (§5.5), or the package ships a prebuilt worker script. *Recommendation:* the two-line file. Every major bundler handles `new Worker(new URL(...))` in app code, while a worker shipped in a package depends on the bundler. Node `worker_threads` support can come later.
+**Q15. Worker packaging.** Decided (2026-11-16): the app writes a two-line worker file (§5.5). Every major bundler handles `new Worker(new URL(...))` in app code. Node `worker_threads` support may come later.
 
-**Q16. Hyperlink scheme allowlist.** *Recommendation:* writer defaults to `http`, `https` and `mailto` (§8), configurable via `hyperlinkSchemes`. `fromTable` uses the same list.
+**Q16. Hyperlink scheme allowlist.** Decided (2026-11-16): by default the writer allows `http`, `https` and `mailto`, configurable through `hyperlinkSchemes` (§5.1, §8). `fromTable` uses the same list.
 
-**Q17. `fullCalcOnLoad` default.** *Recommendation:* `'auto'`: set it only when some formula has no cached value, so files that carry every cached value open without forced recalculation.
+**Q17. `fullCalcOnLoad` default.** Decided (2026-11-16): `'auto'`. The writer sets it only when some formula has no cached value (§3.4.2), so files that carry every cached value open without a forced recalculation.
 
-**Q18. `key` vs `path` in column definitions.** One `key` that understands dots (`'a.b'`) breaks keys that contain dots. *Recommendation:* separate `key` (literal) and `path` (nested), as designed. react-data-export may still accept a single field and map it.
+**Q18. `key` vs `path` in column definitions.** Decided (2026-11-16): separate fields, with `key` read literally and `path` for nested data (§4.3). react-data-export may still accept a single field and map it.
 
-**Q19. Default sheet behaviour in builders.** Should `fromDataset` and `fromTable` sanitise an invalid `name` or throw? *Recommendation:* throw, like the core; `sanitizeSheetName()` is exported for callers that take names from user data.
+**Q19. Invalid sheet names in builders.** Decided (2026-11-16): `fromDataset` and `fromTable` throw `INVALID_SHEET_NAME`, like the core. `sanitizeSheetName()` is exported for callers that take names from user data (§4.6).
