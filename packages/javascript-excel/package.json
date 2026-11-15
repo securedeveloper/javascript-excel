@@ -1,0 +1,75 @@
+{
+  "name": "javascript-excel",
+  "version": "2.0.0-alpha.0",
+  "private": false,
+  "description": "Read and write .xlsx and .csv files in browsers, Web Workers and Node. 2.0 is a from-scratch rewrite in progress.",
+  "keywords": [
+    "excel",
+    "xlsx",
+    "csv",
+    "spreadsheet",
+    "typescript"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "Afzal Ahmad",
+    "url": "https://github.com/securedeveloper"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/securedeveloper/javascript-excel.git",
+    "directory": "packages/javascript-excel"
+  },
+  "bugs": {
+    "url": "https://github.com/securedeveloper/javascript-excel/issues"
+  },
+  "homepage": "https://github.com/securedeveloper/javascript-excel#readme",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./read": {
+      "import": "./dist/read.js",
+      "require": "./dist/read.cjs"
+    },
+    "./csv": {
+      "import": "./dist/csv.js",
+      "require": "./dist/csv.cjs"
+    },
+    "./dom": {
+      "import": "./dist/dom.js",
+      "require": "./dist/dom.cjs"
+    },
+    "./worker": {
+      "import": "./dist/worker.js",
+      "require": "./dist/worker.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "publint --strict",
+    "smoke": "node scripts/smoke-pack.mjs"
+  },
+  "devDependencies": {
+    "publint": "0.3.25",
+    "tsdown": "0.23.7",
+    "typescript": "5.9.3",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}

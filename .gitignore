@@ -1,5 +1,13 @@
-.idea
 node_modules/
-lib/
-lib-playground/
+dist/
 coverage/
+*.tgz
+.DS_Store
+.idea/
+.vercel/
+
+# local-only agent files
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.remember/
