@@ -7,7 +7,9 @@
  * default font) and document properties.
  */
 
+import type { BlobType } from "./binary";
 import { EnvironmentError, ValidationError } from "./errors";
+import type { AbortSignalLike } from "./signal";
 import type { Sheet, Workbook } from "./model";
 import { throwIfAborted } from "./internal/zip/bytes";
 import { writeZip, type ZipWriteEntry } from "./internal/zip/write";
@@ -29,12 +31,6 @@ import { StyleRegistry } from "./internal/write/style-registry";
 /** MIME type of an .xlsx file. */
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-/** The parts of AbortSignal the library uses; any AbortSignal fits. */
-export interface AbortSignalLike {
-  readonly aborted: boolean;
-  readonly reason?: unknown;
-}
-
 /** Progress of a write or read. */
 export interface Progress {
   phase: "prepare" | "styles" | "sheets" | "zip" | "unzip" | "parse";
@@ -54,9 +50,6 @@ export interface WriteOptions {
   signal?: AbortSignalLike | undefined;
   onProgress?: ((p: Progress) => void) | undefined;
 }
-
-/** The global Blob type of the consumer's environment (DOM lib or @types/node). */
-export type BlobOf = typeof globalThis extends { Blob: { prototype: infer B } } ? B : never;
 
 /** Report progress at most once per this many rows. [placeholder, set in JSE-8] */
 const PROGRESS_EVERY_ROWS = 1000;
@@ -207,8 +200,8 @@ export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Pr
 }
 
 /** Writes a workbook as an .xlsx Blob (type XLSX_MIME). */
-export async function toBlob(wb: Workbook, options?: WriteOptions): Promise<BlobOf> {
-  const BlobCtor = (globalThis as unknown as { Blob?: new (parts: Uint8Array[], opts: { type: string }) => BlobOf }).Blob;
+export async function toBlob(wb: Workbook, options?: WriteOptions): Promise<BlobType> {
+  const BlobCtor = (globalThis as unknown as { Blob?: new (parts: Uint8Array[], opts: { type: string }) => BlobType }).Blob;
   if (typeof BlobCtor !== "function") {
     throw new EnvironmentError("ENVIRONMENT_UNSUPPORTED", "Blob is not available in this runtime; use toUint8Array instead.", {
       details: { api: "Blob" },

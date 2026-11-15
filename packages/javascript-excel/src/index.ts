@@ -52,7 +52,10 @@ export {
 export type { ExcelErrorCode, ExcelErrorOptions } from "./errors";
 
 export { toBlob, toUint8Array, XLSX_MIME } from "./write";
-export type { AbortSignalLike, BlobOf, Progress, WriteOptions } from "./write";
+export type { Progress, WriteOptions } from "./write";
+export type { BinaryInput, BlobLike, BlobType } from "./binary";
+export type { AbortSignalLike } from "./signal";
+export type { ExcelWarning, ExcelWarningCode } from "./warnings";
 export { dateToSerial, serialToDate } from "./dates";
 export type { DateOptions } from "./dates";
 export { mergeStyles } from "./styles";

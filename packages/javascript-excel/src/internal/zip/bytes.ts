@@ -1,10 +1,9 @@
 /** Byte helpers shared by the zip writer and reader. */
 
-/** The parts of AbortSignal the engine uses (AbortSignal is not in lib ES2022). */
-export interface SignalLike {
-  readonly aborted: boolean;
-  readonly reason?: unknown;
-}
+import type { AbortSignalLike } from "../../signal";
+
+/** The shared abort signal type (src/signal.ts). */
+export type SignalLike = AbortSignalLike;
 
 /** Rejects with `signal.reason`, the same as fetch. */
 export function throwIfAborted(signal: SignalLike | undefined): void {
