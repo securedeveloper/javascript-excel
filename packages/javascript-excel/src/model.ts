@@ -14,42 +14,42 @@ export interface Workbook<C = CellInput> {
   /** At least one sheet (`NO_SHEETS` otherwise). */
   sheets: Sheet<C>[];
   /** Index into `sheets` of the sheet shown when the file opens. Default 0. Must not be hidden. */
-  activeSheet?: number;
+  activeSheet?: number | undefined;
   /** Use the 1904 date system (`workbookPr/@date1904`). Default false (1900 system). */
-  date1904?: boolean;
-  properties?: DocProperties;
-  definedNames?: DefinedName[];
+  date1904?: boolean | undefined;
+  properties?: DocProperties | undefined;
+  definedNames?: DefinedName[] | undefined;
   /** Workbook default font, used for `fonts[0]` in styles.xml and for width maths. Default Calibri 11. */
-  defaultFont?: Font;
+  defaultFont?: Font | undefined;
   /** Reader output only: theme colours and fonts, for resolving theme colours (§3.5.6). Ignored on write in 2.0. */
-  theme?: Theme;
+  theme?: Theme | undefined;
   /** Reader output only: a custom indexed palette (ARGB, index 0..63) from styles.xml, if the file has one. */
-  indexedColors?: string[];
+  indexedColors?: string[] | undefined;
   /** Calculation flags (`calcPr`). `fullCalcOnLoad` write default: `'auto'`. */
-  calc?: { fullCalcOnLoad?: boolean | "auto" };
+  calc?: { fullCalcOnLoad?: boolean | "auto" | undefined } | undefined;
 }
 
 /** Document properties from docProps/core.xml, app.xml and custom.xml. */
 export interface DocProperties {
   // docProps/core.xml (Dublin Core and OPC core properties)
-  title?: string;
-  subject?: string;
-  creator?: string;
-  keywords?: string;
-  description?: string;
-  lastModifiedBy?: string;
-  category?: string;
+  title?: string | undefined;
+  subject?: string | undefined;
+  creator?: string | undefined;
+  keywords?: string | undefined;
+  description?: string | undefined;
+  lastModifiedBy?: string | undefined;
+  category?: string | undefined;
   /** Write default: now. */
-  created?: Date;
+  created?: Date | undefined;
   /** Write default: now. Also used for zip entry timestamps. */
-  modified?: Date;
+  modified?: Date | undefined;
   // docProps/app.xml (extended properties)
-  company?: string;
-  manager?: string;
+  company?: string | undefined;
+  manager?: string | undefined;
   /** Write default: `'javascript-excel'`. */
-  application?: string;
+  application?: string | undefined;
   /** docProps/custom.xml. An array, not an object keyed by name, so file-supplied names are never object keys. */
-  custom?: Array<{ name: string; value: string | number | boolean | Date }>;
+  custom?: Array<{ name: string; value: string | number | boolean | Date }> | undefined;
 }
 
 /** A workbook- or sheet-level defined name. */
@@ -59,9 +59,9 @@ export interface DefinedName {
   /** Formula text without `=`: `"'Sheet 1'!$A$1:$B$4"`. */
   ref: string;
   /** Sheet index when the name is local to a sheet (`localSheetId`). */
-  sheet?: number;
-  hidden?: boolean;
-  comment?: string;
+  sheet?: number | undefined;
+  hidden?: boolean | undefined;
+  comment?: string | undefined;
 }
 
 // ------------------------------------------------------------------- sheet
@@ -73,47 +73,47 @@ export interface Sheet<C = CellInput> {
   /** `rows[r][c]`; both levels may be sparse. Max 1,048,576 rows x 16,384 columns. */
   rows: Array<Array<C | undefined> | undefined>;
   /** Per-row properties, indexed like `rows`. */
-  rowProps?: Array<RowProps | undefined>;
+  rowProps?: Array<RowProps | undefined> | undefined;
   /** Per-column properties, index 0 = column A. */
-  colProps?: Array<ColumnProps | undefined>;
+  colProps?: Array<ColumnProps | undefined> | undefined;
   /** Merged ranges as A1 strings, e.g. `['A1:C1']`. Must not overlap. */
-  merges?: string[];
+  merges?: string[] | undefined;
   /** Autofilter range, e.g. `'A1:F1'`. */
-  autoFilter?: string;
-  view?: SheetView;
-  print?: PrintSetup;
+  autoFilter?: string | undefined;
+  view?: SheetView | undefined;
+  print?: PrintSetup | undefined;
   /** Default `'visible'`. */
-  state?: "visible" | "hidden" | "veryHidden";
-  tabColor?: Color;
+  state?: "visible" | "hidden" | "veryHidden" | undefined;
+  tabColor?: Color | undefined;
   /** Default column width in characters (`sheetFormatPr/@defaultColWidth`). */
-  defaultColWidth?: number;
+  defaultColWidth?: number | undefined;
   /** Default row height in points (`sheetFormatPr/@defaultRowHeight`). */
-  defaultRowHeight?: number;
+  defaultRowHeight?: number | undefined;
   /** Style applied under column, row and cell styles on write (§3.5.7). Not produced by the reader. */
-  defaultStyle?: Style;
+  defaultStyle?: Style | undefined;
   /** Reader output only: the used range computed from the cells read, e.g. `'A1:F120'`. */
-  dimension?: string;
+  dimension?: string | undefined;
 }
 
 /** Row properties. */
 export interface RowProps {
   /** Points, 0..409. */
-  height?: number;
-  hidden?: boolean;
-  style?: Style;
+  height?: number | undefined;
+  hidden?: boolean | undefined;
+  style?: Style | undefined;
   /** 0..7. */
-  outlineLevel?: number;
-  collapsed?: boolean;
+  outlineLevel?: number | undefined;
+  collapsed?: boolean | undefined;
 }
 
 /** Column properties. */
 export interface ColumnProps {
-  width?: ColumnWidth;
-  hidden?: boolean;
-  style?: Style;
+  width?: ColumnWidth | undefined;
+  hidden?: boolean | undefined;
+  style?: Style | undefined;
   /** 0..7. */
-  outlineLevel?: number;
-  collapsed?: boolean;
+  outlineLevel?: number | undefined;
+  collapsed?: boolean | undefined;
 }
 
 /**
@@ -128,43 +128,43 @@ export type ColumnWidth = number | { wch: number } | { wpx: number };
 /** Sheet view settings. */
 export interface SheetView {
   /** Frozen panes: rows above and columns left of the split stay visible. */
-  freeze?: { rows?: number; cols?: number };
+  freeze?: { rows?: number | undefined; cols?: number | undefined } | undefined;
   /** `sheetView/@rightToLeft`: column A on the right. */
-  rightToLeft?: boolean;
+  rightToLeft?: boolean | undefined;
   /** Default true. */
-  showGridLines?: boolean;
+  showGridLines?: boolean | undefined;
   /** Default true. */
-  showRowColHeaders?: boolean;
+  showRowColHeaders?: boolean | undefined;
   /** Percent, 10..400. */
-  zoom?: number;
+  zoom?: number | undefined;
   /** For example `'B2'`. */
-  activeCell?: string;
+  activeCell?: string | undefined;
   /** For example `'B2:D5'`. */
-  selection?: string;
+  selection?: string | undefined;
 }
 
 /** Print setup. */
 export interface PrintSetup {
-  orientation?: "portrait" | "landscape";
+  orientation?: "portrait" | "landscape" | undefined;
   /** Paper size code, e.g. 1 = Letter, 9 = A4. */
-  paperSize?: number;
+  paperSize?: number | undefined;
   /** Fit to N pages wide / tall; 0 = automatic. Sets `sheetPr/pageSetUpPr/@fitToPage`. */
-  fitTo?: { width?: number; height?: number };
+  fitTo?: { width?: number | undefined; height?: number | undefined } | undefined;
   /** Percent, 10..400; ignored when `fitTo` is set. */
-  scale?: number;
+  scale?: number | undefined;
   /** Inches. */
-  margins?: { left?: number; right?: number; top?: number; bottom?: number; header?: number; footer?: number };
-  center?: { horizontal?: boolean; vertical?: boolean };
-  gridLines?: boolean;
-  headings?: boolean;
+  margins?: { left?: number | undefined; right?: number | undefined; top?: number | undefined; bottom?: number | undefined; header?: number | undefined; footer?: number | undefined } | undefined;
+  center?: { horizontal?: boolean | undefined; vertical?: boolean | undefined } | undefined;
+  gridLines?: boolean | undefined;
+  headings?: boolean | undefined;
   /** Written as the `_xlnm.Print_Area` defined name, e.g. `'A1:F40'`. */
-  printArea?: string;
+  printArea?: string | undefined;
   /** Written as `_xlnm.Print_Titles`. Rows `'1:2'`, columns `'A:B'`. */
-  printTitles?: { rows?: string; cols?: string };
+  printTitles?: { rows?: string | undefined; cols?: string | undefined } | undefined;
   /** Raw header strings with Excel's &-codes, e.g. `'&CPage &P of &N'`. */
-  header?: { odd?: string; even?: string; first?: string };
+  header?: { odd?: string | undefined; even?: string | undefined; first?: string | undefined } | undefined;
   /** Raw footer strings with Excel's &-codes. */
-  footer?: { odd?: string; even?: string; first?: string };
+  footer?: { odd?: string | undefined; even?: string | undefined; first?: string | undefined } | undefined;
 }
 
 // ------------------------------------------------------------------- cells
@@ -188,7 +188,7 @@ export interface RichText {
 /** One run of rich text. */
 export interface RichTextRun {
   text: string;
-  font?: Font;
+  font?: Font | undefined;
 }
 
 /** The seven error values defined by ECMA-376. */
@@ -200,18 +200,18 @@ export type CellType = "string" | "number" | "boolean" | "date" | "error" | "ric
 /** A cell with value, formula, style and hyperlink. */
 export interface Cell {
   /** Literal value, or the cached result when `formula` is set. null/undefined = empty (styled if `style` is set). */
-  value?: CellValue | null;
+  value?: CellValue | null | undefined;
   /** Formula text without the leading `=`. A leading `=` is accepted on write and stripped. */
-  formula?: string;
+  formula?: string | undefined;
   /** Array formula (CSE) range, e.g. `'D1:D3'`; set on the anchor cell only. */
-  arrayRef?: string;
+  arrayRef?: string | undefined;
   /**
    * Reader: always set; describes `value` (for formulas, the cached value).
    * Writer: optional. If set, it must match `value` (`INVALID_CELL` otherwise). It is a check, not a coercion.
    */
-  type?: CellType;
-  style?: Style;
-  hyperlink?: Hyperlink;
+  type?: CellType | undefined;
+  style?: Style | undefined;
+  hyperlink?: Hyperlink | undefined;
 }
 
 /**
@@ -220,44 +220,44 @@ export interface Cell {
  * - `{ target }`: external (http, https, mailto, ...).
  * - `{ location }`: internal, `"'Sheet 2'!A1"` or a defined name.
  */
-export type Hyperlink = string | { target: string; tooltip?: string } | { location: string; tooltip?: string };
+export type Hyperlink = string | { target: string; tooltip?: string | undefined } | { location: string; tooltip?: string | undefined };
 
 // ------------------------------------------------------------------- style
 
 /** A cell, row, column or default style. Every field is optional. */
 export interface Style {
-  font?: Font;
-  fill?: Fill;
-  border?: Border;
-  alignment?: Alignment;
-  numFmt?: NumFmt;
+  font?: Font | undefined;
+  fill?: Fill | undefined;
+  border?: Border | undefined;
+  alignment?: Alignment | undefined;
+  numFmt?: NumFmt | undefined;
   /** Only takes effect once sheet protection exists (later release). */
-  protection?: { locked?: boolean; hidden?: boolean };
+  protection?: { locked?: boolean | undefined; hidden?: boolean | undefined } | undefined;
 }
 
 /** Font. */
 export interface Font {
   /** For example `'Calibri'`. */
-  name?: string;
+  name?: string | undefined;
   /** Points. */
-  size?: number;
-  color?: Color;
-  bold?: boolean;
-  italic?: boolean;
+  size?: number | undefined;
+  color?: Color | undefined;
+  bold?: boolean | undefined;
+  italic?: boolean | undefined;
   /** `true` = `'single'`. */
-  underline?: boolean | "single" | "double" | "singleAccounting" | "doubleAccounting";
-  strike?: boolean;
-  vertAlign?: "superscript" | "subscript" | "baseline";
+  underline?: boolean | "single" | "double" | "singleAccounting" | "doubleAccounting" | undefined;
+  strike?: boolean | undefined;
+  vertAlign?: "superscript" | "subscript" | "baseline" | undefined;
   /** Font family class: 0 n/a, 1 Roman, 2 Swiss, 3 Modern, 4 Script, 5 Decorative. */
-  family?: number;
-  charset?: number;
-  scheme?: "major" | "minor" | "none";
+  family?: number | undefined;
+  charset?: number | undefined;
+  scheme?: "major" | "minor" | "none" | undefined;
   /** Mac-only rendering. */
-  outline?: boolean;
+  outline?: boolean | undefined;
   /** Mac-only rendering. */
-  shadow?: boolean;
-  condense?: boolean;
-  extend?: boolean;
+  shadow?: boolean | undefined;
+  condense?: boolean | undefined;
+  extend?: boolean | undefined;
 }
 
 /** A fill. A string is shorthand for a solid fill in that colour: `fill: 'FFFF00'`. */
@@ -265,11 +265,11 @@ export type Fill = string | PatternFill | GradientFill;
 
 /** Pattern fill. */
 export interface PatternFill {
-  type?: "pattern";
+  type?: "pattern" | undefined;
   pattern: PatternType;
   /** Pattern colour. For `'solid'` this is the cell colour (OOXML puts a solid fill in fgColor). */
-  fgColor?: Color;
-  bgColor?: Color;
+  fgColor?: Color | undefined;
+  bgColor?: Color | undefined;
 }
 
 /** `ST_PatternType`, all 19 values. */
@@ -299,35 +299,35 @@ export interface GradientFill {
   type: "gradient";
   gradient: "linear" | "path";
   /** Linear only. */
-  degree?: number;
+  degree?: number | undefined;
   /** Path only, 0..1. */
-  left?: number;
+  left?: number | undefined;
   /** Path only, 0..1. */
-  right?: number;
+  right?: number | undefined;
   /** Path only, 0..1. */
-  top?: number;
+  top?: number | undefined;
   /** Path only, 0..1. */
-  bottom?: number;
+  bottom?: number | undefined;
   /** Positions 0..1. */
   stops: Array<{ position: number; color: Color }>;
 }
 
 /** Cell border; each side is independent. */
 export interface Border {
-  left?: BorderSide;
-  right?: BorderSide;
-  top?: BorderSide;
-  bottom?: BorderSide;
-  diagonal?: BorderSide;
-  diagonalUp?: boolean;
-  diagonalDown?: boolean;
+  left?: BorderSide | undefined;
+  right?: BorderSide | undefined;
+  top?: BorderSide | undefined;
+  bottom?: BorderSide | undefined;
+  diagonal?: BorderSide | undefined;
+  diagonalUp?: boolean | undefined;
+  diagonalDown?: boolean | undefined;
 }
 
 /** One border side. */
 export interface BorderSide {
   style: BorderStyle;
   /** Default: automatic (black). */
-  color?: Color;
+  color?: Color | undefined;
 }
 
 /** `ST_BorderStyle`, all 14 values. */
@@ -349,16 +349,16 @@ export type BorderStyle =
 
 /** Cell alignment. */
 export interface Alignment {
-  horizontal?: "general" | "left" | "center" | "right" | "fill" | "justify" | "centerContinuous" | "distributed";
-  vertical?: "top" | "center" | "bottom" | "justify" | "distributed";
-  wrapText?: boolean;
-  shrinkToFit?: boolean;
+  horizontal?: "general" | "left" | "center" | "right" | "fill" | "justify" | "centerContinuous" | "distributed" | undefined;
+  vertical?: "top" | "center" | "bottom" | "justify" | "distributed" | undefined;
+  wrapText?: boolean | undefined;
+  shrinkToFit?: boolean | undefined;
   /** Indent level, in steps of about three character widths. Excel shows it for left, right and distributed. */
-  indent?: number;
+  indent?: number | undefined;
   /** Degrees, -90..90, positive = counter-clockwise; or `'vertical'` for stacked text. */
-  rotation?: number | "vertical";
-  readingOrder?: "context" | "ltr" | "rtl";
-  justifyLastLine?: boolean;
+  rotation?: number | "vertical" | undefined;
+  readingOrder?: "context" | "ltr" | "rtl" | undefined;
+  justifyLastLine?: boolean | undefined;
 }
 
 /** Number format: a number is a built-in format id (0..163), a string is a format code. */
@@ -372,14 +372,14 @@ export type NumFmt = number | string;
  * - `{ indexed }`: legacy palette 0..63; 64 = system foreground, 65 = system background.
  * - `{ auto: true }`: automatic colour.
  */
-export type Color = string | { rgb: string } | { theme: number; tint?: number } | { indexed: number } | { auto: true };
+export type Color = string | { rgb: string } | { theme: number; tint?: number | undefined } | { indexed: number } | { auto: true };
 
 /** Theme colours and fonts read from xl/theme/theme1.xml. */
 export interface Theme {
   /** ARGB in clrScheme order: dk1, lt1, dk2, lt2, accent1..6, hlink, folHlink. */
   colors: string[];
   /** Major (headings) latin typeface. */
-  majorFont?: string;
+  majorFont?: string | undefined;
   /** Minor (body) latin typeface. */
-  minorFont?: string;
+  minorFont?: string | undefined;
 }

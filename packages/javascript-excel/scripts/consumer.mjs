@@ -54,17 +54,46 @@ export function packAndInstall(work) {
 }
 
 /**
+ * Model types under `exactOptionalPropertyTypes` (runTsc turns it on): every
+ * optional model property is declared `prop?: T | undefined`, so a consumer
+ * may pass an explicit `undefined`, as conditional object literals do.
+ */
+const MODEL_FIXTURE = `
+import type { Cell, Font, Style, Workbook } from ${JSON.stringify(pkg.name)};
+const maybe = (on: boolean): true | undefined => (on ? true : undefined);
+const font: Font = { bold: maybe(false), size: undefined, color: undefined, underline: undefined };
+const style: Style = { font, fill: undefined, numFmt: undefined, protection: { locked: undefined } };
+const cell: Cell = { value: 1, formula: undefined, style, hyperlink: { target: "https://example.com", tooltip: undefined } };
+const wb: Workbook = {
+  sheets: [{
+    name: "S",
+    rows: [[cell, undefined, "x"]],
+    view: { freeze: { rows: 1, cols: undefined }, zoom: undefined },
+    print: { fitTo: { width: 1, height: undefined }, margins: { left: undefined } },
+    state: undefined,
+  }],
+  activeSheet: undefined,
+  properties: { title: undefined, custom: undefined },
+  calc: { fullCalcOnLoad: undefined },
+};
+void wb;
+`;
+
+/**
  * The TypeScript consumer fixture. Each export is assigned to its literal
  * type, so a missing declaration (`any`, TS7016 under --strict) or a wrong
  * type fails the check. The same source is written as .mts (node16/nodenext
  * ESM), .cts (node16/nodenext CJS) and .ts (bundler).
  */
 export function writeTypeFixture(app) {
-  const typed = CHECKS.map(
-    ({ spec, name, value }, i) =>
-      `import { ${name} as v${i} } from ${JSON.stringify(spec)};\n` +
-      `const t${i}: ${JSON.stringify(value)} = v${i};\nvoid t${i};`,
-  ).join("\n");
+  const typed =
+    CHECKS.map(
+      ({ spec, name, value }, i) =>
+        `import { ${name} as v${i} } from ${JSON.stringify(spec)};\n` +
+        `const t${i}: ${JSON.stringify(value)} = v${i};\nvoid t${i};`,
+    ).join("\n") +
+    "\n" +
+    MODEL_FIXTURE;
   writeFileSync(join(app, "esm.mts"), typed);
   writeFileSync(join(app, "cjs.cts"), typed);
   writeFileSync(join(app, "bundler.ts"), typed);
@@ -87,5 +116,5 @@ export function tscBin(tsPkgJsonPath) {
 
 /** Type-check the fixture in `app` with `tsc` under one resolution mode. */
 export function runTsc(tsc, app, mode) {
-  return run(process.execPath, [tsc, "--strict", "--noEmit", "--pretty", "false", ...mode.args], app);
+  return run(process.execPath, [tsc, "--strict", "--exactOptionalPropertyTypes", "--noEmit", "--pretty", "false", ...mode.args], app);
 }

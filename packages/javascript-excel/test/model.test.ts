@@ -42,6 +42,14 @@ const readBack: Workbook<Cell> = {
   theme: { colors: ["FF000000"] },
 };
 
+// Every optional property accepts an explicit undefined (the repo compiles with exactOptionalPropertyTypes).
+const conditional = (on: boolean): true | undefined => (on ? true : undefined);
+const explicitUndefined: Workbook = {
+  sheets: [{ name: "U", rows: [[{ value: 1, style: { font: { bold: conditional(false), size: undefined } }, hyperlink: undefined }]], view: undefined }],
+  activeSheet: undefined,
+  calc: { fullCalcOnLoad: undefined },
+};
+
 // Reader output is valid writer input.
 const asInput: Workbook<CellInput> = readBack;
 
@@ -63,6 +71,7 @@ describe("model", () => {
     expect(clone).toEqual(workbook);
     expect(clone.sheets[0]!.rows[3]![0]).toBeInstanceOf(Date);
     expect(structuredClone(asInput)).toEqual(readBack);
+    expect(explicitUndefined.sheets).toHaveLength(1);
   });
 
   it("keeps the negative-case fixtures referenced", () => {
