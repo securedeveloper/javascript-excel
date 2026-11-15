@@ -8,6 +8,10 @@
 
 A TypeScript library, with no runtime dependencies, for reading and writing `.xlsx` and `.csv` files in browsers, Web Workers and Node 22+. Each feature is documented here once it ships.
 
+## TypeScript
+
+Types are tested with TypeScript 5.0–7. Your `tsconfig.json` must use `moduleResolution` `node16`, `nodenext` or `bundler`, so that TypeScript reads the package's `exports` map. CI type-checks the packed tarball with every TypeScript minor from 5.0 to 7.0 in all three modes.
+
 ## Repository layout
 
 | path | what |
@@ -26,6 +30,7 @@ npm test            # vitest
 npm run build       # package (tsdown) + playground (vite)
 npm run lint        # publint on the package
 npm run smoke       # pack the tarball, install it, import/require every subpath
+npm run consumer-ts # type-check the packed tarball with TypeScript 5.0–7.0
 npm run dev -w apps/playground
 ```
 

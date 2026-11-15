@@ -33,3 +33,17 @@ jobs:
       - run: npm run lint
       - name: Packed-tarball smoke test
         run: npm run smoke
+
+  consumer-ts:
+    name: Consumer TS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w packages/javascript-excel
+      - name: Type-check the packed tarball with TypeScript 5.0–7.0
+        run: npm run consumer-ts

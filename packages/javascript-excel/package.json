@@ -63,7 +63,8 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "publint --strict",
-    "smoke": "node scripts/smoke-pack.mjs"
+    "smoke": "node scripts/smoke-pack.mjs",
+    "consumer-ts": "node scripts/consumer-ts.mjs"
   },
   "devDependencies": {
     "publint": "0.3.25",
