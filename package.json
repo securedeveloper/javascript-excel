@@ -1,65 +1,20 @@
 {
-  "name": "javascript-excel",
-  "author": {
-    "name": "Afzal Ahmad",
-    "email": "securedeveloper@gmail.com",
-    "url": "https://github.com/securedeveloper"
-  },
-  "description": "A lightweight library to build excel sheet with JavaScript",
-  "keywords": [
-    "js-excel",
-    "javascript-excel",
-    "excel",
-    "xlsx",
-    "js-csv",
-    "javascript-csv",
-    "csv"
-  ],
-  "version": "1.0.3",
-  "main": "lib/index.js",
+  "name": "javascript-excel-workspace",
+  "private": true,
+  "description": "Workspace for the javascript-excel library and its playground.",
   "license": "MIT",
-  "scripts": {
-    "build": "npm run clean && npm run test && npm run build:types && npm run build:js",
-    "build:types": "tsc --emitDeclarationOnly",
-    "build:js": "babel src --out-dir lib --extensions \".ts,.tsx\"",
-    "clean": "rm -rf ./lib && mkdir ./lib",
-    "build:watch": "babel -w src --out-dir lib",
-    "prepare": "npm run build",
-    "test": "jest",
-    "test:size": "bundlesize",
-    "coverage:publish": "codecov",
-    "type-check": "tsc --noEmit",
-    "type-check:watch": "npm run type-check -- --watch"
-  },
-  "devDependencies": {
-    "@babel/cli": "7.0.0",
-    "@babel/core": "7.0.0",
-    "@babel/plugin-proposal-class-properties": "7.0.0",
-    "@babel/plugin-proposal-object-rest-spread": "7.0.0",
-    "@babel/preset-env": "7.0.0",
-    "@babel/preset-typescript": "7.0.0",
-    "@types/jest": "23.3.2",
-    "babel-loader": "8.0.0",
-    "bundlesize": "0.17.0",
-    "codecov": "3.1.0",
-    "jest": "23.6.0",
-    "ts-jest": "23.1.4",
-    "typescript": "3.0.3"
-  },
-  "bundlesize": [
-    {
-      "path": "./lib/*.js",
-      "maxSize": "5 kB"
-    }
+  "workspaces": [
+    "packages/*",
+    "apps/*"
   ],
-  "dependencies": {},
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/securedeveloper/javascript-excel.git"
+  "engines": {
+    "node": "^22.18.0 || ^24.11.0 || >=26.0.0"
   },
-  "bugs": {
-    "url": "https://github.com/securedeveloper/javascript-excel/issues",
-    "email": "securedeveloper@gmail.com"
-  },
-  "homepage": "https://github.com/securedeveloper/javascript-excel#readme"
+  "scripts": {
+    "build": "npm -w packages/javascript-excel run build && npm -w apps/playground run build",
+    "test": "npm -w packages/javascript-excel run test",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "npm -w packages/javascript-excel run lint",
+    "smoke": "npm -w packages/javascript-excel run smoke"
+  }
 }
