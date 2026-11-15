@@ -944,7 +944,7 @@ Default implementation: `new CompressionStream('deflate-raw')` and `new Decompre
 What this choice implies for the API:
 
 1. **Async only.** The compression streams have no synchronous form, so `toUint8Array`, `toBlob` and `read` return promises. There is no `writeSync`. A synchronous API could come later through an optional adapter that implements `ZipCodec` (for example on fflate), without changing the model.
-2. **Runtime floor:** any runtime that supports `CompressionStream('deflate-raw')`. The import itself never fails. The first call throws `ENVIRONMENT_UNSUPPORTED` with a clear message when the API is missing (§9.3).
+2. **Runtime floor:** Node.js 22 or later (`engines: { "node": ">=22" }`), and browsers and workers that support `CompressionStream('deflate-raw')` (§9.3). Node 22 ships `deflate-raw` in its global `CompressionStream` `[to verify in JSE-2 on the oldest 22.x in CI]`. Other runtimes work if they have the API. The import itself never fails. The first call throws `ENVIRONMENT_UNSUPPORTED` with a clear message when the API is missing.
 3. **Zero runtime dependencies**, and roughly native compression speed.
 4. **Output size** depends on the platform's deflate implementation (zlib in Chromium and Node). Output can differ by a few bytes between runtimes; content is identical.
 
@@ -1081,17 +1081,19 @@ The limits are on by default. Raising them is an explicit `limits` option, and t
 
 | Runtime | Support | Basis |
 |---|---|---|
-| Node.js 22, 24 | Supported, tested in CI | — |
-| Node.js 20 | See §12 Q1 | Reached end of life on 2026-04-30 |
+| Node.js 22, 24 | Supported, tested in CI | `engines: { "node": ">=22" }` |
+| Node.js 20 and older | Not supported | Node 20 reached end of life on 2026-04-30 |
 | Chrome, Edge | `CompressionStream('deflate-raw')` support required: version 103+ `[to verify in JSE-2]` | Browser test run in CI |
 | Firefox | 113+ `[to verify in JSE-2]` | Browser test run in CI |
 | Safari (macOS, iOS) | 16.4+ | |
 | Web Workers | Same versions as their browser | |
 | Deno, Bun, Cloudflare Workers | Expected to work, untested | Same web APIs |
-| TypeScript | 5.0+ for the published types `[to verify in JSE-1]` | |
+| TypeScript (consumers) | Minimum version not yet verified; see below | Types are built with TypeScript 7 |
 | Bundlers | Vite, webpack 5, Next.js (App Router, SSR), esbuild, Rollup | `exports` map, `sideEffects: false`, no import-time globals |
 
-The floor is set by `deflate-raw` support, which arrived after plain `CompressionStream`: Node added the format in a 21.x release and backported it to 20.x `[to verify in JSE-2: the exact versions]`. `engines` will name whatever version the decision in §12 Q1 picks.
+The floor is set by `deflate-raw` support in `CompressionStream`/`DecompressionStream`. For Node it is fixed at 22 (decided). The browser versions above are the earliest with `deflate-raw` and will be checked against current compatibility data in JSE-2.
+
+**TypeScript.** The library is compiled, and its `.d.ts` files generated, with TypeScript 7. The declarations in this document use only long-established type-system features: interfaces, union and literal types, generics with defaults, `Readonly`/`Record`/`Pick`/`Partial`, and classes. There are no `enum`s, no `namespace`s, no `declare global` and no ambient module augmentation. Nothing depends on compiler options or syntax that TypeScript 7 removed, which concern how code is compiled, not what declarations may contain. Consumers must resolve the package `exports` map, so their `moduleResolution` must be `node16`, `nodenext` or `bundler`. The oldest TypeScript version that can consume the published types is **not yet verified**. JSE-1 will measure it by type-checking a consumer fixture against the packed tarball on a matrix of compiler versions, and the README will state the result. Until then this document makes no claim about TypeScript 5.x or 6.x consumers. Whether to add a `typesVersions` fallback for older resolution modes is decided in JSE-1.
 
 ---
 
@@ -1299,7 +1301,7 @@ The style model keeps the familiar shape (`font`, `fill`, `border`, `alignment`,
 
 Each question has a recommendation. Accepting the recommendation means no change to the text above.
 
-**Q1. Node floor.** Node 20 reached end of life on 2026-04-30, CI tests 22 and 24, and `deflate-raw` came to Node 20 only in a later minor `[to verify]`. *Recommendation:* `engines: { node: ">=22" }`. If Node 20 must stay, the floor is the first 20.x with `deflate-raw`, and it stays untested in CI.
+**Q1. Node floor. Decided (2026-11-15): Node ≥ 22.** `engines: { "node": ">=22" }`, CI on 22 and 24 (§6, §9.3). Kept here so the question numbers stay stable.
 
 **Q2. Date time zone default.** `'local'` (a `new Date(2024, 0, 15)` built in the browser shows as 15 Jan in Excel, and read-then-write round-trips in the same zone) or `'utc'` (deterministic across machines; what servers usually want). *Recommendation:* `'local'` by default everywhere, with `dateZone: 'utc'` on every read, write and CSV call. Servers in UTC behave the same either way.
 
