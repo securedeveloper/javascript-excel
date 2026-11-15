@@ -10,7 +10,8 @@
 // Usage (in CI):
 //   node scripts/release-check.mjs --package <dir> [--notes-out <file>]
 //
-// Writes `release`, `name`, `version`, `dist-tag` and `prerelease` to
+// Writes `release`, `name`, `version`, `dist-tag`, `prerelease` and
+// `published` (name@version already on npm) to
 // $GITHUB_OUTPUT, a one-line verdict to $GITHUB_STEP_SUMMARY and, for a
 // release, the version's CHANGELOG.md section to --notes-out.
 //
@@ -64,7 +65,7 @@ export function npmVersionOk(version, min = MIN_NPM) {
 export function decide({ name, version, previousVersion, publishedVersion, isPrivate = false }) {
   parseVersion(version);
   const distTag = isPrerelease(version) ? "next" : "latest";
-  const base = { name, version, distTag, prerelease: distTag === "next" };
+  const base = { name, version, distTag, prerelease: distTag === "next", published: Boolean(publishedVersion) };
   if (isPrivate) return { ...base, release: false, reason: `${name} is private` };
   if (previousVersion === version) {
     return { ...base, release: false, reason: `version ${version} unchanged since the previous commit` };
@@ -179,6 +180,7 @@ function main() {
         `version=${result.version}`,
         `dist-tag=${result.distTag}`,
         `prerelease=${result.prerelease}`,
+        `published=${result.published}`,
         "",
       ].join("\n"),
     );

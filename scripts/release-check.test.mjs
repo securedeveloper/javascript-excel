@@ -19,17 +19,17 @@ describe("decide", () => {
     {
       title: "changed and unpublished: release on latest",
       input: { version: "1.1.0", previousVersion: "1.0.0", publishedVersion: null },
-      expect: { release: true, distTag: "latest", prerelease: false },
+      expect: { release: true, distTag: "latest", prerelease: false, published: false },
     },
     {
       title: "unchanged: skip",
       input: { version: "1.0.0", previousVersion: "1.0.0", publishedVersion: "1.0.0" },
-      expect: { release: false, distTag: "latest" },
+      expect: { release: false, distTag: "latest", published: true },
     },
     {
       title: "unchanged and unpublished (e.g. 2.0.0-alpha.0 never released): skip",
       input: { version: "2.0.0-alpha.0", previousVersion: "2.0.0-alpha.0", publishedVersion: null },
-      expect: { release: false, distTag: "next" },
+      expect: { release: false, distTag: "next", published: false },
     },
     {
       title: "changed but already on npm (re-run after publish): skip",
