@@ -47,3 +47,31 @@ jobs:
       - run: npm run build -w packages/javascript-excel
       - name: Type-check the packed tarball with TypeScript 5.0–7.0
         run: npm run consumer-ts
+
+  release-dry-run:
+    name: Release dry run
+    runs-on: ubuntu-latest
+    env:
+      PACKAGE_DIR: packages/javascript-excel
+    steps:
+      # On a pull_request, HEAD is the test merge commit and HEAD~1 is the
+      # base branch tip, so the release check below previews what merging
+      # this PR would do.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Release script unit tests
+        run: node --test "scripts/*.test.mjs"
+      - name: Release preview (what merging this would publish)
+        id: check
+        run: node scripts/release-check.mjs --package "$PACKAGE_DIR"
+      - run: npm run build
+      - name: npm pack --dry-run
+        run: npm pack "./$PACKAGE_DIR" --dry-run
+      - name: npm publish --dry-run
+        run: npm publish "./$PACKAGE_DIR" --dry-run --tag "${{ steps.check.outputs.dist-tag }}"

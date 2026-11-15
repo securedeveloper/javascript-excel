@@ -34,6 +34,10 @@ npm run consumer-ts # type-check the packed tarball with TypeScript 5.0–7.0
 npm run dev -w apps/playground
 ```
 
+## Releasing
+
+Versions are managed with [Changesets](https://github.com/changesets/changesets). Merging a pull request that bumps the version publishes it to npm. See [RELEASING.md](RELEASING.md).
+
 ## License
 
 [MIT](LICENSE.md)
