@@ -15,6 +15,7 @@
     "test": "npm -w packages/javascript-excel run test",
     "typecheck": "npm run typecheck --workspaces",
     "lint": "npm -w packages/javascript-excel run lint",
-    "smoke": "npm -w packages/javascript-excel run smoke"
+    "smoke": "npm -w packages/javascript-excel run smoke",
+    "consumer-ts": "npm -w packages/javascript-excel run consumer-ts"
   }
 }
