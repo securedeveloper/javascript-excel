@@ -1,0 +1,218 @@
+/**
+ * xlsx writer (docs/api.md §5.1).
+ *
+ * Writes cells (strings, numbers, booleans, dates, errors, rich text,
+ * formulas with cached values, styled empty cells), the full style model, the
+ * workbook structure (sheet order, names, visibility, active sheet, 1904 dates,
+ * default font) and document properties.
+ */
+
+import { EnvironmentError, ValidationError } from "./errors";
+import type { Sheet, Workbook } from "./model";
+import { throwIfAborted } from "./internal/zip/bytes";
+import { writeZip, type ZipWriteEntry } from "./internal/zip/write";
+import { encodeUtf8 } from "./internal/platform";
+import {
+  appXml,
+  contentTypesXml,
+  coreXml,
+  customXml,
+  rootRelsXml,
+  THEME_XML,
+  workbookRelsXml,
+  workbookXml,
+  type PackagePlan,
+} from "./internal/write/parts";
+import { planRowCount, planSheet, SharedStrings, sheetXml, type SheetPlan, type WriteContext } from "./internal/write/sheet";
+import { StyleRegistry } from "./internal/write/style-registry";
+
+/** MIME type of an .xlsx file. */
+export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/** The parts of AbortSignal the library uses; any AbortSignal fits. */
+export interface AbortSignalLike {
+  readonly aborted: boolean;
+  readonly reason?: unknown;
+}
+
+/** Progress of a write or read. */
+export interface Progress {
+  phase: "prepare" | "styles" | "sheets" | "zip" | "unzip" | "parse";
+  sheet?: string | undefined;
+  /** Overall progress estimate 0..1, non-decreasing. */
+  ratio: number;
+}
+
+/** Options for toUint8Array and toBlob. */
+export interface WriteOptions {
+  /** 'deflate' (default) or 'store' (no compression; faster, bigger). */
+  compression?: "deflate" | "store" | undefined;
+  /** Shared strings table (default true) or inline strings (false). */
+  sharedStrings?: boolean | undefined;
+  /** Time zone used to turn Date into serials. Default 'local'. */
+  dateZone?: "local" | "utc" | undefined;
+  signal?: AbortSignalLike | undefined;
+  onProgress?: ((p: Progress) => void) | undefined;
+}
+
+/** The global Blob type of the consumer's environment (DOM lib or @types/node). */
+export type BlobOf = typeof globalThis extends { Blob: { prototype: infer B } } ? B : never;
+
+/** Report progress at most once per this many rows. [placeholder, set in JSE-8] */
+const PROGRESS_EVERY_ROWS = 1000;
+
+/** Sheet names Excel rejects: 31 characters max, none of \ / ? * [ ] :, no leading or trailing apostrophe. */
+function checkSheetName(name: unknown, index: number): asserts name is string {
+  const fail = (why: string): never => {
+    throw new ValidationError("INVALID_SHEET_NAME", `Sheet ${index + 1} name ${JSON.stringify(name)}: ${why}.`, {
+      details: { sheet: name, index },
+    });
+  };
+  if (typeof name !== "string" || name.length === 0) fail("must be a non-empty string");
+  const n = name as string;
+  if (n.length > 31) fail("longer than 31 characters");
+  if (/[\\/?*[\]:]/.test(n)) fail("contains one of \\ / ? * [ ] :");
+  if (n.startsWith("'") || n.endsWith("'")) fail("starts or ends with an apostrophe");
+  if (n.toLowerCase() === "history") fail("'History' is reserved by Excel");
+}
+
+interface Plan {
+  sheets: SheetPlan[];
+  activeSheet: number;
+  totalRows: number;
+}
+
+function planWorkbook(wb: Workbook): Plan {
+  if (typeof wb !== "object" || wb === null || !Array.isArray(wb.sheets) || wb.sheets.length === 0) {
+    throw new ValidationError("NO_SHEETS", "A workbook needs at least one sheet.");
+  }
+  const seen = new Map<string, number>();
+  wb.sheets.forEach((sheet: Sheet, i) => {
+    if (typeof sheet !== "object" || sheet === null) {
+      throw new ValidationError("INVALID_SHEET_NAME", `Sheet ${i + 1} is not an object.`, { details: { index: i } });
+    }
+    checkSheetName(sheet.name, i);
+    const key = sheet.name.toLowerCase();
+    const prev = seen.get(key);
+    if (prev !== undefined) {
+      throw new ValidationError("DUPLICATE_SHEET_NAME", `Sheets ${prev + 1} and ${i + 1} are both named ${JSON.stringify(sheet.name)} (names are case-insensitive).`, {
+        details: { sheet: sheet.name, index: i },
+      });
+    }
+    seen.set(key, i);
+    const state = sheet.state ?? "visible";
+    if (state !== "visible" && state !== "hidden" && state !== "veryHidden") {
+      throw new ValidationError("INVALID_SHEET_NAME", `Sheet ${sheet.name}: state must be 'visible', 'hidden' or 'veryHidden'.`, {
+        details: { sheet: sheet.name, state },
+      });
+    }
+  });
+  const activeSheet = wb.activeSheet ?? 0;
+  const active = wb.sheets[activeSheet];
+  if (!Number.isInteger(activeSheet) || !active) {
+    throw new ValidationError("INVALID_ACTIVE_SHEET", `activeSheet ${String(activeSheet)} is not a sheet index.`, { details: { activeSheet } });
+  }
+  if ((active.state ?? "visible") !== "visible") {
+    throw new ValidationError("INVALID_ACTIVE_SHEET", `The active sheet ${JSON.stringify(active.name)} must be visible.`, { details: { activeSheet } });
+  }
+  const sheets = wb.sheets.map((s, i) => planSheet(s, i === activeSheet));
+  return { sheets, activeSheet, totalRows: sheets.reduce((n, p) => n + planRowCount(p), 0) };
+}
+
+/** Writes a workbook as .xlsx bytes. */
+export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Promise<Uint8Array> {
+  const { signal, onProgress } = options;
+  throwIfAborted(signal);
+  onProgress?.({ phase: "prepare", ratio: 0 });
+  const plan = planWorkbook(wb);
+  const props = wb.properties ?? {};
+  const now = new Date();
+  const modified = props.modified ?? now;
+  const custom = props.custom ?? [];
+  const sharedStrings = options.sharedStrings !== false;
+  const pkg: PackagePlan = { sheetCount: plan.sheets.length, sharedStrings, customProperties: custom.length > 0 };
+
+  // Properties first: they fail fast and are cheap.
+  const core = coreXml(props, now);
+  const app = appXml(props);
+  const customPart = custom.length > 0 ? customXml(custom) : undefined;
+
+  const ctx: WriteContext = {
+    styles: new StyleRegistry(wb.defaultFont),
+    strings: sharedStrings ? new SharedStrings() : undefined,
+    date1904: wb.date1904 === true,
+    dateZone: options.dateZone ?? "local",
+    formulaWithoutValue: false,
+  };
+
+  let rowsDone = 0;
+  let lastReported = 0;
+  // Sheets take 90% of the estimate; the remaining parts and the zip directory the rest.
+  const ratioOf = (): number => (plan.totalRows === 0 ? 0.9 : 0.9 * (rowsDone / plan.totalRows));
+  const onRow = (sheet: string) => (): void => {
+    rowsDone++;
+    if (onProgress && rowsDone - lastReported >= PROGRESS_EVERY_ROWS) {
+      lastReported = rowsDone;
+      onProgress({ phase: "sheets", sheet, ratio: ratioOf() });
+    }
+  };
+
+  async function* entries(): AsyncGenerator<ZipWriteEntry> {
+    yield { name: "[Content_Types].xml", data: contentTypesXml(pkg) };
+    yield { name: "_rels/.rels", data: rootRelsXml(pkg) };
+    yield { name: "docProps/core.xml", data: core };
+    yield { name: "docProps/app.xml", data: app };
+    if (customPart) yield { name: "docProps/custom.xml", data: customPart };
+    for (let i = 0; i < plan.sheets.length; i++) {
+      const sp = plan.sheets[i]!;
+      const name = sp.sheet.name;
+      onProgress?.({ phase: "sheets", sheet: name, ratio: ratioOf() });
+      const chunks = sheetXml(sp, ctx, onRow(name));
+      yield {
+        name: `xl/worksheets/sheet${i + 1}.xml`,
+        data: (async function* () {
+          for await (const chunk of chunks) {
+            throwIfAborted(signal);
+            yield chunk;
+          }
+        })(),
+      };
+    }
+    // Written after the sheets, which fill the string table and the style registry.
+    onProgress?.({ phase: "styles", ratio: 0.9 });
+    if (ctx.strings) yield { name: "xl/sharedStrings.xml", data: encodeUtf8(ctx.strings.toXml()) };
+    yield { name: "xl/styles.xml", data: ctx.styles.toXml() };
+    yield { name: "xl/theme/theme1.xml", data: THEME_XML };
+    const fullCalc = wb.calc?.fullCalcOnLoad;
+    yield {
+      name: "xl/workbook.xml",
+      data: workbookXml({
+        sheets: plan.sheets.map((p) => ({ name: p.sheet.name, state: p.sheet.state ?? "visible" })),
+        activeSheet: plan.activeSheet,
+        date1904: ctx.date1904,
+        fullCalcOnLoad: fullCalc === true || ((fullCalc === undefined || fullCalc === "auto") && ctx.formulaWithoutValue),
+      }),
+    };
+    yield { name: "xl/_rels/workbook.xml.rels", data: workbookRelsXml(pkg) };
+    onProgress?.({ phase: "zip", ratio: 0.95 });
+  }
+
+  const bytes = await writeZip(entries(), {
+    compression: options.compression ?? "deflate",
+    modified,
+    ...(signal ? { signal } : {}),
+  });
+  onProgress?.({ phase: "zip", ratio: 1 });
+  return bytes;
+}
+
+/** Writes a workbook as an .xlsx Blob (type XLSX_MIME). */
+export async function toBlob(wb: Workbook, options?: WriteOptions): Promise<BlobOf> {
+  const BlobCtor = (globalThis as unknown as { Blob?: new (parts: Uint8Array[], opts: { type: string }) => BlobOf }).Blob;
+  if (typeof BlobCtor !== "function") {
+    throw new EnvironmentError("ENVIRONMENT_UNSUPPORTED", "Blob is not available in this runtime; use toUint8Array instead.", {
+      details: { api: "Blob" },
+    });
+  }
+  return new BlobCtor([await toUint8Array(wb, options)], { type: XLSX_MIME });
+}

@@ -27,6 +27,13 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      - name: Python tools for the golden-file tests (openpyxl)
+        run: |
+          python3 -m venv "$RUNNER_TEMP/py"
+          "$RUNNER_TEMP/py/bin/pip" install --quiet openpyxl==3.1.5
+          echo "JSE_PYTHON=$RUNNER_TEMP/py/bin/python" >> "$GITHUB_ENV"
+      - name: Report LibreOffice availability
+        run: soffice --version || echo "LibreOffice is not installed on this runner; the LibreOffice check is skipped"
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

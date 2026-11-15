@@ -699,7 +699,13 @@ export function validateSheetName(name: string): null | 'empty' | 'too-long' | '
 
 ```ts
 export function toUint8Array(wb: Workbook, options?: WriteOptions): Promise<Uint8Array>;
-export function toBlob(wb: Workbook, options?: WriteOptions): Promise<Blob>; // type: XLSX_MIME
+export function toBlob(wb: Workbook, options?: WriteOptions): Promise<BlobOf>; // type: XLSX_MIME
+
+/** The consumer's global Blob type (DOM lib or @types/node), so the declarations compile without either. */
+export type BlobOf = typeof globalThis extends { Blob: { prototype: infer B } } ? B : never;
+
+/** Any AbortSignal fits; structural so the declarations need no DOM lib. */
+export interface AbortSignalLike { readonly aborted: boolean; readonly reason?: unknown }
 
 export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -712,7 +718,7 @@ export interface WriteOptions {
   dateZone?: 'local' | 'utc';
   /** Allowed URL schemes for external hyperlinks. Default ['http', 'https', 'mailto']. */
   hyperlinkSchemes?: string[];
-  signal?: AbortSignal;
+  signal?: AbortSignalLike;
   onProgress?: (p: Progress) => void;
 }
 
@@ -724,11 +730,11 @@ export interface Progress {
 }
 ```
 
-- Validation runs before any output and throws `ValidationError` (§7). The writer emits no warnings: any input it cannot write faithfully is an error.
+- Invalid input throws `ValidationError` (§7), and no bytes are returned. Workbook-level checks (sheet names, active sheet, document properties) run first. Cells and styles are checked as their sheet is written, which is still before the archive is complete. The writer emits no warnings: any input it cannot write faithfully is an error.
 - Parts written: `[Content_Types].xml`, `_rels/.rels`, `docProps/core.xml`, `docProps/app.xml`, `docProps/custom.xml` (if any), `xl/workbook.xml`, `xl/_rels/workbook.xml.rels`, `xl/styles.xml`, `xl/theme/theme1.xml`, `xl/sharedStrings.xml` (if used), `xl/worksheets/sheetN.xml` and `xl/worksheets/_rels/sheetN.xml.rels` (for hyperlinks).
 - XML is produced as chunk arrays and fed to the compressor in pieces; the whole sheet is never built as one string. The output is assembled in memory, so peak memory is roughly the model plus the compressed file.
 - **Deterministic output:** the same model and options give identical bytes when `properties.created` and `properties.modified` are set. Zip entry timestamps come from `modified`.
-- Abort: rejects with `signal.reason` (a `DOMException` named `AbortError` by default), the same as `fetch`. The writer checks the signal and yields to the event loop between chunks of rows `[chunk size: placeholder, set in JSE-8]`.
+- Abort: rejects with `signal.reason` (a `DOMException` named `AbortError` by default), the same as `fetch`. The writer checks the signal between sheet XML chunks (about 64 K characters each). Explicitly yielding to the event loop, for UI responsiveness on the main thread, is JSE-8 `[chunk size and yield interval: placeholder, set in JSE-8]`.
 - `onProgress` is throttled `[interval: placeholder, set in JSE-8]`.
 
 ### 5.2 Read (`javascript-excel/read`)
@@ -1010,6 +1016,7 @@ Aborts are not `ExcelError`s: they reject with `signal.reason`, as `fetch` does.
 | `OVERLAPPING_MERGE` | Validation | Two merges overlap |
 | `INVALID_COLUMN` | Validation | `fromDataset`: no usable accessor, or a forbidden path segment |
 | `TOO_MANY_STYLES` | Validation | More than 64,000 distinct cell formats, Excel's limit `[to verify]` |
+| `INVALID_PROPERTY` | Validation | A document property is invalid: not a string, an invalid `Date`, a duplicate or empty custom property name, a non-finite number |
 | `ZIP64_REQUIRED` | Validation | §6 |
 | `UNSUPPORTED_FORMAT` | Format | `.xls`/encrypted (CFB), `.xlsb`, `.ods`, and Strict OOXML if not mapped (§5.2); `details.format` says which |
 | `NOT_XLSX` | Format | A zip without a workbook part |
