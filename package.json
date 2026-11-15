@@ -16,6 +16,11 @@
     "typecheck": "npm run typecheck --workspaces",
     "lint": "npm -w packages/javascript-excel run lint",
     "smoke": "npm -w packages/javascript-excel run smoke",
-    "consumer-ts": "npm -w packages/javascript-excel run consumer-ts"
+    "consumer-ts": "npm -w packages/javascript-excel run consumer-ts",
+    "test:release": "node --test \"scripts/*.test.mjs\"",
+    "version-packages": "changeset version && npm install --package-lock-only --no-audit --no-fund"
+  },
+  "devDependencies": {
+    "@changesets/cli": "3.0.3"
   }
 }
