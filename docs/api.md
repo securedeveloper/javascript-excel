@@ -107,7 +107,7 @@ export interface Workbook<C = CellInput> {
   definedNames?: DefinedName[];
   /** Workbook default font, used for fonts[0] in styles.xml and for width maths. Default Calibri 11. */
   defaultFont?: Font;
-  /** Reader output only: theme colours and fonts, for resolving theme colours (§3.8). Ignored on write in 2.0. */
+  /** Reader output only: theme colours and fonts, for resolving theme colours (§3.5.6). Ignored on write in 2.0. */
   theme?: Theme;
   /** Reader output only: a custom indexed palette from styles.xml/colors, if the file has one. */
   indexedColors?: string[];           // ARGB, index 0..63
@@ -944,7 +944,7 @@ Default implementation: `new CompressionStream('deflate-raw')` and `new Decompre
 What this choice implies for the API:
 
 1. **Async only.** The compression streams have no synchronous form, so `toUint8Array`, `toBlob` and `read` return promises. There is no `writeSync`. A synchronous API could come later through an optional adapter that implements `ZipCodec` (for example on fflate), without changing the model.
-2. **Runtime floor:** Node.js 22 or later (`engines: { "node": ">=22" }`), and browsers and workers that support `CompressionStream('deflate-raw')` (§9.3). Node 22 ships `deflate-raw` in its global `CompressionStream` `[to verify in JSE-2 on the oldest 22.x in CI]`. Other runtimes work if they have the API. The import itself never fails. The first call throws `ENVIRONMENT_UNSUPPORTED` with a clear message when the API is missing.
+2. **Runtime floor:** Node.js 22 or later (`engines: { "node": ">=22" }`), and browsers and workers that support `CompressionStream('deflate-raw')` (§9.3). Node has supported `deflate-raw` in its global `CompressionStream` since 21.2.0, so every Node 22 release has it. JSE-2 verified this on Node 22.0.0 and in CI. Other runtimes work if they have the API. The import itself never fails. The first call throws `ENVIRONMENT_UNSUPPORTED` with a clear message when the API is missing.
 3. **Zero runtime dependencies**, and roughly native compression speed.
 4. **Output size** depends on the platform's deflate implementation (zlib in Chromium and Node). Output can differ by a few bytes between runtimes; content is identical.
 
@@ -1083,15 +1083,15 @@ The limits are on by default. Raising them is an explicit `limits` option, and t
 |---|---|---|
 | Node.js 22, 24 | Supported, tested in CI | `engines: { "node": ">=22" }` |
 | Node.js 20 and older | Not supported | Node 20 reached end of life on 2026-04-30 |
-| Chrome, Edge | `CompressionStream('deflate-raw')` support required: version 103+ `[to verify in JSE-2]` | Browser test run in CI |
-| Firefox | 113+ `[to verify in JSE-2]` | Browser test run in CI |
-| Safari (macOS, iOS) | 16.4+ | |
+| Chrome, Edge | 103+ (`CompressionStream('deflate-raw')`) | MDN browser-compat-data (no browser job in CI yet) |
+| Firefox | 113+ | MDN browser-compat-data (no browser job in CI yet) |
+| Safari (macOS, iOS) | 16.4+ | MDN browser-compat-data (no browser job in CI yet) |
 | Web Workers | Same versions as their browser | |
 | Deno, Bun, Cloudflare Workers | Expected to work, untested | Same web APIs |
 | TypeScript (consumers) | 5.0+, `moduleResolution` `node16`, `nodenext` or `bundler` | Types are built with TypeScript 7; CI job `Consumer TS` |
 | Bundlers | Vite, webpack 5, Next.js (App Router, SSR), esbuild, Rollup | `exports` map, `sideEffects: false`, no import-time globals |
 
-The floor is set by `deflate-raw` support in `CompressionStream`/`DecompressionStream`. For Node it is fixed at 22 (decided). The browser versions above are the earliest with `deflate-raw` and will be checked against current compatibility data in JSE-2.
+The floor is set by `deflate-raw` support in `CompressionStream`/`DecompressionStream`. For Node it is fixed at 22 (decided). The browser versions above are the earliest with `deflate-raw` in both `CompressionStream` and `DecompressionStream`, according to MDN browser-compat-data 8.1.9 (checked 2026-11-16 in JSE-2).
 
 **TypeScript.** The library is compiled, and its `.d.ts` files generated, with TypeScript 7. The declarations in this document use only long-established type-system features: interfaces, union and literal types, generics with defaults, `Readonly`/`Record`/`Pick`/`Partial`, and classes. There are no `enum`s, no `namespace`s, no `declare global` and no ambient module augmentation. Nothing depends on compiler options or syntax that TypeScript 7 removed, which concern how code is compiled, not what declarations may contain. Consumers must resolve the package `exports` map, so their `moduleResolution` must bThe oldest TypeScript version that can consume the published types is **5.0**, the first release with `moduleResolution: bundler`. 4.7–4.9 handle `node16`/`nodenext` but not `bundler`. The CI job `Consumer TS` enforces this floor: it type-checks a consumer fixture against the packed tarball with every TypeScript minor from 5.0 to 7.0, under all three modes, with `skipLibCheck` off. If a declaration ever needs a newer compiler, that job fails, and either the floor moves up (README and this table) or the declaration changes. There is no `typesVersions` fallback: it would only serve `moduleResolution: node` (node10), which cannot resolve the `exports` subpaths the code itself is loaded from.resolution modes is decided in JSE-1.
 
