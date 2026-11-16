@@ -351,29 +351,46 @@ function layoutBlock<T>(g: Grid, dataset: Dataset<T>, options: DatasetOptions<T>
   const dataTop = top + headerRows;
   const sampleRows = typeof options.autoWidth === "object" && options.autoWidth.sampleRows !== undefined ? options.autoWidth.sampleRows : Infinity;
   const columnValues: CellValue[][] = leaves.map(() => []);
-  const columnStyles = leaves.map(({ def }) => {
+  const columnStyles: Array<Style | undefined> = leaves.map(({ def }) => {
     const typeFmt: Style | undefined = def.type === "date" ? { numFmt: 14 } : def.type === "datetime" ? { numFmt: 22 } : undefined;
-    return mergeStyles(typeFmt, def.style, def.numFmt !== undefined ? { numFmt: def.numFmt } : undefined);
+    const merged = mergeStyles(typeFmt, def.style, def.numFmt !== undefined ? { numFmt: def.numFmt } : undefined);
+    return Object.keys(merged).length ? merged : undefined;
   });
+  // Style objects are shared, not rebuilt per cell, so the writer's identity cache hits:
+  // a column's style object for every row, and one merged object per (column, rowStyle object)
+  // when rowStyle returns the same objects (banding). Only a cell's own style forces a new merge.
+  const rowMerges = new WeakMap<Style, Array<Style | undefined>>();
+  const styleFor = (col: number, rowStyle: Style | undefined, cellStyle: Style | undefined): Style | undefined => {
+    if (cellStyle) return mergeStyles(columnStyles[col], rowStyle, cellStyle);
+    if (!rowStyle) return columnStyles[col];
+    let perColumn = rowMerges.get(rowStyle);
+    if (!perColumn) rowMerges.set(rowStyle, (perColumn = []));
+    if (!(col in perColumn)) perColumn[col] = mergeStyles(columnStyles[col], rowStyle);
+    return perColumn[col];
+  };
   data.forEach((row, i) => {
     const r = dataTop + i;
     const rowStyle = options.rowStyle?.(row, i);
     for (const { def, col, get } of leaves) {
       const c = left + col;
-      const ref = encodeCell({ row: r, col: c });
+      const refOf = (): string => encodeCell({ row: r, col: c });
       const raw = get(row, i);
       let cell: Cell = isCellObject(raw) ? { ...raw } : { value: raw as CellValue | null | undefined };
       if (!cell.formula) {
         const { value, failed } = coerce(cell.value, def.type);
-        if (failed) warn({ code: "COERCION_FAILED", message: `${sheet}!${ref}: value does not fit type '${def.type}'; written as text.`, sheet, ref });
+        if (failed) {
+          const ref = refOf();
+          warn({ code: "COERCION_FAILED", message: `${sheet}!${ref}: value does not fit type '${def.type}'; written as text.`, sheet, ref });
+        }
         cell.value = value;
       }
       if (typeof cell.value === "number" && !Number.isFinite(cell.value)) {
+        const ref = refOf();
         warn({ code: "NON_FINITE_NUMBER", message: `${sheet}!${ref}: ${String(cell.value)} cannot be stored; the cell is left empty.`, sheet, ref });
         cell = { ...cell, value: null };
       }
-      const style = mergeStyles(columnStyles[col], rowStyle, isCellObject(raw) ? raw.style : undefined);
-      const styled = Object.keys(style).length > 0;
+      const style = styleFor(col, rowStyle, isCellObject(raw) ? raw.style : undefined);
+      const styled = style !== undefined && Object.keys(style).length > 0;
       const out: CellInput = styled ? { ...cell, style } : Object.keys(cell).length === 1 && "value" in cell ? (cell.value as CellInput) : cell;
       if (out !== undefined && out !== null) set(g, r, c, out);
       const v = cell.value;
