@@ -26,6 +26,8 @@ export type ExcelErrorCode =
   | "TOO_MANY_STYLES"
   | "ZIP64_REQUIRED"
   | "INVALID_PROPERTY"
+  | "INVALID_SHEET_PROPERTY"
+  | "INVALID_DEFINED_NAME"
   // FormatError
   | "UNSUPPORTED_FORMAT"
   | "NOT_XLSX"

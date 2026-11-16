@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { toUint8Array, type Workbook } from "../../src/index";
-import { LONG_TEXT, stylesWorkbook, valuesWorkbook } from "./golden-cases";
+import { featuresWorkbook, LONG_TEXT, stylesWorkbook, valuesWorkbook } from "./golden-cases";
 
 const SOFFICE = process.env["JSE_SOFFICE"] ?? "soffice";
 const PY = process.env["JSE_PYTHON"] ?? "python3";
@@ -91,6 +91,53 @@ describe.skipIf(!(hasSoffice && hasOpenpyxl))("LibreOffice headless", () => {
     expect(rows[5]![6]).toBe("0");
     expect(rows[6]!.slice(0, 3)).toEqual(["", "", "typed"]);
     expect(rows[7]![0]).toBe("Bold red plain");
+  });
+
+  it("opens the features workbook and keeps every sheet feature when re-saving", { timeout: 300_000 }, async () => {
+    const file = await write("features", featuresWorkbook());
+    const out = join(dir, "resaved-features");
+    mkdirSync(out, { recursive: true });
+    soffice(["--convert-to", "xlsx", "--outdir", out, file]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = JSON.parse(execFileSync(PY, ["-I", dump, join(out, "features.xlsx")], { encoding: "utf8" })) as any;
+    const r = d.sheetInfo["Report"];
+    // Widths come back rounded to two decimals.
+    const widths = ["A", "B", "C", "D", "E", "F"].map((c) => r.cols[c].width);
+    [20.7109375, 12.7109375, 14.28125, 19.7109375, 10.7109375, 10.7109375].forEach((w, i) => expect(widths[i]).toBeCloseTo(w, 1));
+    expect(r.cols["E"].hidden).toBe(true);
+    expect(r.cols["H"].hidden).toBe(true); // width 0
+    expect(r.cols["F"]).toMatchObject({ outlineLevel: 1, style: { bold: true } });
+    expect(r.rows["1"]).toMatchObject({ height: 30, style: { fill: { rgb: "FFDDEBF7" } } });
+    expect(r.rows["4"].hidden).toBe(true);
+    expect(r.rows["5"].outlineLevel).toBe(2); // (LibreOffice drops the collapsed flag)
+    expect(r.rows["15"].height).toBe(25);
+    expect(r.format).toMatchObject({ defaultRowHeight: 18, outlineLevelRow: 2, outlineLevelCol: 1 });
+    expect(r.merges).toEqual(["A11:D11", "F11:G12"]);
+    expect(r.autoFilter).toBe("A1:D10");
+    expect(r.freeze).toBe("B2");
+    expect(r.view).toMatchObject({ tabSelected: true, zoomScale: 120, showGridLines: false });
+    expect(r.tabColor).toEqual({ rgb: "FFFF0000" });
+    // Targets and locations survive; LibreOffice does not keep hyperlink tooltips.
+    expect(Object.fromEntries(Object.entries(r.hyperlinks).map(([k, v]) => [k, (v as { target: string | null; location: string | null }).target ?? (v as { location: string }).location]))).toEqual({
+      A2: "https://example.com/a?b=1&c=2",
+      B2: "mailto:someone@example.com",
+      C2: "'Second'!A1",
+      D2: "https://example.com/a?b=1&c=2",
+    });
+    expect(r.pageSetup).toMatchObject({ orientation: "landscape", paperSize: 9, fitToWidth: 1, fitToHeight: 0 });
+    expect(r.fitToPage).toBe(true);
+    // (LibreOffice adjusts the top margin for the header area, so only the others are compared.)
+    expect(r.margins).toMatchObject({ left: 0.5, right: 0.7, bottom: 0.75 });
+    expect(r.printOptions).toEqual({ horizontalCentered: true, verticalCentered: false, headings: true, gridLines: true });
+    expect([r.printArea, r.printTitleRows, r.printTitleCols]).toEqual(["'Report'!$A$1:$D$20", "$1:$1", "$A:$A"]);
+    expect(r.headerFooter).toMatchObject({ oddHeader: { center: "Report" }, oddFooter: { right: "Page &P of &N" }, firstFooter: { center: "First page" }, differentFirst: true });
+    expect(d.definedNames["TaxRate"].ref.replace(/'/g, "")).toBe("Report!$B$2");
+    expect(d.sheetInfo["Second"].definedNames["LocalName"]).toMatchObject({ ref: "Second!$A$1", hidden: true });
+    expect(d.sheetInfo["Second"].view.rightToLeft).toBe(true);
+    expect(d.sheetInfo["Second"].cols["B"]).toMatchObject({ min: 2, max: 16384 });
+    expect(d.cells["Second"]["A1"].font).toMatchObject({ bold: true, italic: true });
+    expect(d.sheetInfo["Frozen rows"].freeze).toBe("A3");
+    expect(d.sheetInfo["Frozen cols"].freeze).toBe("C1");
   });
 
   it("opens the styles workbook and keeps every style when re-saving", { timeout: 300_000 }, async () => {

@@ -81,3 +81,71 @@ export function stylesWorkbook(): Workbook {
     ],
   };
 }
+
+/** Every sheet feature: widths, heights, outline, merges, filter, views, links, names, print. */
+export function featuresWorkbook(): Workbook {
+  const data = Array.from({ length: 8 }, (_, i) => [`Item ${i + 1}`, i * 10, i * 2.5, `note ${"x".repeat(i)}`, "hidden col", i, "", "zero"]);
+  return {
+    properties: { created: new Date(0), modified: new Date(0) },
+    activeSheet: 0,
+    definedNames: [
+      { name: "TaxRate", ref: "'Report'!$B$2" },
+      { name: "LocalName", ref: "=Second!$A$1", sheet: 1, hidden: true, comment: "local to Second" },
+    ],
+    sheets: [
+      {
+        name: "Report",
+        tabColor: "FF0000",
+        defaultColWidth: 10,
+        defaultRowHeight: 18,
+        rows: [
+          ["Name", "Qty", "Price", "Notes — 漢字 wide", "Hidden", "Grouped", "", "Zero"],
+          [
+            { value: "site", hyperlink: "https://example.com/a?b=1&c=2" },
+            { value: "mail", hyperlink: { target: "mailto:someone@example.com", tooltip: "Write to us" } },
+            { value: "jump", hyperlink: { location: "'Second'!A1", tooltip: "go" } },
+            { value: "same site", hyperlink: "https://example.com/a?b=1&c=2" },
+          ],
+          ...data,
+          ["merged across", undefined, undefined, undefined, undefined, "merged block"],
+        ],
+        colProps: [
+          { width: 20 },
+          { width: { wch: 12 } },
+          { width: { wpx: 100 } },
+          { width: "auto" },
+          { hidden: true },
+          { outlineLevel: 1, style: { font: { bold: true } } },
+          undefined,
+          { width: 0 },
+        ],
+        rowProps: [{ height: 30, style: { fill: "DDEBF7" } }, undefined, undefined, { hidden: true }, { outlineLevel: 2, collapsed: true }, ...Array<undefined>(9), { height: 25 }],
+        merges: ["A11:D11", "F11:G12"],
+        autoFilter: "A1:D10",
+        view: { freeze: { rows: 1, cols: 1 }, zoom: 120, showGridLines: false },
+        print: {
+          orientation: "landscape",
+          paperSize: 9,
+          fitTo: { width: 1 },
+          margins: { left: 0.5, top: 1 },
+          center: { horizontal: true },
+          gridLines: true,
+          headings: true,
+          printArea: "A1:D20",
+          printTitles: { rows: "1:1", cols: "A:A" },
+          header: { odd: "&CReport" },
+          footer: { odd: "&RPage &P of &N", first: "&CFirst page" },
+        },
+      },
+      {
+        name: "Second",
+        defaultStyle: { font: { italic: true } },
+        colProps: [{ style: { font: { bold: true } } }],
+        view: { rightToLeft: true },
+        rows: [["RTL sheet"], [undefined, "plain"]],
+      },
+      { name: "Frozen rows", view: { freeze: { rows: 2 }, activeCell: "B5", selection: "B5:C6" }, rows: [["a"], ["b"], ["c"]] },
+      { name: "Frozen cols", view: { freeze: { cols: 2 } }, rows: [["a", "b", "c"]] },
+    ],
+  };
+}

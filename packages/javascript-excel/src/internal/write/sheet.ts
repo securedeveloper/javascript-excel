@@ -12,6 +12,9 @@ import type { Cell, CellInput, CellType, CellValue, ErrorCode, RichText, Sheet, 
 import { encodeUtf8 } from "../platform";
 import { needsPreserve, num, XML_DECL, xstring } from "../xml";
 import { mergeStyles } from "../../styles";
+import { cellText } from "../../cells";
+import { Rels } from "./package";
+import { hyperlinkOf, SheetFeatures, SheetLinks } from "./sheet-features";
 import { fontXml, type NFont, type StyleRegistry } from "./style-registry";
 
 const NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
@@ -106,6 +109,10 @@ function typeOf(v: CellValue | null | undefined): CellType {
 
 export interface SheetPlan {
   sheet: Sheet;
+  features: SheetFeatures;
+  links: SheetLinks;
+  /** The sheet's relationships (xl/worksheets/_rels/sheetN.xml.rels). */
+  rels: Rels;
   /** Used range, or undefined for an empty sheet. */
   minRow: number;
   maxRow: number;
@@ -114,9 +121,25 @@ export interface SheetPlan {
   tabSelected: boolean;
 }
 
-/** Scans a sheet for its used range and checks the format's row and column limits. */
-export function planSheet(sheet: Sheet, tabSelected: boolean): SheetPlan {
-  const plan: SheetPlan = { sheet, minRow: Infinity, maxRow: -1, minCol: Infinity, maxCol: -1, tabSelected };
+/**
+ * Validates a sheet's features, scans its cells for the used range (checking
+ * the format's row and column limits) and measures 'auto' column widths.
+ */
+export function planSheet(sheet: Sheet, index: number, tabSelected: boolean, styles: StyleRegistry, schemes: ReadonlySet<string>): SheetPlan {
+  const features = new SheetFeatures(sheet, index, tabSelected, styles);
+  const rels = new Rels();
+  const plan: SheetPlan = {
+    sheet,
+    features,
+    rels,
+    links: new SheetLinks(sheet.name, schemes, rels),
+    minRow: Infinity,
+    maxRow: -1,
+    minCol: Infinity,
+    maxCol: -1,
+    tabSelected,
+  };
+  const measuring = features.autoCols.size > 0;
   const rows = sheet.rows;
   if (!Array.isArray(rows)) {
     throw new ValidationError("INVALID_CELL", `Sheet ${sheet.name}: rows must be an array of rows.`, { details: { sheet: sheet.name } });
@@ -135,6 +158,7 @@ export function planSheet(sheet: Sheet, tabSelected: boolean): SheetPlan {
         throw new ValidationError("OUT_OF_BOUNDS", `Sheet ${sheet.name}: column ${c + 1} is beyond XFD.`, { details: { sheet: sheet.name, row: r, col: c } });
       }
       used = true;
+      if (measuring) features.measure(c, cellText(cell));
       if (c < plan.minCol) plan.minCol = c;
       if (c > plan.maxCol) plan.maxCol = c;
     }
@@ -153,9 +177,16 @@ export function planRowCount(plan: SheetPlan): number {
   return plan.maxRow < 0 ? 0 : plan.maxRow - plan.minRow + 1;
 }
 
+/** First and last row to write: rows with cells and rows with properties. */
+function rowSpan(plan: SheetPlan): [number, number] {
+  let first = plan.maxRow < 0 ? Infinity : plan.minRow;
+  for (const r of plan.features.rowAttrs.keys()) if (r < first) first = r;
+  return [first, Math.max(plan.maxRow, plan.features.maxPropRow)];
+}
+
 /** Streams the worksheet XML as UTF-8 chunks. `onRow` is called after each row with data. */
 export async function* sheetXml(plan: SheetPlan, ctx: WriteContext, onRow: () => void): AsyncGenerator<Uint8Array> {
-  const { sheet } = plan;
+  const { sheet, features, links } = plan;
   const name = sheet.name;
   const dimension =
     plan.maxRow < 0
@@ -166,9 +197,11 @@ export async function* sheetXml(plan: SheetPlan, ctx: WriteContext, onRow: () =>
 
   let buf =
     `${XML_DECL}<worksheet xmlns="${NS_MAIN}" xmlns:r="${NS_REL}">` +
+    features.sheetPrXml +
     `<dimension ref="${dimension}"/>` +
-    `<sheetViews><sheetView${plan.tabSelected ? ' tabSelected="1"' : ""} workbookViewId="0"/></sheetViews>` +
-    `<sheetFormatPr defaultRowHeight="15"/>` +
+    features.sheetViewsXml +
+    features.sheetFormatPrXml +
+    features.colsXml() +
     "<sheetData>";
 
   const colLetters: string[] = [];
@@ -178,28 +211,34 @@ export async function* sheetXml(plan: SheetPlan, ctx: WriteContext, onRow: () =>
   const colProps = sheet.colProps;
   const rowProps = sheet.rowProps;
 
-  for (let r = plan.minRow; r <= plan.maxRow; r++) {
+  const rowAttrs = features.rowAttrs;
+  const [firstRow, lastRow] = rowSpan(plan);
+  for (let r = firstRow; r <= lastRow; r++) {
     const row = rows[r];
-    if (!row) continue;
+    const attrs = rowAttrs.get(r) ?? "";
+    if (!row && !attrs) continue;
     const rowStyle = rowProps?.[r]?.style;
     const rowNum = r + 1;
     let rowXml = "";
-    for (let c = 0; c < row.length; c++) {
-      const input = row[c];
-      if (input === undefined || input === null) continue;
-      const ref = `${letters(c)}${rowNum}`;
-      rowXml += cellXml(input, ref, name, ctx, [defaultStyle, colProps?.[c]?.style, rowStyle]);
+    if (row) {
+      for (let c = 0; c < row.length; c++) {
+        const input = row[c];
+        if (input === undefined || input === null) continue;
+        const ref = `${letters(c)}${rowNum}`;
+        rowXml += cellXml(input, ref, name, ctx, [defaultStyle, colProps?.[c]?.style, rowStyle]);
+        links.add(ref, hyperlinkOf(input));
+      }
     }
-    if (rowXml) {
-      buf += `<row r="${rowNum}">${rowXml}</row>`;
-      onRow();
+    if (rowXml || attrs) {
+      buf += rowXml ? `<row r="${rowNum}"${attrs}>${rowXml}</row>` : `<row r="${rowNum}"${attrs}/>`;
+      if (rowXml) onRow();
       if (buf.length >= CHUNK_CHARS) {
         yield encodeUtf8(buf);
         buf = "";
       }
     }
   }
-  buf += "</sheetData></worksheet>";
+  buf += `</sheetData>${features.afterDataXml(links)}</worksheet>`;
   yield encodeUtf8(buf);
 }
 

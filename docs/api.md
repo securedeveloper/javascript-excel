@@ -23,6 +23,7 @@ Conventions in this document:
 10. [Worked examples](#10-worked-examples)
 11. [Appendix: OOXML reference tables](#11-appendix-ooxml-reference-tables)
 12. [Design decisions](#12-design-decisions)
+13. [Roadmap beyond 2.0](#13-roadmap-beyond-20)
 
 ---
 
@@ -39,15 +40,19 @@ Conventions in this document:
 7. **Serve the consumers:** dataset export (`{ columns, data }`), HTML table export, file import back to `{ columns, data }`, and a future read-only viewer that needs styles, merges, sizes, freeze panes, number formats and formula text with cached values.
 8. **Faithful output:** files open in Excel (Windows and Mac), LibreOffice, Numbers and Google Sheets without a repair prompt.
 
-### Non-goals
+### Non-goals for 2.0
 
-- **Lossless round-trip of arbitrary files.** `write(read(file))` keeps everything in the model below. Parts the model does not cover (charts, drawings, pivots, comments, and so on) are dropped, with a warning on read. There is no "pass unknown parts through" mode in 2.0.
-- **Formula evaluation.** Formulas are stored as text with their cached values. Evaluation is a separate, later module.
+The first two are later phases (§13), not permanent exclusions.
+
+- **Lossless round-trip of arbitrary files.** `write(read(file))` keeps everything in the model below. Parts the model does not cover (charts, drawings, pivots, comments, and so on) are dropped, with a warning on read. There is no "pass unknown parts through" mode in 2.0; preserving unknown parts is planned for 2.x.
+- **Formula evaluation.** Formulas are stored as text with their cached values. Evaluation is a separate, later module (3.x).
 - **A synchronous API.** All file I/O is `async` (§6).
 - **Pixel-exact layout.** Column widths, auto-width and row heights use the spec's character-width formulas, not font metrics.
 - **Compatibility with the 1.x API.** 2.0 is a rewrite. The 1.x constructor that took injected `jszip` / `saveAs` instances is gone.
 
 ### Out of scope for 2.0
+
+The project's end goal is to read, write and view every kind of Excel and CSV file. Everything below is therefore a **phase boundary, not a permanent non-goal**: §13 places each item in a later phase, and 2.0's design must not close the door on any of them.
 
 | Feature | Notes |
 |---|---|
@@ -146,6 +151,8 @@ export interface DefinedName {
 }
 ```
 
+**Defined names** follow Excel's rules (`INVALID_DEFINED_NAME` otherwise): the name starts with a letter, `_` or `\`, continues with letters, digits, `.`, `_`, `\` or `?`, is at most 255 characters, and is not a cell reference (`A1`, `XFD1048576`), an R1C1 reference or `R`/`C` on its own. Names are unique per scope (workbook, or `sheet`), case-insensitively, and `ref` is formula text, not validated further. Names starting with `_xlnm.` are reserved for the writer.
+
 Print areas, print titles and the autofilter database are defined names in OOXML (`_xlnm.Print_Area`, `_xlnm.Print_Titles`, `_xlnm._FilterDatabase`). The model exposes them as sheet properties (§3.6, §3.7). The writer generates those defined names, and the reader maps them back and does not repeat them in `definedNames`.
 
 ### 3.3 Sheet
@@ -196,9 +203,10 @@ export interface ColumnProps {
 /**
  * number or { wch } = width in characters, as Excel's UI shows it (8.43 is the Calibri 11 default).
  * { wpx }           = width in pixels at 96 dpi.
+ * 'auto'            = estimated by the writer from the column's text.
  * Reader output is always a number in characters.
  */
-export type ColumnWidth = number | { wch: number } | { wpx: number };
+export type ColumnWidth = number | { wch: number } | { wpx: number } | 'auto';
 ```
 
 **Column width conversion** (ECMA-376 §18.3.1.13, `col/@width`). The file stores the width including padding. With the maximum digit width `MDW` of the default font:
@@ -207,7 +215,12 @@ export type ColumnWidth = number | { wch: number } | { wpx: number };
 - pixels to file width: `width = Truncate(((wpx - 5) / MDW) * 100 + 0.5) / 100`, then the formula above
 - file width to pixels (reader): `wpx = Truncate(((256 * width + Truncate(128 / MDW)) / 256) * MDW)`
 
-`MDW = 7` px for Calibri 11, the default font `[to verify in JSE-4 against Excel's output: 8.43 characters should give width="9.140625"]`. The model's character unit is the one Excel's UI shows. The maximum width is 255 characters.
+`MDW = 7` px for Calibri 11, the default font. With it, the formula turns Excel's default 8.43 characters into `width="9.140625"`, the value Excel files carry for default-width columns (unit-tested). The JSE-9 check confirms it in Excel itself. The writer uses `MDW = 7` whatever the default font is `[to verify for other default fonts]`. The model's character unit is the one Excel's UI shows. The maximum width is 255 characters.
+
+- **`'auto'`** measures `cellText()` of every cell in the column (the widest line; East Asian wide characters and emoji count two), adds 2 characters of padding and clamps the result to 8.43..60 characters. 60 is a readability choice made in JSE-4, not a measurement. It writes `bestFit="1"`. Number formats and fonts are not taken into account.
+- **Width 0** also writes `hidden="1"`, as Excel does for a zero-width column. A row `height` of 0 likewise hides the row.
+- **Columns without `colProps`** get no `<col>` element, unless the sheet has a `defaultStyle`, which is written as a `<col>` covering those columns through `XFD`. Consecutive columns with identical properties share one `<col min max>`. Column and row styles are written on `<col style>` and `<row s customFormat>` as well as being merged into the cells (§3.5.7).
+- Every `colProps` and `rowProps` field is validated (`INVALID_SHEET_PROPERTY`): widths 0..255 characters, heights 0..409 points, `outlineLevel` 0..7, booleans. `sheetFormatPr` carries the default sizes and the highest outline levels.
 
 **Sheet names.** The writer throws `INVALID_SHEET_NAME` unless the name:
 
@@ -499,7 +512,9 @@ export interface SheetView {
 - `rightToLeft` flips the sheet. It is separate from `alignment.readingOrder`, which sets text direction per cell.
 - `autoFilter: 'A1:F1'` writes `<autoFilter ref>` and the hidden defined name `_xlnm._FilterDatabase`, local to the sheet. Filter criteria are not modelled.
 - `merges`: the writer throws `OVERLAPPING_MERGE` when ranges overlap, which Excel would otherwise repair. Values in covered cells (every cell but the top-left) are written as given. Excel keeps them hidden.
-- Hyperlinks are set per cell (`Cell.hyperlink`). The writer collects them into `<hyperlinks>`. External targets go to the sheet's relationships with `TargetMode="External"`. Internal locations use `@location`. The cell's value is the display text. A hyperlink in a file whose `ref` spans a range is attached to its top-left cell, with warning `HYPERLINK_RANGE_REDUCED`.
+- `view.activeCell` and `view.selection` write a `<selection>` element, in the active pane when panes are frozen (the active cell defaults to the pane's top-left cell). `zoom` writes `zoomScale` and `zoomScaleNormal`.
+- `tabColor` takes any `Color` and is written in `sheetPr`.
+- Hyperlinks are set per cell (`Cell.hyperlink`). The writer collects them into `<hyperlinks>`. External targets go to the sheet's relationships (`xl/worksheets/_rels/sheetN.xml.rels`, one relationship per distinct URL) with `TargetMode="External"`. Internal locations use `@location`. The cell's value is the display text, and the cell keeps its own style (no automatic blue underline). External targets must have a scheme in `WriteOptions.hyperlinkSchemes`, matched case-insensitively (default `http`, `https`, `mailto`). URLs without a scheme (relative paths), and URLs with control characters, throw `INVALID_HYPERLINK`. A hyperlink in a file whose `ref` spans a range is attached to its top-left cell, with warning `HYPERLINK_RANGE_REDUCED`.
 
 ### 3.7 Print setup
 
@@ -525,7 +540,7 @@ export interface PrintSetup {
 }
 ```
 
-"Fit to width" is `fitTo: { width: 1, height: 0 }`.
+"Fit to width" is `fitTo: { width: 1 }`. A `fitTo` side that is omitted is written as 0 (automatic). Excel's own default for a missing attribute is 1, so the writer always writes both. `<pageMargins>` is always written, with Excel's "Normal" margins (0.7, 0.7, 0.75, 0.75, 0.3, 0.3 inches) for any side not given. `<pageSetup>`, `<printOptions>` and `<headerFooter>` are written only when set. An even header or footer sets `differentOddEven`, and a first-page one sets `differentFirst`.
 
 ---
 
@@ -554,7 +569,7 @@ Out-of-bounds or malformed refs throw `INVALID_REF`.
 ```ts
 export function getCell<C>(sheet: Sheet<C>, ref: string | CellAddress): C | undefined;
 export function setCell<C>(sheet: Sheet<C>, ref: string | CellAddress, cell: C): void;   // mutates sheet.rows
-export function cellText(cell: CellInput): string;   // plain text: rich text joined, errors as '#N/A', dates ISO 8601
+export function cellText(cell: CellInput, options?: { dateZone?: 'local' | 'utc' }): string; // rich text joined, errors as '#N/A', dates ISO 8601, formulas as their cached value
 ```
 
 ### 4.3 `fromDataset`: the `{ columns, data }` shape
@@ -626,7 +641,7 @@ export interface DatasetOptions<T> {
 
 export interface AutoWidthOptions {
   min?: number;                        // characters, default 8.43 (Excel default)
-  max?: number;                        // characters, default 60 [placeholder, set in JSE-4]; cap 255
+  max?: number;                        // characters, default 60 (a readability choice made in JSE-4, not a measurement); cap 255
   sampleRows?: number;                 // rows measured, default all [placeholder, set in JSE-8]
 }
 ```
@@ -998,6 +1013,8 @@ Aborts are not `ExcelError`s: they reject with `signal.reason`, as `fetch` does.
 |---|---|---|
 | `NO_SHEETS` | Validation | Workbook has no sheets |
 | `INVALID_SHEET_NAME` / `DUPLICATE_SHEET_NAME` | Validation | §3.3 |
+| `INVALID_SHEET_PROPERTY` | Validation | A sheet property is out of range or of the wrong type: `colProps`, `rowProps`, default sizes, `view`, `print`, `state`; `details.path` names it |
+| `INVALID_DEFINED_NAME` | Validation | A defined name breaks Excel's naming rules, is reserved (`_xlnm.`), is duplicated in its scope, or has an empty `ref` or a bad `sheet` |
 | `INVALID_ACTIVE_SHEET` | Validation | Out of range, or the sheet is hidden |
 | `INVALID_REF` | Validation | Malformed A1 reference or range |
 | `OUT_OF_BOUNDS` | Validation | Row or column beyond the format limits |
@@ -1007,7 +1024,7 @@ Aborts are not `ExcelError`s: they reject with `signal.reason`, as `fetch` does.
 | `STRING_TOO_LONG` | Validation | More than 32,767 characters in a cell |
 | `INVALID_STYLE` | Validation | Bad colour string, unknown enum value, out-of-range number |
 | `INVALID_NUMFMT` | Validation | Empty code, or an id outside 0..163 given as a number |
-| `INVALID_HYPERLINK` | Validation | Scheme not in `hyperlinkSchemes` (e.g. `javascript:`), or malformed |
+| `INVALID_HYPERLINK` | Validation | Scheme not in `hyperlinkSchemes` (e.g. `javascript:`), no scheme (a relative path), control characters, an empty target or location, or an invalid `hyperlinkSchemes` option |
 | `OVERLAPPING_MERGE` | Validation | Two merges overlap |
 | `INVALID_COLUMN` | Validation | `fromDataset`: no usable accessor, or a forbidden path segment |
 | `TOO_MANY_STYLES` | Validation | More than 64,000 distinct cell formats, Excel's limit `[to verify]` |
@@ -1359,3 +1376,28 @@ These were the open questions of the review. Each one is decided, and the sectio
 **Q18. `key` vs `path` in column definitions.** Decided (2026-11-16): separate fields, with `key` read literally and `path` for nested data (§4.3). react-data-export may still accept a single field and map it.
 
 **Q19. Invalid sheet names in builders.** Decided (2026-11-16): `fromDataset` and `fromTable` throw `INVALID_SHEET_NAME`, like the core. `sanitizeSheetName()` is exported for callers that take names from user data (§4.6).
+
+---
+
+## 13. Roadmap beyond 2.0
+
+**End goal:** read, write and view every kind of Excel and CSV file. 2.0 is the first phase. Later phases add the following, and the version that delivers each is the plan as of 2026-11-16, not a commitment.
+
+| Phase | Adds |
+|---|---|
+| 2.0 | xlsx read and write (cells, styles, sheet features), CSV/TSV read and write, HTML table input |
+| 2.x | `.xlsm` / `.xltx` / `.xltm` read and write-back with their extra parts preserved; preservation of unknown parts for lossless round trips; comments and notes; data validation; conditional formatting; images (read and write) |
+| 3.x | formula parser and evaluator (`javascript-excel/formula`), number-format renderer (`javascript-excel/format`, §12 Q14), charts and drawings (read, plus a render model for the viewer) |
+| 4.x | legacy `.xls` (BIFF8) read, then write; `.xlsb` read; encrypted files (password, ECMA-376 agile encryption) |
+
+### Guardrails for 2.0's design
+
+These follow from the roadmap and apply to every 2.0 change.
+
+- **The model grows by optional fields.** The writer ignores fields it does not know (§3.1, §9.1), so later phases add optional fields to `Workbook`, `Sheet` and `Cell` in minor releases. Expected additions include sheet-level comments, data validations, conditional formats, drawings and images, and Excel tables, and workbook-level preserved parts. Their names and shapes are designed in the phase that adds them; until then no 2.0 field may use those meanings.
+- **The writer's part list is open.** Parts register their content types and relationships with an internal package registry (`[Content_Types].xml` defaults and overrides, `_rels/.rels`, `workbook.xml.rels`, and a relationships builder per sheet that hyperlinks already use). A new part, such as `xl/comments1.xml`, a drawing or an image, adds itself without changing the existing ones.
+- **Format detection is a table.** `detectFormat` (§5.2) identifies each container and format separately, and `UNSUPPORTED_FORMAT` names the format in `details.format`. Adding a reader for `.xls` or `.xlsb` later means adding a table entry and a reader, not removing a wall.
+- **The reader can keep what it does not model.** Its part handling is designed so that a later phase can carry unmodelled parts through to the writer for lossless write-back.
+- **Formula text is always preserved**, verbatim with its cached value (§3.4.2), so evaluation can come later without a model change.
+- **Unions may widen in later phases.** For example, `ErrorCode` may gain newer Excel errors such as `#SPILL!` once the writer can write them (§3.4). Code that switches over model unions should keep a default branch.
+
