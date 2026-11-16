@@ -1,6 +1,8 @@
 /// <reference types="node" />
 // The worker protocol over a real MessageChannel (structured clone and
 // transfer included), and over a real thread (node:worker_threads).
+// Tests that move large workbooks have a 60 s timeout: they pass in about a
+// second alone, but a full parallel run on a loaded machine can be much slower.
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Worker as NodeWorker } from "node:worker_threads";
@@ -45,7 +47,7 @@ const wb = (rows = 2000): Workbook => ({
 });
 
 describe("worker client over a MessageChannel", () => {
-  it("write: same bytes as on the main thread; the result is transferred", async () => {
+  it("write: same bytes as on the main thread; the result is transferred", { timeout: 60_000 }, async () => {
     const { client } = pair();
     const bytes = await client.write(wb(), { dateZone: "utc" });
     expect(bytes).toBeInstanceOf(Uint8Array);
@@ -69,7 +71,7 @@ describe("worker client over a MessageChannel", () => {
     expect((await client.parseCsv(new TextEncoder().encode("x;y\n1;2\n"), { inferTypes: true })).rows).toEqual([["x", "y"], [1, 2]]);
   });
 
-  it("progress crosses the boundary, monotonic and ending at 1", async () => {
+  it("progress crosses the boundary, monotonic and ending at 1", { timeout: 60_000 }, async () => {
     const { client } = pair();
     const ratios: number[] = [];
     await client.write(wb(20_000), { onProgress: (p) => ratios.push(p.ratio) });
@@ -95,7 +97,7 @@ describe("worker client over a MessageChannel", () => {
     expect(sent).toEqual([]);
   });
 
-  it("abort: rejects with signal.reason and cancels the job in the worker", async () => {
+  it("abort: rejects with signal.reason and cancels the job in the worker", { timeout: 60_000 }, async () => {
     const { client, sent } = pair();
     const ac = new AbortController();
     const reason = new Error("stop");
@@ -129,7 +131,7 @@ describe("worker client over a MessageChannel", () => {
     expect(b.byteLength).toBe(0);
   });
 
-  it("terminate rejects calls in flight with an AbortError", async () => {
+  it("terminate rejects calls in flight with an AbortError", { timeout: 60_000 }, async () => {
     const { client, terminated } = pair();
     const p = client.write(wb(100_000));
     client.terminate();

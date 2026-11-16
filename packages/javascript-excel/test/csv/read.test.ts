@@ -64,14 +64,14 @@ describe("readCsv decoding", () => {
 describe("readCsv is async and cancellable", () => {
   const big = "id,name,amount\r\n" + Array.from({ length: 200_000 }, (_, i) => `${i},name ${i},${i * 1.5}`).join("\r\n") + "\r\n";
 
-  it("gives the same result as parseCsv on a multi-chunk input", async () => {
+  it("gives the same result as parseCsv on a multi-chunk input", { timeout: 60_000 }, async () => {
     expect(big.length).toBeGreaterThan(3 * 1_048_576);
     const a = await readCsv(big, { inferTypes: true });
     const b = parseCsv(big, { inferTypes: true });
     expect(a.rows.length).toBe(200_001);
     expect(a).toEqual(b);
   });
-  it("yields to the event loop between chunks", async () => {
+  it("yields to the event loop between chunks", { timeout: 60_000 }, async () => {
     let ticks = 0;
     const timer = setInterval(() => ticks++, 0);
     await readCsv(big);
@@ -84,7 +84,7 @@ describe("readCsv is async and cancellable", () => {
     ac.abort(reason);
     await expect(readCsv("a", { signal: ac.signal })).rejects.toBe(reason);
   });
-  it("aborting mid-parse rejects with the default AbortError", async () => {
+  it("aborting mid-parse rejects with the default AbortError", { timeout: 60_000 }, async () => {
     const ac = new AbortController();
     const p = readCsv(big, { signal: ac.signal });
     setTimeout(() => ac.abort(), 0);
