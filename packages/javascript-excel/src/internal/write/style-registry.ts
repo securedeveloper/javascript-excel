@@ -224,6 +224,12 @@ const keyOf = (v: unknown): string => JSON.stringify(v);
 
 /** Entries kept in the identity cache before it is cleared. */
 const LAYER_CACHE_MAX = 10_000;
+/**
+ * Style objects given an identity id. Past this, new objects are looked up by
+ * content only, so a fresh style object per cell does not fill a WeakMap with
+ * one entry per cell (JSE-8: that cost long GC pauses at 1M cells).
+ */
+const IDENTITY_MAX = 10_000;
 
 /**
  * Content key of a raw (not yet validated) style. Values JSON would drop or
@@ -289,10 +295,12 @@ export class StyleRegistry {
     return this.defaultFont;
   }
 
+  /** Identity id of a style object, or -1 once IDENTITY_MAX objects have ids and `o` is not one of them. */
   private id(o: object | undefined): number {
     if (!o) return 0;
     let n = this.ids.get(o);
     if (n === undefined) {
+      if (this.nextId > IDENTITY_MAX) return -1;
       n = this.nextId++;
       this.ids.set(o, n);
     }
@@ -307,12 +315,15 @@ export class StyleRegistry {
   xfFor(layers: ReadonlyArray<Style | undefined>, isDate: boolean, ctx: StyleContext): number {
     let key = isDate ? "d" : "";
     let any = isDate;
+    let known = true;
     for (const l of layers) {
-      key += `:${this.id(l)}`;
+      const n = this.id(l);
+      if (n < 0) known = false;
+      key += `:${n}`;
       if (l) any = true;
     }
     if (!any) return 0;
-    const cached = this.layerCache.get(key);
+    const cached = known ? this.layerCache.get(key) : undefined;
     if (cached !== undefined) return cached;
     const merged = layers.length === 1 && layers[0] ? layers[0] : mergeStyles(...layers);
     const content = (isDate ? "d" : "") + contentKey(merged);
@@ -321,9 +332,10 @@ export class StyleRegistry {
       index = this.resolve(merged, isDate, ctx);
       this.contentCache.set(content, index);
     }
-    // Fresh objects per cell would make the identity cache grow with the sheet; keep it bounded.
-    if (this.layerCache.size >= LAYER_CACHE_MAX) this.layerCache.clear();
-    this.layerCache.set(key, index);
+    if (known) {
+      if (this.layerCache.size >= LAYER_CACHE_MAX) this.layerCache.clear();
+      this.layerCache.set(key, index);
+    }
     return index;
   }
 
