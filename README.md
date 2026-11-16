@@ -1,6 +1,6 @@
 # javascript-excel
 
-> **2.0 is a from-scratch rewrite and is in progress.** The prerelease writes complete `.xlsx` files (cells, styles and sheet features), reads `.xlsx` files (`javascript-excel/read`), and `javascript-excel/csv` parses and serializes CSV. The DOM helpers are still to come, and the API may change before 2.0.0.
+> **2.0 is a from-scratch rewrite and is in progress.** The prerelease writes complete `.xlsx` files (cells, styles and sheet features), reads `.xlsx` files (`javascript-excel/read`), parses and serializes CSV (`javascript-excel/csv`), and turns HTML tables into sheets and downloads files (`javascript-excel/dom`). The Web Worker entry (`javascript-excel/worker`) is still to come: it is a placeholder in this prerelease. The API may change before 2.0.0.
 >
 > The last 1.x release is [`javascript-excel@1.0.3`](https://www.npmjs.com/package/javascript-excel/v/1.0.3) on npm. Keep using it until 2.0 is released.
 
