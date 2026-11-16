@@ -80,7 +80,11 @@ describe.skipIf(!(hasSoffice && hasOpenpyxl))("LibreOffice headless", () => {
     // 1900 leap-year bug, so it shows serials 1..59 one day earlier than Excel; the serials
     // themselves are Excel's (checked in writer.test.ts and by openpyxl).
     expect(rows[3]!.slice(0, 6)).toEqual(["1/15/2024", "1/15/2024", "12/31/1899", "2/27/1900", "3/1/1900", "12/31/9999"]);
-    expect(rows[4]!.slice(0, 7)).toEqual(["#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A"]);
+    // LibreOffice 26.2 shows a stored #REF! error constant as #NAME? (24.2 shows #REF!). A file
+    // written by openpyxl behaves the same, so this is LibreOffice's reading, not our output.
+    const errors = rows[4]!.slice(0, 7);
+    expect(["#REF!", "#NAME?"]).toContain(errors[3]);
+    expect([...errors.slice(0, 3), ...errors.slice(4)]).toEqual(["#NULL!", "#DIV/0!", "#VALUE!", "#NAME?", "#NUM!", "#N/A"]);
     // Cached formula results. TODAY() and NOW() are volatile, so LibreOffice recalculates them on load.
     expect(rows[5]!.slice(0, 4)).toEqual(["42", "plain!", "FALSE", "#DIV/0!"]);
     expect(rows[5]![4]).toMatch(/^\d{1,2}\/\d{1,2}\/\d{4}$/);
