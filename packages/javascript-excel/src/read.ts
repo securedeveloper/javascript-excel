@@ -9,7 +9,8 @@
  */
 
 import type { BinaryInput } from "./binary";
-import type { AbortSignalLike } from "./csv";
+import type { AbortSignalLike } from "./signal";
+import type { Progress } from "./write";
 import { FormatError } from "./errors";
 import { toBytes } from "./internal/input";
 import { ReadContext } from "./internal/read/context";
@@ -24,7 +25,8 @@ import type { Cell, DefinedName, DocProperties, RichText, Sheet, Workbook } from
 import type { ExcelWarning } from "./warnings";
 
 export type { BinaryInput, BlobLike, BlobType } from "./binary";
-export type { AbortSignalLike } from "./csv";
+export type { AbortSignalLike } from "./signal";
+export type { Progress } from "./write";
 export type { ExcelWarning, ExcelWarningCode } from "./warnings";
 export type {
   Alignment,
@@ -64,13 +66,6 @@ export type {
 export interface ReadResult {
   workbook: Workbook<Cell>;
   warnings: ExcelWarning[];
-}
-
-/** Progress of a read. `ratio` is an overall estimate 0..1 that never decreases. */
-export interface Progress {
-  phase: "prepare" | "styles" | "sheets" | "zip" | "unzip" | "parse";
-  sheet?: string | undefined;
-  ratio: number;
 }
 
 /** Options for `read`. */

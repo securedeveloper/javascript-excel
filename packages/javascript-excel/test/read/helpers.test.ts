@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { shiftFormula } from "../../src/internal/read/formula";
 import { isDateFormat } from "../../src/internal/read/numfmt";
 import { resolveTarget } from "../../src/internal/read/opc";
-import { serialToDate } from "../../src/internal/read/serial";
 import { decodeXstring } from "../../src/internal/read/strings";
 
 describe("shared formula shifter (Q6)", () => {
@@ -69,34 +68,6 @@ describe("date number formats (§3.4.1)", () => {
     ["_(* #,##0_);_(* (#,##0);_(* \"-\"_);_(@_)", false],
   ] as const)("%j -> %s", (fmt, expected) => {
     expect(isDateFormat(fmt)).toBe(expected);
-  });
-});
-
-describe("serial -> Date", () => {
-  const utc = (s: number, date1904 = false) => serialToDate(s, { date1904, dateZone: "utc" })?.toISOString();
-  it("1900 system with Excel's fictitious leap day", () => {
-    expect(utc(1)).toBe("1900-01-01T00:00:00.000Z");
-    expect(utc(59)).toBe("1900-02-28T00:00:00.000Z");
-    expect(utc(60)).toBeUndefined();
-    expect(utc(61)).toBe("1900-03-01T00:00:00.000Z");
-    expect(utc(45306)).toBe("2024-01-15T00:00:00.000Z");
-    expect(utc(45306.4375)).toBe("2024-01-15T10:30:00.000Z");
-    expect(utc(2958465)).toBe("9999-12-31T00:00:00.000Z");
-    expect(utc(2958466)).toBeUndefined();
-    expect(utc(-1)).toBeUndefined();
-  });
-  it("time-only values and millisecond rounding", () => {
-    expect(utc(0.5)).toBe("1899-12-31T12:00:00.000Z");
-    expect(utc(45306.9999999999)).toBe("2024-01-16T00:00:00.000Z");
-    expect(utc(45306.99999999)).toBe("2024-01-15T23:59:59.999Z");
-    expect(utc(45306 + 1 / 86_400_000)).toBe("2024-01-15T00:00:00.001Z");
-  });
-  it("1904 system", () => {
-    expect(utc(0, true)).toBe("1904-01-01T00:00:00.000Z");
-    expect(utc(43844, true)).toBe("2024-01-15T00:00:00.000Z");
-  });
-  it("local zone keeps the wall-clock time", () => {
-    expect(serialToDate(45306.4375, { date1904: false, dateZone: "local" })).toEqual(new Date(2024, 0, 15, 10, 30));
   });
 });
 

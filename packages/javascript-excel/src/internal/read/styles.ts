@@ -232,7 +232,7 @@ export class StylesParser {
         if (empty) this.endFill();
       } else if (name === "patternFill" && this.fill) {
         const t = a.get("patternType") ?? "none";
-        this.fill.pattern = { pattern: (PATTERNS.has(t) ? t : "none") as PatternType };
+        this.fill.pattern = { type: "pattern", pattern: (PATTERNS.has(t) ? t : "none") as PatternType };
       } else if (name === "gradientFill" && this.fill) {
         const g: GradientFill = { type: "gradient", gradient: a.get("type") === "path" ? "path" : "linear", stops: [] };
         for (const k of ["degree", "left", "right", "top", "bottom"] as const) {

@@ -39,7 +39,8 @@ jobs:
       - name: Packed-tarball smoke test
         run: npm run smoke
 
-  # Opens the golden workbooks in LibreOffice headless (test/write/libreoffice.test.ts).
+  # Opens the golden workbooks in LibreOffice headless (test/write/libreoffice.test.ts), and
+  # reads files LibreOffice wrote (test/read/libreoffice.test.ts).
   # Not a required check. It fails, not skips, when LibreOffice or openpyxl is missing.
   libreoffice:
     name: LibreOffice
@@ -64,7 +65,7 @@ jobs:
       - name: LibreOffice headless check
         env:
           JSE_REQUIRE_LIBREOFFICE: "1"
-        run: npm -w packages/javascript-excel exec -- vitest run test/write/libreoffice.test.ts
+        run: npm -w packages/javascript-excel exec -- vitest run test/write/libreoffice.test.ts test/read/libreoffice.test.ts
 
   consumer-ts:
     name: Consumer TS

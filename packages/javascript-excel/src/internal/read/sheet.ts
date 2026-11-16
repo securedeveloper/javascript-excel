@@ -10,7 +10,7 @@ import type { ReadContext } from "./context";
 import { colLetters, colNumber, shiftFormula } from "./formula";
 import { isDateFormat } from "./numfmt";
 import type { Relationship } from "./opc";
-import { serialToDate } from "./serial";
+import { serialToDate } from "../../dates";
 import { StringItem, decodeXstring } from "./strings";
 import { bool, color, int, num, type StyleTable } from "./styles";
 import type { XmlAttrs, XmlHandler } from "./xml-reader";
@@ -61,6 +61,20 @@ export function parseRef(ref: string): [number, number] | undefined {
 function cleanRange(ref: string): string {
   const bang = ref.lastIndexOf("!");
   return (bang === -1 ? ref : ref.slice(bang + 1)).replace(/\$/g, "");
+}
+
+/**
+ * A date-formatted number as a Date, or undefined when it is not a valid
+ * serial: negative, beyond 9999-12-31, or the 1900 system's fictitious
+ * 1900-02-29 (serial 60), which `serialToDate` maps to 1900-03-01.
+ */
+function dateOf(serial: number, date1904: boolean, dateZone: "local" | "utc"): Date | undefined {
+  if (!date1904 && Math.floor(serial) === 60) return undefined;
+  try {
+    return serialToDate(serial, { date1904, dateZone });
+  } catch {
+    return undefined;
+  }
 }
 
 export class SheetParser implements XmlHandler {
@@ -465,7 +479,7 @@ export class SheetParser implements XmlHandler {
         value = n;
         type = "number";
         if (this.opts.dates === "date" && isDateFormat(this.styles.numFmt(p.s))) {
-          const d = serialToDate(n, { date1904: this.opts.date1904, dateZone: this.opts.dateZone });
+          const d = dateOf(n, this.opts.date1904, this.opts.dateZone);
           if (d) {
             value = d;
             type = "date";

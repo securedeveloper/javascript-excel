@@ -72,7 +72,7 @@ describe("openpyxl fixtures", () => {
     const a1 = at(s, "A1")!;
     expect(a1.style).toEqual({
       font: { name: "Arial", size: 14, bold: true, italic: true, underline: "double", strike: true, color: { rgb: "FF336699" } },
-      fill: { pattern: "solid", fgColor: { rgb: "FFFFFF00" } },
+      fill: { type: "pattern", pattern: "solid", fgColor: { rgb: "FFFFFF00" } },
       border: { left: { style: "thin", color: { rgb: "FF000000" } }, bottom: { style: "double", color: { rgb: "FFFF0000" } } },
       alignment: { horizontal: "center", vertical: "top", wrapText: true, rotation: 45 },
       protection: { locked: false, hidden: false },
@@ -81,7 +81,7 @@ describe("openpyxl fixtures", () => {
     expect(at(s, "B1")!.style).toBe(a1.style);
     expect(Object.isFrozen(a1.style)).toBe(true);
     expect(Object.isFrozen(a1.style!.font)).toBe(true);
-    expect(at(s, "A2")!.style).toEqual({ fill: { pattern: "darkGrid", fgColor: { rgb: "FF00FF00" }, bgColor: { rgb: "FF0000FF" } } });
+    expect(at(s, "A2")!.style).toEqual({ fill: { type: "pattern", pattern: "darkGrid", fgColor: { rgb: "FF00FF00" }, bgColor: { rgb: "FF0000FF" } } });
     expect(at(s, "A3")!.style!.alignment).toEqual({ horizontal: "left", indent: 2, rotation: -45 });
     expect(s.merges).toEqual(["C1:D2"]);
     expect(s.colProps?.[0]).toEqual({ width: 30 });
