@@ -26,12 +26,15 @@ function supported(tag: string): string {
   }
 }
 
+/** Locale data for a requested tag, cached by the tag as given (canonicalising is not free). */
 export function localeData(requested: string | undefined): LocaleData {
-  const tag = supported(requested ?? "en-US");
-  let data = cache.get(tag);
+  const key = requested ?? "en-US";
+  let data = cache.get(key);
   if (!data) {
-    data = build(tag);
+    const tag = supported(key);
+    data = (tag !== key ? cache.get(tag) : undefined) ?? build(tag);
     if (cache.size > 50) cache.clear();
+    cache.set(key, data);
     cache.set(tag, data);
   }
   return data;
