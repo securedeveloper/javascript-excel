@@ -66,7 +66,8 @@
     "smoke": "node scripts/smoke-pack.mjs",
     "consumer-ts": "node scripts/consumer-ts.mjs",
     "test:browser": "vitest run --config vitest.browser.config.ts",
-    "bench": "node --expose-gc bench/run.mjs"
+    "bench": "node --expose-gc bench/run.mjs",
+    "bench:worker": "node --expose-gc bench/worker.mjs"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
