@@ -4,7 +4,7 @@ Status: **approved** (2026-11-16). This is the design that implementation follow
 
 Conventions in this document:
 
-- `[to verify]` marks an OOXML or platform fact that must be checked against ECMA-376 or a real file before the code relies on it.
+- `[to verify]` marks an OOXML or platform fact that must be checked against ECMA-376 or a real file before the code relies on it. Most are resolved by the one-time manual check in [conformance.md](conformance.md), which names the corpus file that checks each one.
 - `[placeholder, set in JSE-n]` marks a number that has not been measured. The task named sets it.
 - `JSE-n` names the implementation task of this rewrite that owns a decision (JSE-2 zip and model, JSE-3 writer, JSE-4 sheet features, JSE-5 CSV, JSE-6 reader, JSE-7 DOM, JSE-8 performance and worker, JSE-9 conformance).
 - ECMA-376 references are to Part 1 (Fundamentals and Markup Language Reference), 5th edition, transitional schema, unless stated otherwise.
@@ -215,7 +215,7 @@ export type ColumnWidth = number | { wch: number } | { wpx: number } | 'auto';
 - pixels to file width: `width = Truncate(((wpx - 5) / MDW) * 100 + 0.5) / 100`, then the formula above
 - file width to pixels (reader): `wpx = Truncate(((256 * width + Truncate(128 / MDW)) / 256) * MDW)`
 
-`MDW = 7` px for Calibri 11, the default font. With it, the formula turns Excel's default 8.43 characters into `width="9.140625"`, the value Excel files carry for default-width columns (unit-tested). The JSE-9 check confirms it in Excel itself. The writer uses `MDW = 7` whatever the default font is `[to verify for other default fonts]`. The model's character unit is the one Excel's UI shows. The maximum width is 255 characters.
+`MDW = 7` px for Calibri 11, the default font. With it, the formula turns Excel's default 8.43 characters into `width="9.140625"`, the value Excel files carry for default-width columns (unit-tested). The manual check in [conformance.md](conformance.md) (`13-columns-rows`) confirms it in Excel itself. The writer uses `MDW = 7` whatever the default font is `[to verify for other default fonts]`. The model's character unit is the one Excel's UI shows. The maximum width is 255 characters.
 
 - **`'auto'`** measures `cellText()` of every cell in the column (the widest line; East Asian wide characters and emoji count two), adds 2 characters of padding and clamps the result to 8.43..60 characters. 60 is a readability choice made in JSE-4, not a measurement. It writes `bestFit="1"`. Number formats and fonts are not taken into account.
 - **Width 0** also writes `hidden="1"`, as Excel does for a zero-width column. A row `height` of 0 likewise hides the row.
@@ -224,10 +224,10 @@ export type ColumnWidth = number | { wch: number } | { wpx: number } | 'auto';
 
 **Sheet names.** The writer throws `INVALID_SHEET_NAME` unless the name:
 
-- is 1 to 31 characters long `[to verify: whether Excel counts UTF-16 code units or code points for astral characters]`;
+- is 1 to 31 characters long `[to verify: whether Excel counts UTF-16 code units or code points for astral characters; conformance.md, 17-workbook]`;
 - contains none of `\ / ? * [ ] :`;
 - does not start or end with an apostrophe `'`;
-- is not `History`, which Excel reserves `[to verify]`.
+- is not `History`, which Excel reserves `[to verify: conformance.md, 17-workbook]`.
 
 Names must be unique, compared case-insensitively (`DUPLICATE_SHEET_NAME`). `sanitizeSheetName()` (§4.6) makes any string valid.
 
@@ -279,7 +279,7 @@ How each value is written:
 | `number` | `t="n"` | Must be finite (`INVALID_NUMBER` for `NaN`, `±Infinity`). |
 | `boolean` | `t="b"` | |
 | `Date` | `t="n"` + date `numFmt` | Converted to a serial (§3.4.1). If the cell has no `numFmt`, built-in id 14 is used. |
-| `{ error }` | `t="e"` | Only the seven codes above. Other `#...` strings are not accepted in 2.0 `[to verify: how newer Excel errors such as #SPILL! are stored in files]`. |
+| `{ error }` | `t="e"` | Only the seven codes above. Other `#...` strings are not accepted in 2.0 `[to verify: how newer Excel errors such as #SPILL! are stored in files; conformance.md, open items]`. |
 | `{ richText }` | shared string with `<r>` runs | |
 | `Cell` with `formula` | `<f>` + cached `<v>` when `value` is set | §3.4.2 |
 | `null` / `undefined` / hole | no `<c>`, or a styled empty `<c>` if the `Cell` has a `style` | |
@@ -294,14 +294,14 @@ Excel stores dates as serial numbers. The writer converts `Date` to a serial and
 
 - **1900 system** (default): serial 1 = 1900-01-01. Excel treats 1900 as a leap year, so serial 60 is the non-existent 1900-02-29 and every serial from 61 onwards is offset by one. The writer writes dates from 1900-03-01 onwards with the epoch 1899-12-30, and earlier dates with epoch 1899-12-31, which matches Excel. The reader returns serial 60 as a number with warning `INVALID_DATE_SERIAL`. Serials from 0 to below 1 are Excel's day 0 ("1900-01-00"), which is how time-only values such as 0.5 (12:00) are stored. `serialToDate` returns them on 1899-12-31, and `serialToDate(60)` returns 1900-03-01; flagging serial 60 is the reader's job.
 - **1904 system** (`date1904: true`): serial 0 = 1904-01-01.
-- Range: 1900-01-01 (1904 system: 1904-01-01) to 9999-12-31. Outside it, or for an invalid `Date`, the writer throws `INVALID_DATE`.
+- Range: 1899-12-31 (1904 system: 1904-01-01) to 9999-12-31. Outside it, or for an invalid `Date`, the writer throws `INVALID_DATE`. 1899-12-31 is Excel's day 0 ("1900-01-00"), where time-only values live as serials 0 to below 1. `serialToDate` returns them on that day, so `dateToSerial` accepts it too and time-only cells round-trip.
 - Fractions are times of day; the writer keeps millisecond precision.
 
 **Date detection on read.** A numeric cell is returned as `type: 'date'` with a `Date` value when its number format is a date or time format:
 
 - built-in ids 14–22, 45 and 47 (46 is `[h]:mm:ss`, an elapsed time);
-- built-in ids 27–36 and 50–58 (locale-dependent East Asian date formats) `[to verify in JSE-6]`;
-- custom codes that, after removing quoted literals, backslash escapes and bracketed sections other than the elapsed-time tokens `[h]`, `[m]`, `[s]`, contain a date/time token (`y`, `m`, `d`, `h`, `s`, `AM/PM`, `A/P`, `e`, `g`, `b`) `[to verify against the JSE-9 fixtures]`.
+- built-in ids 27–36 and 50–58 (locale-dependent East Asian date formats) `[to verify: conformance.md, 11-number-formats-locale]`;
+- custom codes that, after removing quoted literals, backslash escapes and bracketed sections other than the elapsed-time tokens `[h]`, `[m]`, `[s]`, contain a date/time token (`y`, `m`, `d`, `h`, `s`, `AM/PM`, `A/P`, `e`, `g`, `b`) `[to verify against more real-world files; the reader tests cover the common codes]`.
 
 Elapsed-time formats (`[h]:mm:ss`) are durations, not dates. The reader returns them as `type: 'number'` and leaves formatting to the caller. With `ReadOptions.dates: 'serial'`, no conversion happens and date cells come back as `type: 'number'`.
 
@@ -421,7 +421,7 @@ export interface Alignment {
   wrapText?: boolean;
   shrinkToFit?: boolean;
   /** Indent level, in steps of about three character widths. Excel shows it for left, right and distributed. */
-  indent?: number;                     // Excel UI caps at 250 [to verify]
+  indent?: number;                     // Excel UI caps at 250 [to verify: conformance.md, 09-alignment]
   /** Degrees, -90..90, positive = counter-clockwise; or 'vertical' for stacked text. */
   rotation?: number | 'vertical';
   readingOrder?: 'context' | 'ltr' | 'rtl';
@@ -462,14 +462,14 @@ export type Color =
   | string
   | { rgb: string }                    // ARGB 'FF336699'
   | { theme: number; tint?: number }   // theme colour index 0..11, tint -1..1
-  | { indexed: number }                // legacy palette 0..63, 64 = system foreground, 65 = system background [to verify 64/65]
+  | { indexed: number }                // legacy palette 0..63, 64 = system foreground, 65 = system background [to verify 64/65: conformance.md, 12-colours]
   | { auto: true };                    // automatic colour
 ```
 
 All four forms map one to one to `CT_Color` attributes (`rgb`, `theme` + `tint`, `indexed`, `auto`), and the reader returns the same form the file used. The reader returns object forms only, never the string shorthand. Notes:
 
 - **Alpha.** Excel ignores the alpha byte of `rgb`; the writer still writes it.
-- **Theme index order.** The index refers to the theme's `clrScheme` with the first two pairs swapped: 0 = `lt1` (Background 1), 1 = `dk1` (Text 1), 2 = `lt2`, 3 = `dk2`, 4–9 = `accent1`–`accent6`, 10 = `hlink`, 11 = `folHlink` `[to verify in JSE-6 with Excel fixtures]`.
+- **Theme index order.** The index refers to the theme's `clrScheme` with the first two pairs swapped: 0 = `lt1` (Background 1), 1 = `dk1` (Text 1), 2 = `lt2`, 3 = `dk2`, 4–9 = `accent1`–`accent6`, 10 = `hlink`, 11 = `folHlink` `[to verify: conformance.md, 12-colours]`.
 - **Tint** is applied to the HSL luminance as in ECMA-376 §18.8.19 (`CT_Color/@tint`).
 - **Resolving.** `resolveColor(color, { theme, indexedColors })` (§4.4) returns a concrete ARGB string. It uses the file's theme and palette, or the defaults (the Office theme and the standard 64-colour palette) when the file has none. The viewer and `fromTable` need it.
 - On write, theme colours refer to the default Office theme that the writer embeds as `xl/theme/theme1.xml`. Custom themes are not written in 2.0.
@@ -1087,7 +1087,7 @@ Aborts are not `ExcelError`s: they reject with `signal.reason`, as `fetch` does.
 | `INVALID_HYPERLINK` | Validation | Scheme not in `hyperlinkSchemes` (e.g. `javascript:`), no scheme (a relative path), control characters, an empty target or location, or an invalid `hyperlinkSchemes` option |
 | `OVERLAPPING_MERGE` | Validation | Two merges overlap |
 | `INVALID_COLUMN` | Validation | `fromDataset`: no usable accessor, or a forbidden path segment |
-| `TOO_MANY_STYLES` | Validation | More than 64,000 distinct cell formats, Excel's limit `[to verify]` |
+| `TOO_MANY_STYLES` | Validation | More than 64,000 distinct cell formats, Excel's limit `[to verify: conformance.md, 18-limits]` |
 | `INVALID_PROPERTY` | Validation | A document property is invalid: not a string, an invalid `Date`, a duplicate or empty custom property name, a non-finite number |
 | `ZIP64_REQUIRED` | Validation | §6 |
 | `UNSUPPORTED_FORMAT` | Format | `.xls`/encrypted (CFB), `.xlsb`, `.ods`, and Strict OOXML if not mapped (§5.2); `details.format` says which |
@@ -1352,7 +1352,7 @@ const bytes = await client.write(workbook, {
 | Sheet name length | 31 | Excel UI; §3.3 |
 | Column width | 255 characters | Excel specifications and limits |
 | Row height | 409 points | Excel specifications and limits |
-| Unique cell formats | 64,000 | Excel specifications and limits `[to verify]` |
+| Unique cell formats | 64,000 | Excel specifications and limits `[to verify: conformance.md, 18-limits]` |
 | Formula length | 8,192 characters | Excel specifications and limits |
 | Zoom | 10–400 % | `CT_SheetView/@zoomScale` |
 
@@ -1377,7 +1377,7 @@ Ids defined by the spec. Ids 14–17 and 22 render according to the user's local
 | 16 | `d-mmm` | 48 | `##0.0E+0` |
 | 17 | `mmm-yy` | 49 | `@` |
 
-Ids 5–8, 23–36, 41–44 and 50–163 are not in this table: they are reserved or locale-specific (currency, accounting, East Asian dates). The writer accepts them as numbers, but their rendering depends on the user's Excel locale. Prefer custom codes. `[to verify in JSE-3: the exact codes and spacing for 37–40 and 47]`
+Ids 5–8, 23–36, 41–44 and 50–163 are not in this table: they are reserved or locale-specific (currency, accounting, East Asian dates). The writer accepts them as numbers, but their rendering depends on the user's Excel locale. Prefer custom codes. `[to verify: the exact codes and spacing for 37–40 and 47; conformance.md, 10-number-formats]`
 
 ### 11.3 Mapping from xlsx-style keys
 

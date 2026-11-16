@@ -11,3 +11,7 @@ coverage/
 CLAUDE.md
 CLAUDE.local.md
 .remember/
+
+# Conformance corpus built by npm run conformance:artifact
+packages/javascript-excel/conformance-corpus/
+packages/javascript-excel/conformance-corpus.zip

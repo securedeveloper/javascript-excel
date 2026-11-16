@@ -26,7 +26,8 @@ const EPOCH_1900 = Date.UTC(1899, 11, 30);
 const EPOCH_1900_EARLY = Date.UTC(1899, 11, 31);
 const LEAP_BUG_START = Date.UTC(1900, 2, 1); // first date after the fictitious 1900-02-29
 const EPOCH_1904 = Date.UTC(1904, 0, 1);
-const MIN_1900 = Date.UTC(1900, 0, 1);
+/** Excel's day 0 ("1900-01-00", 1899-12-31): time-only values live there, serials 0 to <1. */
+const MIN_1900 = Date.UTC(1899, 11, 31);
 const MAX = Date.UTC(9999, 11, 31, 23, 59, 59, 999);
 
 /** Wall-clock time of `d` in the chosen zone, as UTC milliseconds. */
@@ -41,7 +42,8 @@ function wallClock(d: Date, zone: "local" | "utc"): number {
 /**
  * Converts a Date to an Excel serial number.
  * Throws `INVALID_DATE` for an invalid Date or one outside the date system's
- * range (1900-01-01 or 1904-01-01 to 9999-12-31).
+ * range: 1899-12-31 (Excel's day 0, where time-only values live, as serials
+ * 0 to <1; serialToDate returns those) or 1904-01-01, to 9999-12-31.
  */
 export function dateToSerial(d: Date, options?: DateOptions): number {
   const ms = Number.isFinite(d.getTime()) ? wallClock(d, options?.dateZone ?? "local") : Number.NaN;
