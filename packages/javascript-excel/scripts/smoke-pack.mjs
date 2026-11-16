@@ -112,6 +112,39 @@ try {
   }
   console.log(`ok bundle keeps VERSION and drops ${SUBPATHS.length - 1} unused entries`);
 
+  step("worker: a client-only bundle ships no engine; a real thread round-trips");
+  writeFileSync(join(app, "client.js"), `import { createWorkerClient } from "javascript-excel/worker";\nconsole.log(createWorkerClient);\n`);
+  const clientBuild = await vite.build({
+    root: app,
+    configFile: false,
+    logLevel: "silent",
+    build: { write: false, minify: false, lib: { entry: join(app, "client.js"), formats: ["es"], fileName: "client" } },
+  });
+  const clientCode = [clientBuild].flat().flatMap((r) => r.output).filter((o) => o.type === "chunk").map((o) => o.code).join("\n");
+  for (const [what, marker] of [["reader", MARKERS["./read"]], ["CSV", MARKERS["./csv"]], ["writer", "is not a sheet index"]]) {
+    if (clientCode.includes(marker)) throw new Error(`a createWorkerClient-only bundle contains the ${what}`);
+  }
+  console.log(`ok createWorkerClient-only bundle: ${(clientCode.length / 1024).toFixed(1)} KiB, no writer, reader or CSV code`);
+  writeFileSync(
+    join(app, "excel.worker.mjs"),
+    `import { parentPort } from "node:worker_threads";\nimport { exposeWorker } from "javascript-excel/worker";\nexposeWorker({ postMessage: (m, t) => parentPort.postMessage(m, t), addEventListener: (type, l) => parentPort.on(type, (data) => l({ data })) });\n`,
+  );
+  writeFileSync(
+    join(app, "main.mjs"),
+    [
+      `import { Worker } from "node:worker_threads";`,
+      `import { createWorkerClient } from "javascript-excel/worker";`,
+      `const t = new Worker(new URL("./excel.worker.mjs", import.meta.url));`,
+      `const client = createWorkerClient({ postMessage: (m, tr) => t.postMessage(m, tr), addEventListener: (type, l) => t.on(type, (d) => l(type === "message" ? { data: d } : d)), terminate: () => t.terminate() });`,
+      `const bytes = await client.write({ sheets: [{ name: "S", rows: [["a", 1], [true, new Date(0)]] }] });`,
+      `const { workbook } = await client.read(bytes);`,
+      `if (workbook.sheets[0].rows[0][0].value !== "a" || workbook.sheets[0].rows[0][1].value !== 1) throw new Error("worker round trip failed");`,
+      `console.log("ok worker thread round trip:", bytes.length, "bytes");`,
+      `client.terminate();`,
+    ].join("\n"),
+  );
+  process.stdout.write(run(process.execPath, ["main.mjs"], app));
+
   console.log("\nsmoke test passed");
 } finally {
   rmSync(work, { recursive: true, force: true });

@@ -12,6 +12,7 @@ import { EnvironmentError, ValidationError } from "./errors";
 import type { AbortSignalLike } from "./signal";
 import type { Sheet, Workbook } from "./model";
 import { throwIfAborted } from "./internal/zip/bytes";
+import { throttleProgress } from "./internal/progress";
 import { writeZip, type ZipWriteEntry } from "./internal/zip/write";
 import { encodeUtf8 } from "./internal/platform";
 import {
@@ -118,7 +119,8 @@ function planWorkbook(wb: Workbook, styles: StyleRegistry, schemes: ReadonlySet<
 
 /** Writes a workbook as .xlsx bytes. */
 export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Promise<Uint8Array> {
-  const { signal, onProgress } = options;
+  const { signal } = options;
+  const onProgress = throttleProgress(options.onProgress);
   throwIfAborted(signal);
   onProgress?.({ phase: "prepare", ratio: 0 });
   const styles = new StyleRegistry(wb.defaultFont);
@@ -210,7 +212,18 @@ export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Pr
     }
     // Written after the sheets, which fill the string table and the style registry.
     onProgress?.({ phase: "styles", ratio: 0.9 });
-    if (ctx.strings) yield { name: "xl/sharedStrings.xml", data: encodeUtf8(ctx.strings.toXml()) };
+    if (ctx.strings) {
+      const strings = ctx.strings;
+      yield {
+        name: "xl/sharedStrings.xml",
+        data: (async function* () {
+          for (const chunk of strings.chunks()) {
+            throwIfAborted(signal);
+            yield chunk;
+          }
+        })(),
+      };
+    }
     yield { name: "xl/styles.xml", data: ctx.styles.toXml() };
     yield { name: "xl/theme/theme1.xml", data: THEME_XML };
     const fullCalc = wb.calc?.fullCalcOnLoad;

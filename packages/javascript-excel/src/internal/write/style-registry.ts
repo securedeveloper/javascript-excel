@@ -222,6 +222,29 @@ function borderXml(b: NBorder): string {
 /** Stable key for deduplication (normalised objects are built with a fixed field order). */
 const keyOf = (v: unknown): string => JSON.stringify(v);
 
+/** Entries kept in the identity cache before it is cleared. */
+const LAYER_CACHE_MAX = 10_000;
+/**
+ * Style objects given an identity id. Past this, new objects are looked up by
+ * content only, so a fresh style object per cell does not fill a WeakMap with
+ * one entry per cell (JSE-8: that cost long GC pauses at 1M cells).
+ */
+const IDENTITY_MAX = 10_000;
+
+/**
+ * Content key of a raw (not yet validated) style. Values JSON would drop or
+ * merge (functions, symbols, bigints, NaN, ±Infinity) get their own markers,
+ * so an invalid style never shares a key with a valid one and is still
+ * validated (and rejected) the first time it appears.
+ */
+function contentKey(style: Style): string {
+  return JSON.stringify(style, (_k, v: unknown) => {
+    if (typeof v === "number") return Number.isFinite(v) ? v : `\u0000num:${String(v)}`;
+    if (typeof v === "function" || typeof v === "symbol" || typeof v === "bigint") return `\u0000${typeof v}:${String(v)}`;
+    return v;
+  });
+}
+
 // ----------------------------------------------------------------- registry
 
 const DEFAULT_FONT: NFont = { name: "Calibri", size: 11, color: { theme: 1 }, family: 2, scheme: "minor" };
@@ -248,6 +271,12 @@ export class StyleRegistry {
   private readonly xfIndex = new Map<string, number>();
   /** Resolved-xf cache keyed by the identity of the style layers. */
   private readonly layerCache = new Map<string, number>();
+  /**
+   * Resolved-xf cache keyed by the content of the merged style, for apps that
+   * build a fresh style object per cell (`{ value, style: { font: { bold: true } } }`).
+   * JSE-8: 200k such cells spent about 1.1 s resolving the same style again.
+   */
+  private readonly contentCache = new Map<string, number>();
   private readonly ids = new WeakMap<object, number>();
   private nextId = 1;
 
@@ -266,10 +295,12 @@ export class StyleRegistry {
     return this.defaultFont;
   }
 
+  /** Identity id of a style object, or -1 once IDENTITY_MAX objects have ids and `o` is not one of them. */
   private id(o: object | undefined): number {
     if (!o) return 0;
     let n = this.ids.get(o);
     if (n === undefined) {
+      if (this.nextId > IDENTITY_MAX) return -1;
       n = this.nextId++;
       this.ids.set(o, n);
     }
@@ -284,16 +315,27 @@ export class StyleRegistry {
   xfFor(layers: ReadonlyArray<Style | undefined>, isDate: boolean, ctx: StyleContext): number {
     let key = isDate ? "d" : "";
     let any = isDate;
+    let known = true;
     for (const l of layers) {
-      key += `:${this.id(l)}`;
+      const n = this.id(l);
+      if (n < 0) known = false;
+      key += `:${n}`;
       if (l) any = true;
     }
     if (!any) return 0;
-    const cached = this.layerCache.get(key);
+    const cached = known ? this.layerCache.get(key) : undefined;
     if (cached !== undefined) return cached;
     const merged = layers.length === 1 && layers[0] ? layers[0] : mergeStyles(...layers);
-    const index = this.resolve(merged, isDate, ctx);
-    this.layerCache.set(key, index);
+    const content = (isDate ? "d" : "") + contentKey(merged);
+    let index = this.contentCache.get(content);
+    if (index === undefined) {
+      index = this.resolve(merged, isDate, ctx);
+      this.contentCache.set(content, index);
+    }
+    if (known) {
+      if (this.layerCache.size >= LAYER_CACHE_MAX) this.layerCache.clear();
+      this.layerCache.set(key, index);
+    }
     return index;
   }
 

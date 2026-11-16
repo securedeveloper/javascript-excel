@@ -65,8 +65,11 @@ export function xmlAttr(s: string): string {
 }
 
 /** True when text needs `xml:space="preserve"` to keep its whitespace. */
+const WS = /\s/;
+
 export function needsPreserve(s: string): boolean {
-  return s.length > 0 && (/^\s/.test(s) || /\s$/.test(s) || s.includes("\n") || s.includes("\t"));
+  // Test only the first and last characters: an end-anchored regex scans the whole string (JSE-8 profile).
+  return s.length > 0 && (WS.test(s[0]!) || WS.test(s[s.length - 1]!) || s.includes("\n") || s.includes("\t"));
 }
 
 export const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';

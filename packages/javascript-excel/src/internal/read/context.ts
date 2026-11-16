@@ -8,6 +8,7 @@ import type { ExcelWarning, ExcelWarningCode } from "../../warnings";
 import { throwIfAborted, type SignalLike } from "../zip/bytes";
 import type { ZipEntryInfo, ZipReader } from "../zip/read";
 import { XmlTokenizer, type XmlHandler } from "./xml-reader";
+import { throttleProgress } from "../progress";
 
 export interface ReaderLimits {
   maxXmlDepth: number;
@@ -33,15 +34,18 @@ export class ReadContext {
   readonly consumed: Set<string> = new Set();
   private dropped = 0;
   cells = 0;
-  private lastRatio = 0;
 
   constructor(
     readonly zip: ZipReader,
     readonly limits: ReaderLimits,
     readonly signal: SignalLike | undefined,
     private readonly onWarning: ((w: ExcelWarning) => void) | undefined,
-    private readonly onProgress: ((p: ProgressInfo) => void) | undefined,
-  ) {}
+    onProgress: ((p: ProgressInfo) => void) | undefined,
+  ) {
+    this.onProgress = throttleProgress(onProgress);
+  }
+
+  private readonly onProgress: ((p: ProgressInfo) => void) | undefined;
 
   warn(code: ExcelWarningCode, message: string, where?: { part?: string; sheet?: string; ref?: string }): void {
     if (this.warnings.length >= this.limits.maxWarnings) {
@@ -74,10 +78,7 @@ export class ReadContext {
   }
 
   progress(p: ProgressInfo): void {
-    if (!this.onProgress) return;
-    const ratio = Math.min(1, Math.max(this.lastRatio, p.ratio));
-    this.lastRatio = ratio;
-    this.onProgress({ ...p, ratio });
+    this.onProgress?.(p);
   }
 
   /** Reads a whole part as text (for small parts: rels, content types, workbook). */

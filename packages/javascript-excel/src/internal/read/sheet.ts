@@ -67,9 +67,31 @@ export function fileWidthToChars(width: number): number {
 
 /** Parses "B12" -> [row 11, col 1]; undefined if not an A1 cell reference. */
 export function parseRef(ref: string): [number, number] | undefined {
-  const m = /^\$?([A-Za-z]{1,3})\$?(\d{1,7})$/.exec(ref);
-  if (!m) return undefined;
-  return [Number(m[2]) - 1, colNumber(m[1]!) - 1];
+  // A hand-written scanner: this runs once per cell (JSE-8 profile).
+  const n = ref.length;
+  let i = 0;
+  if (ref.charCodeAt(0) === 36) i++; // $
+  let col = 0;
+  const colStart = i;
+  for (; i < n; i++) {
+    let c = ref.charCodeAt(i);
+    if (c >= 97 && c <= 122) c -= 32; // lower case
+    if (c < 65 || c > 90) break;
+    col = col * 26 + (c - 64);
+  }
+  const letters = i - colStart;
+  if (letters < 1 || letters > 3) return undefined;
+  if (ref.charCodeAt(i) === 36) i++;
+  let row = 0;
+  const rowStart = i;
+  for (; i < n; i++) {
+    const c = ref.charCodeAt(i);
+    if (c < 48 || c > 57) return undefined;
+    row = row * 10 + (c - 48);
+  }
+  const digits = i - rowStart;
+  if (digits < 1 || digits > 7) return undefined;
+  return [row - 1, col - 1];
 }
 
 /** "A1:B2" -> A1 with the dollar signs removed (sheet qualification stripped). */
