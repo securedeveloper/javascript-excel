@@ -1,5 +1,41 @@
 # javascript-excel
 
+## 2.0.0-alpha.3
+
+### Minor Changes
+
+- 4669375: New entry `javascript-excel/import` turns a user's `.xlsx` or `.csv` file into `{ columns, data }` with `importDataset`. It handles:
+  
+  - the format, detected from the bytes
+  - the sheet: the first visible one, or one picked by name or index
+  - the header row, detected (title rows skipped, multi-row headers flattened)
+  - column types, inferred all-or-nothing, with explicit number and date locales
+  - column mapping to a schema by name or alias
+  - per-row issues with their cell refs, and `maxRows` / `preview`
+  
+  The building blocks are exported too: `detectHeader`, `inferColumnTypes`, `coerceColumns`, `parseNumber`, `parseDate`, `mapColumns` and `applyMapping`.
+  
+  Other additions:
+  
+  - `read` gains `maxRows`. Rows past it are skipped without tokenizing them, while merges and sheet views are still read. It comes with a `ROWS_TRUNCATED` warning.
+  - `toDataset` gains `headerRows` and `join` for multi-row headers.
+  - The worker client gains `importDataset`.
+  - New error codes: `SHEET_NOT_FOUND`, and `VALIDATION_FAILED` (reserved for react-data-import).
+- 68d2df8: New entry `javascript-excel/format`: `formatValue(value, numFmt, options)` and `formatCell(cell, options)` render values the way Excel shows them in a cell. They cover number-format sections, conditions and colours, digit placeholders, grouping and scaling, percent, scientific, fractions, text, `_x` spacing and `*x` fills, General, dates and times from serials (time-zone free), elapsed time, built-in ids and locale tags. Separators, month and day names and the short date come from `Intl` for the given locale.
+- 7f50ecf: New entry `javascript-excel/render`: the render model a sheet viewer draws from. `createRenderSheet(workbook, sheet, options)` returns a handle with:
+  - **geometry:** row and column offsets in pixels from prefix sums, plus hit testing;
+  - **cells:** the merge map, concrete `#RRGGBB` styles cached per style object, resolved border edges, display text through an optional `format` hook (`formatCell` from `/format` fits), formula-bar text and hyperlink checks;
+  - **navigation:** one-cell steps and Excel's Ctrl+arrow data edges;
+  - **copy:** TSV/HTML builders and a selection summary.
+  
+  The core entry gains `resolveColor`, which resolves theme (with tint), indexed, RGB and automatic colours to ARGB.
+- f0c9cf1: `toDataset` gains `skipTotals: 'auto' | boolean`. The default `'auto'` drops a trailing row whose formulas are all `SUBTOTAL(…)`, which is the totals row `fromDataset` writes. So `toDataset(read(write(fromDataset(ds))))` no longer returns the totals as a data row. Pass `skipTotals: false` to keep it.
+
+### Patch Changes
+
+- f26fe0c: `read` with `maxRows` decodes shared strings lazily. They are read after the sheets, and only up to the highest index the rows read use, so previews of string-heavy files no longer parse the whole shared strings table: 412 → 166 ms on a 100,000 × 10 sheet of unique strings. Without `maxRows` nothing changes.
+- 21d9d36: A full package README: install, quick starts for writing, datasets, reading, CSV, HTML tables and the worker (each type-checked in CI), what ships, runtime support and links to the new guides. `DetectedFormat` is now spelled out as a union in the published types instead of referring to an internal alias; the type is unchanged.
+
 ## 2.0.0-alpha.2
 
 ### Minor Changes
