@@ -83,6 +83,16 @@
         "default": "./dist/worker.cjs"
       }
     },
+    "./format": {
+      "import": {
+        "types": "./dist/format.d.ts",
+        "default": "./dist/format.js"
+      },
+      "require": {
+        "types": "./dist/format.d.cts",
+        "default": "./dist/format.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "engines": {

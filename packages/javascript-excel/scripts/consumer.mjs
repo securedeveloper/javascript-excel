@@ -23,6 +23,7 @@ const expected = {
   "./csv": { CSV_MIME: "text/csv;charset=utf-8", parseCsv: FUNCTION, readCsv: FUNCTION, toCsv: FUNCTION, toCsvBlob: FUNCTION },
   "./dom": { fromTable: FUNCTION, download: FUNCTION, DOWNLOAD_REVOKE_DELAY_MS: 40000 },
   "./worker": { exposeWorker: FUNCTION, createWorkerClient: FUNCTION },
+  "./format": { formatValue: FUNCTION, formatCell: FUNCTION },
 };
 
 // A string only that subpath's code contains, so the tree-shaking check can
@@ -32,6 +33,7 @@ export const MARKERS = {
   "./csv": "CSV_STRAY_QUOTE",
   "./dom": "[data-export-ignore]",
   "./worker": "javascript-excel/worker",
+  "./format": "x-sysdate",
 };
 
 const missing = SUBPATHS.filter((s) => !(s in expected));
@@ -187,6 +189,16 @@ const asText: Promise<string> = client.toCsv([["a"]]);
 void bytes; void fromWorker; void asText; void exposeWorker;
 `;
 
+const FORMAT_FIXTURE = `
+import { formatCell, formatValue, type FormatOptions, type FormattedValue } from ${JSON.stringify(`${pkg.name}/format`)};
+const fopts: FormatOptions = { locale: "de-DE", date1904: undefined, dateZone: "utc", generalWidth: 11, indexedColors: undefined };
+const shown: FormattedValue = formatValue(1234.5, "#,##0.00", fopts);
+const fromCell: string = formatCell({ value: 45306, style: { numFmt: 14 } }).text;
+const red: string | undefined = formatValue(-1, "0;[Red]-0").color;
+const align: "left" | "center" | "right" = shown.align;
+void fromCell; void red; void align;
+`;
+
 const CSV_FIXTURE = `
 import { parseCsv, readCsv, toCsv, toCsvBlob, type CsvParseResult, type CsvWriteOptions } from ${JSON.stringify(`${pkg.name}/csv`)};
 const parsed: CsvParseResult = parseCsv("a,b\\r\\n1,2\\r\\n", { delimiter: "auto", inferTypes: true, mode: undefined });
@@ -214,6 +226,7 @@ export function writeTypeFixture(app) {
     "\n" +
     MODEL_FIXTURE +
     CSV_FIXTURE +
+    FORMAT_FIXTURE +
     READ_FIXTURE +
     WORKER_FIXTURE;
   writeFileSync(join(app, "esm.mts"), typed);
