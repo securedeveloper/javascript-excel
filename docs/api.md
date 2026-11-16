@@ -15,7 +15,7 @@ Conventions in this document:
 2. [Entry points](#2-entry-points)
 3. [Data model](#3-data-model)
 4. [Builders and helpers](#4-builders-and-helpers)
-5. [Write, read, CSV, DOM, worker, format and render APIs](#5-write-read-csv-dom-worker-format-and-render-apis)
+5. [Write, read, CSV, DOM, worker, import, format and render APIs](#5-write-read-csv-dom-worker-import-format-and-render-apis)
 6. [Zip codec](#6-zip-codec)
 7. [Errors and warnings](#7-errors-and-warnings)
 8. [Security model](#8-security-model)
@@ -727,7 +727,7 @@ export function validateSheetName(name: string): null | 'empty' | 'too-long' | '
 
 ---
 
-## 5. Write, read, CSV, DOM, worker, format and render APIs
+## 5. Write, read, CSV, DOM, worker, import, format and render APIs
 
 ### 5.1 Write (`javascript-excel`)
 
