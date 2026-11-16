@@ -38,8 +38,9 @@ describe("applyMapping", () => {
   it("renames to fields and reports REQUIRED and MAPPING_MISSING", () => {
     const schema: ImportSchema = { fields: { email: { required: true }, name: {}, phone: { required: true } } };
     const r = applyMapping(ds, { email: "E-mail", name: "Name", phone: null }, schema);
-    expect(r.columns.map((c) => [c.key, c.title, c.letter])).toEqual([["email", "E-mail", "A"], ["name", "Name", "B"]]);
-    expect(r.data).toEqual([Object.assign(Object.create(null), { email: "a@x", name: "Ada" }), Object.assign(Object.create(null), { email: null, name: "Grace" })]);
+    // Every schema field has a column and a key in every row; an unmapped one is null (JSE-21).
+    expect(r.columns.map((c) => [c.key, c.title, c.letter, c.type, c.field])).toEqual([["email", "E-mail", "A", "mixed", "email"], ["name", "Name", "B", "mixed", "name"], ["phone", "", "", "empty", "phone"]]);
+    expect(r.data).toEqual([Object.assign(Object.create(null), { email: "a@x", name: "Ada", phone: null }), Object.assign(Object.create(null), { email: null, name: "Grace", phone: null })]);
     expect(r.rowNumbers).toEqual([3, 4]);
     expect(r.issues).toEqual([
       { row: 0, field: "phone", code: "MAPPING_MISSING", message: 'No column for the required field "phone".', severity: "error" },
@@ -49,8 +50,8 @@ describe("applyMapping", () => {
 
   it("keeps unmapped columns, suffixing keys that collide with fields", () => {
     const r = applyMapping({ ...ds, columns: cols("E-mail", "name", "email2") , data: [{ "E-mail": "a", name: "N", email2: 1 }] }, { email: "E-mail" }, { fields: { email: {}, name: { aliases: ["zzz"] } }, unmapped: "keep" });
-    expect(r.columns.map((c) => c.key)).toEqual(["email", "name_2", "email2"]);
-    expect(r.data[0]).toEqual(Object.assign(Object.create(null), { email: "a", name_2: "N", email2: 1 }));
+    expect(r.columns.map((c) => c.key)).toEqual(["email", "name", "name_2", "email2"]);
+    expect(r.data[0]).toEqual(Object.assign(Object.create(null), { email: "a", name: null, name_2: "N", email2: 1 }));
   });
 
   it("a header named __proto__ is just a key", () => {

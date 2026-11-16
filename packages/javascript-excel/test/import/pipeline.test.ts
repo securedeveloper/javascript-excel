@@ -103,6 +103,34 @@ describe("types", () => {
   });
 });
 
+describe("unmapped schema fields (JSE-21)", () => {
+  const schema = { fields: { email: { aliases: ["E-mail"], required: true }, name: {}, joined: { type: "date" as const }, amount: { type: "number" as const } } };
+
+  it("an optional field without a column is null in every row and has a column", async () => {
+    const r = await importDataset("E-mail,Name\na@x,Ada\nb@x,Grace", { schema });
+    expect(r.data).toEqual([
+      Object.assign(Object.create(null), { email: "a@x", name: "Ada", joined: null, amount: null }),
+      Object.assign(Object.create(null), { email: "b@x", name: "Grace", joined: null, amount: null }),
+    ]);
+    expect(r.columns.map((c) => [c.key, c.letter, c.type, c.field])).toEqual([["email", "A", "string", "email"], ["name", "B", "string", "name"], ["joined", "", "empty", "joined"], ["amount", "", "empty", "amount"]]);
+    expect(r.meta.mapping).toEqual({ email: "E-mail", name: "Name", joined: null, amount: null });
+    expect(r.issues).toEqual([]);
+  });
+
+  it("a required field without a column: MAPPING_MISSING once, null in the rows, no REQUIRED per row", async () => {
+    const r = await importDataset("Name\nAda\nGrace", { schema });
+    expect(r.issues.map((i) => [i.code, i.field, i.row])).toEqual([["MAPPING_MISSING", "email", 0]]);
+    expect(r.data.map((d) => d["email"])).toEqual([null, null]);
+    expect(Object.keys(r.data[0]!)).toEqual(["email", "name", "joined", "amount"]);
+  });
+
+  it("every row has the same keys, in schema order", async () => {
+    const r = await importDataset("Amount,E-mail\n5,a@x\n,b@x", { schema });
+    for (const row of r.data) expect(Object.keys(row)).toEqual(["email", "name", "joined", "amount"]);
+    expect(r.data.map((d) => d["amount"])).toEqual([5, null]);
+  });
+});
+
 describe("cells", () => {
   it("error cells become null with ERROR_CELL, or are kept", async () => {
     const xml = `<sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>v</t></is></c></row><row r="2"><c r="A2" t="e"><v>#N/A</v></c></row><row r="3"><c r="A3"><v>2</v></c></row></sheetData>`;

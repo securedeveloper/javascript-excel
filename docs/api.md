@@ -1077,7 +1077,7 @@ export interface ImportDatasetOptions {
 }
 
 export interface ImportDatasetResult {
-  columns: ImportedColumn[];                   // with a schema: one per mapped field, in schema order
+  columns: ImportedColumn[];                   // with a schema: one per schema field, in schema order (unmapped: letter '', type 'empty')
   data: Array<Record<string, unknown>>;        // null-prototype objects
   rowNumbers: number[];                        // spreadsheet row (1-based) of each data entry
   issues: ImportIssue[];
@@ -1222,8 +1222,9 @@ export interface MappedDataset { columns: ImportedColumn[]; data: Array<Record<s
 - `missing` lists required fields without a column.
 
 `applyMapping(dataset, mapping, schema)` returns `{ columns, data, rowNumbers, issues }`:
-- Rows are keyed by field names, in schema order. With `unmapped: 'keep'`, other columns follow under their own keys, suffixed `_2`, `_3` if a key equals a field name.
-- A required field without a column gives one `MAPPING_MISSING` issue (row 0, severity `error`). The rows are still returned, so a UI can fix the mapping and apply it again without reading the file.
+- Rows are keyed by field names, in schema order, and **every row has every schema field**: a field without a column is `null` in each row (JSE-21), so rows always have the schema's shape and a validator such as Zod's `.nullable()` accepts them. `columns` has one entry per schema field; an unmapped field's entry has `title: ''`, `letter: ''`, `type: 'empty'` and its `field`.
+- With `unmapped: 'keep'`, the file's other columns follow under their own keys, suffixed `_2`, `_3` if a key equals a field name.
+- A required field without a column gives one `MAPPING_MISSING` issue (row 0, severity `error`) and is `null` in the rows; there is no per-row `REQUIRED` issue for it. The rows are still returned, so a UI can fix the mapping and apply it again without reading the file.
 - A required field that is empty in a row gives a `REQUIRED` issue (severity `error`) with the row and cell.
 
 Validation of rows (functions, Standard Schema, async checks) is react-data-import's. javascript-excel reserves its error code, `VALIDATION_FAILED`.
