@@ -137,6 +137,22 @@ function exportTable(t: HTMLTableElement): void {
   download(new Uint8Array(0), \`\${sheet.name}.xlsx\`);
 }
 void exportTable;
+// Dataset builders (§4.3): T is inferred from data, so accessors are typed.
+import { fromDataset, fromDatasets, toDataset, type ColumnDef, type DatasetResult } from ${JSON.stringify(pkg.name)};
+interface Person { name: string; joined: Date; sales: { q1: number } }
+const people: Person[] = [{ name: "Ada", joined: new Date(0), sales: { q1: 1 } }];
+const show = false;
+const personColumns: Array<ColumnDef<Person> | false> = [
+  { title: "Name", key: "name", width: "auto" },
+  show && { title: "Hidden", key: "name" },
+  { title: "Sales", children: [{ title: "Q1", path: "sales.q1", numFmt: "#,##0.00", total: "sum" }] },
+  { title: "Year", value: (p, { rowIndex }) => p.joined.getFullYear() + rowIndex, type: "number", total: ({ range }) => ({ formula: \`MAX(\${range})\` }) },
+];
+const datasetSheet = fromDataset({ columns: personColumns, data: people }, { freezeHeader: true, autoFilter: true, autoWidth: { max: 40 }, rowStyle: (p) => (p.name ? undefined : { fill: "FFFF00" }), onWarning: (w) => void w.ref });
+const stacked = fromDatasets([{ data: people }, { data: [[1, 2]], offset: { rows: 2, cols: undefined } }], { gap: 1 });
+const imported: DatasetResult = toDataset(stacked, { headerRow: 0, values: "value" });
+void datasetSheet;
+void imported;
 // The shared types are the same from the core entry and from /csv.
 import type { AbortSignalLike as CoreSignal, BlobType as CoreBlob, ExcelWarning as CoreWarning } from ${JSON.stringify(pkg.name)};
 import type { AbortSignalLike as CsvSignal, BlobType as CsvBlob, ExcelWarning as CsvWarning } from ${JSON.stringify(`${pkg.name}/csv`)};

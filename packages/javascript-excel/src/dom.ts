@@ -10,6 +10,7 @@ import { autoWidths, type AutoWidthOptions } from "./auto-width";
 import type { BlobType } from "./binary";
 import { EnvironmentError, ValidationError } from "./errors";
 import { cssColor } from "./internal/css-color";
+import { parseIsoDate } from "./internal/iso-date";
 import { isElement, TEXT_NODE, type AnchorLike, type ElementLike, type NodeLike, type WindowLike } from "./internal/dom-types";
 import { DEFAULT_HYPERLINK_SCHEMES, hyperlinkSchemes } from "./internal/write/sheet-features";
 import type { CellInput, CellValue, Color, Hyperlink, Sheet, Style } from "./model";
@@ -202,7 +203,6 @@ function cellTextOf(el: ElementLike): { text: string; hasBreak: boolean } {
 
 const PLAIN_NUMBER = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
 const GROUPED_NUMBER = /^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/;
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
 
 function parseNumber(s: string): number | undefined {
   const t = s.trim();
@@ -216,26 +216,6 @@ function parseBoolean(s: string): boolean | undefined {
   if (t === "true" || t === "yes" || t === "1") return true;
   if (t === "false" || t === "no" || t === "0") return false;
   return undefined;
-}
-
-/** ISO 8601 date or date-time. Without a zone, the local wall-clock time (dateZone 'local'). */
-function parseDate(s: string): Date | undefined {
-  const m = ISO_DATE.exec(s.trim());
-  if (!m) return undefined;
-  const [y, mo, d, h = "0", mi = "0", sec = "0", ms = "0", zone] = m.slice(1);
-  const parts = [Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(sec), Number(ms.padEnd(3, "0"))] as const;
-  let date: Date;
-  if (zone) {
-    const off = zone === "Z" ? 0 : (zone[0] === "-" ? -1 : 1) * (Number(zone.slice(1, 3)) * 60 + Number(zone.slice(-2)));
-    date = new Date(Date.UTC(...parts) - off * 60_000);
-  } else {
-    date = new Date(...parts);
-  }
-  // Reject overflow such as 2024-02-30 (checked on the wall-clock fields).
-  const wall = zone ? new Date(Date.UTC(...parts)) : date;
-  const [month, day] = zone ? [wall.getUTCMonth(), wall.getUTCDate()] : [wall.getMonth(), wall.getDate()];
-  if (month !== parts[1] || day !== parts[2]) return undefined;
-  return Number.isFinite(date.getTime()) ? date : undefined;
 }
 
 function coerce(ctx: Ctx, raw: string, type: string | null, ref: string): CellValue {
@@ -263,7 +243,7 @@ function coerce(ctx: Ctx, raw: string, type: string | null, ref: string): CellVa
       return b ?? fail();
     }
     case "date": {
-      const d = parseDate(raw);
+      const d = parseIsoDate(raw);
       return d ?? fail();
     }
     default:
