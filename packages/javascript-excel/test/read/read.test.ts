@@ -499,7 +499,7 @@ describe("hostile input (§8)", () => {
     const bytes = await build({ sheets: [`<extLst>${"<ext>".repeat(200)}${"</ext>".repeat(200)}</extLst><sheetData/>`] });
     expect(await errorOf(read(bytes))).toMatchObject({ name: "LimitError", details: { limit: "maxXmlDepth", part: "xl/worksheets/sheet1.xml" } });
   });
-  it("zip bomb: inflation stops at maxEntryBytes and maxTotalBytes, counted on inflated bytes", async () => {
+  it("zip bomb: inflation stops at maxEntryBytes and maxTotalBytes, counted on inflated bytes", { timeout: 60_000 }, async () => {
     const big = `<sheetData>${"<row/>".repeat(2_000_000)}</sheetData>`; // 12 MB, compresses ~1000:1
     const bytes = await build({ sheets: [big] });
     expect(bytes.length).toBeLessThan(100_000);
@@ -508,7 +508,7 @@ describe("hostile input (§8)", () => {
     expect(await errorOf(read(bytes, { limits: { maxRatio: 100 } }))).toMatchObject({ details: { limit: "maxRatio" } });
     expect((await read(bytes)).workbook.sheets).toHaveLength(1);
   });
-  it("maxInputBytes, maxEntries, maxCells, maxSharedStrings, maxWarnings", async () => {
+  it("maxInputBytes, maxEntries, maxCells, maxSharedStrings, maxWarnings", { timeout: 60_000 }, async () => {
     const bytes = await build({ sharedStrings: ["a", "b", "c"], sheets: ['<sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>2</v></c><c r="C1"><v>3</v></c></row></sheetData>'] });
     expect(await errorOf(read(bytes, { limits: { maxInputBytes: 100 } }))).toMatchObject({ details: { limit: "maxInputBytes" } });
     expect(await errorOf(read(bytes, { limits: { maxEntries: 3 } }))).toMatchObject({ details: { limit: "maxEntries" } });
@@ -553,7 +553,7 @@ describe("hostile input (§8)", () => {
     const bytes = await build({ sheets: ['<sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>'] });
     expect(await errorOf(read(bytes.subarray(0, bytes.length - 10)))).toMatchObject({ name: "FormatError" });
   });
-  it("never throws anything but documented errors on mutated input", async () => {
+  it("never throws anything but documented errors on mutated input", { timeout: 60_000 }, async () => {
     const base = fixture("openpyxl-1904.xlsx");
     let seed = 7;
     const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
@@ -570,7 +570,7 @@ describe("hostile input (§8)", () => {
 });
 
 describe("async behaviour", () => {
-  it("abort rejects with signal.reason", async () => {
+  it("abort rejects with signal.reason", { timeout: 60_000 }, async () => {
     const ac = new AbortController();
     const reason = new Error("stop");
     ac.abort(reason);

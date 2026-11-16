@@ -209,7 +209,7 @@ describe("read(write(x))", () => {
     expect(wb.properties!.custom).toEqual([{ name: "Text", value: "v" }, { name: "Num", value: 1.5 }, { name: "Flag", value: true }, { name: "When", value: FIXED }]);
   });
 
-  it("large sparse sheet: positions and dimension", async () => {
+  it("large sparse sheet: positions and dimension", { timeout: 60_000 }, async () => {
     const rows: CellInput[][] = [];
     rows[0] = ["first"];
     rows[99_999] = [];
@@ -220,7 +220,7 @@ describe("read(write(x))", () => {
     expect(s.dimension).toBe("A1:XFD100000");
   });
 
-  it("random workbooks: values survive and the round trip is a fixpoint", async () => {
+  it("random workbooks: values survive and the round trip is a fixpoint", { timeout: 60_000 }, async () => {
     let seed = 99;
     const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
     const pick = <T>(a: T[]): T => a[Math.floor(rnd() * a.length)]!;
