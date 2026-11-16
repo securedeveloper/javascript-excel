@@ -61,6 +61,8 @@ export type { ExcelWarning, ExcelWarningCode } from "./warnings";
 export { dateToSerial, serialToDate } from "./dates";
 export type { DateOptions } from "./dates";
 export { mergeStyles } from "./styles";
+export { resolveColor } from "./colors";
+export type { ColorContext } from "./colors";
 export { cellText } from "./cells";
 export { fromDataset, fromDatasets, toDataset } from "./dataset";
 export type { ColumnDef, ColumnTotal, Dataset, DatasetBlock, DatasetOptions, DatasetResult, GroupColumn, LeafColumn, ToDatasetOptions } from "./dataset";

@@ -15,7 +15,7 @@ Conventions in this document:
 2. [Entry points](#2-entry-points)
 3. [Data model](#3-data-model)
 4. [Builders and helpers](#4-builders-and-helpers)
-5. [Write, read, CSV, DOM, worker, import and format APIs](#5-write-read-csv-dom-worker-import-and-format-apis)
+5. [Write, read, CSV, DOM, worker, import, format and render APIs](#5-write-read-csv-dom-worker-import-format-and-render-apis)
 6. [Zip codec](#6-zip-codec)
 7. [Errors and warnings](#7-errors-and-warnings)
 8. [Security model](#8-security-model)
@@ -81,6 +81,7 @@ One npm package, `javascript-excel`, with subpath exports. `package.json` declar
 | `javascript-excel/worker` | `exposeWorker` (worker side), `createWorkerClient` (main-thread side) | Writer and reader, inside the worker only | Moves big jobs off the main thread. Main-thread code that imports only `createWorkerClient` does not ship the engine. |
 | `javascript-excel/import` | `importDataset`, `detectHeader`, `inferColumnTypes`, `coerceColumns`, `parseNumber`, `parseDate`, `mapColumns`, `applyMapping`, option and result types | Reader and CSV reader | Importing user files into `{ columns, data }` (§5.6). Apps that only write never load it. |
 | `javascript-excel/format` | `formatValue`, `formatCell`, `FormatOptions`, `FormattedValue` | Format-code parser and renderer; locale data from `Intl` | Only apps that show formatted values (viewers, previews) pay for it. |
+| `javascript-excel/render` | `createRenderSheet` and its geometry, cell, navigation and copy functions (§5.8) | Nothing from the reader or writer; number formatting only through the `format` option | Only viewers pay for it. |
 
 Rules:
 
@@ -727,7 +728,7 @@ export function validateSheetName(name: string): null | 'empty' | 'too-long' | '
 
 ---
 
-## 5. Write, read, CSV, DOM, worker, import and format APIs
+## 5. Write, read, CSV, DOM, worker, import, format and render APIs
 
 ### 5.1 Write (`javascript-excel`)
 
@@ -1318,6 +1319,195 @@ Result in CI (LibreOffice 26.2, en-US): 439 probes, 344 identical, 95 different 
 
 Built-in ids 32–35 are rendered as `h:mm:ss`, which matches LibreOffice in en-US: they are times in the East Asian locales that define them `[to verify]`.
 
+### 5.8 Render model (`javascript-excel/render`)
+
+What a spreadsheet viewer needs to draw a sheet, computed from a read workbook. It is framework-free and has no DOM access, so it runs in Node, in a worker and behind any UI (react-xlsx-viewer's design, decision Q2, puts it here). Part of 2.0, like `/format` (§5.7), from the 2.0 prerelease after its merge.
+
+The render model provides:
+- **geometry:** row and column offsets in CSS pixels, plus hit testing;
+- **a merge map;**
+- **concrete styles:** `#RRGGBB` colours and resolved fonts;
+- **edge resolution:** the border edge between two cells;
+- **display text,** through an optional number-format hook;
+- **formula text** for a formula bar;
+- **hyperlink checks;**
+- **keyboard movement:** one cell, and Ctrl+arrow data edges;
+- **copy:** TSV and HTML for the clipboard, and a selection summary.
+
+It leaves text measurement (overflow into neighbours, `####`, shrink to fit, auto row height), RTL mirroring, zoom, focus and DOM work to the UI.
+
+```ts
+export function createRenderSheet(workbook: Workbook<CellInput>, sheet: number, options?: RenderOptions): RenderSheet; // reader output or a built workbook
+
+export interface RenderOptions {
+  /** Display text. Pass `formatCell` from javascript-excel/format; default: `cellText` (raw values). */
+  format?: RenderFormatter;
+  locale?: string;                  // passed to `format`; default 'en-US'
+  maxDigitWidth?: number;           // px of the default font's widest digit at 100 %; default 7 (Calibri 11, §3.3)
+  margin?: { rows?: number; cols?: number }; // empty rows/columns after the used range; default 50 / 10
+  hyperlinkSchemes?: string[];      // external link schemes allowed; default ['http', 'https', 'mailto'] (§12 Q16)
+}
+/** Any function with this shape; `formatCell` from javascript-excel/format fits. */
+export type RenderFormatter = (cell: Cell, options: { locale?: string; date1904?: boolean; indexedColors?: readonly string[] }) =>
+  { text: string; color?: string; fill?: { char: string; at: number }; align?: 'left' | 'center' | 'right' };
+
+/** An opaque handle. Its caches live with it; drop the handle to free them. */
+export interface RenderSheet { readonly sheet: number; readonly name: string }
+```
+
+#### 5.8.1 Extent, settings and geometry
+
+```ts
+export function sheetExtent(s: RenderSheet): { rows: number; cols: number };   // used range + margin, capped at 1,048,576 x 16,384
+export function sheetSettings(s: RenderSheet): {
+  freeze: { rows: number; cols: number }; rightToLeft: boolean; showGridLines: boolean; showHeaders: boolean;
+  zoom: number; activeCell: CellRef; selection: RangeRef | null; tabColor: string | null;
+};
+export function rowTop(s: RenderSheet, row: number): number;     // px from the top of row 0 at zoom 100 %; rowTop(s, extent.rows) is the total height
+export function rowHeight(s: RenderSheet, row: number): number;
+export function colLeft(s: RenderSheet, col: number): number;    // logical (left-to-right) offset; the UI mirrors for RTL
+export function colWidth(s: RenderSheet, col: number): number;
+export function rowAt(s: RenderSheet, y: number): number;        // the visible row under y (binary search); clamped to the extent
+export function colAt(s: RenderSheet, x: number): number;
+export function isRowHidden(s: RenderSheet, row: number): boolean;
+export function isColHidden(s: RenderSheet, col: number): boolean;
+
+export interface CellRef { row: number; col: number }
+export interface RangeRef { start: CellRef; end: CellRef }       // inclusive, start <= end
+```
+
+- **Extent.** The used range is the sheet's `dimension` (or the cells, merges, row and column properties present), plus the margin. Indices outside the extent are clamped.
+- **Row heights.** A row's height in points becomes CSS pixels as `pt × 96 / 72`. Missing heights use `sheet.defaultRowHeight`, else 15 pt.
+- **Column widths.** A width in characters becomes pixels with the file-width formula and `maxDigitWidth` (§3.3). Missing widths use `sheet.defaultColWidth`, else 8.43 characters (64 px at the default 7).
+- **Hidden rows and columns.** Hidden, or width/height 0, means size 0. `rowAt`/`colAt` never return a hidden index.
+- **Cost.** Offsets are prefix sums, built once in O(rows + columns) (`Float64Array`). `rowTop`/`colLeft` are O(1), and `rowAt`/`colAt` are O(log n).
+- **Settings.** They come from `sheet.view` and `sheet.tabColor`:
+  - zoom defaults to 100, the active cell to A1;
+  - grid lines and headers are shown unless the file turns them off;
+  - the tab colour is resolved to `#RRGGBB`.
+
+#### 5.8.2 Cells
+
+```ts
+export function renderCell(s: RenderSheet, row: number, col: number): RenderCell | null;
+export function mergeAt(s: RenderSheet, row: number, col: number): { anchor: CellRef; range: RangeRef } | null;
+
+export interface RenderCell {
+  text: string;                       // displayed text (format hook, else cellText)
+  runs?: Array<{ text: string; font: RenderFont }>; // rich text, fonts merged over the cell font
+  value: CellValue | null;            // the (cached) value
+  type: CellType;
+  formula?: string;                   // for a formula bar: '=' + text, display prefixes removed
+  arrayFormula?: boolean;             // shown as {=…}
+  noCachedValue?: boolean;            // a formula without a cached value: text is ''
+  style: RenderStyle;                 // concrete; shared by every cell with the same style object
+  edges: RenderEdges;                 // the borders this cell draws, after resolving with its neighbours
+  merge?: { rows: number; cols: number }; // on a merge's anchor
+  hyperlink?: RenderHyperlink;
+  align: 'left' | 'center' | 'right'; // the format's alignment under 'general': numbers right, text left, booleans/errors centred
+  color?: string;                     // a format section colour ([Red]) as #RRGGBB; overrides the font colour
+  fill?: { char: string; at: number }; // a *x fill from the format
+}
+export interface RenderStyle {
+  font: RenderFont;
+  background:
+    | { kind: 'none' }
+    | { kind: 'solid'; color: string }
+    | { kind: 'pattern'; pattern: PatternType; fg: string; bg: string }
+    | { kind: 'gradient'; gradient: 'linear' | 'path'; degree: number; stops: Array<{ position: number; color: string }> };
+  border: { top?: RenderBorder; right?: RenderBorder; bottom?: RenderBorder; left?: RenderBorder; diagonalUp?: RenderBorder; diagonalDown?: RenderBorder };
+  align: {
+    horizontal: 'general' | 'left' | 'center' | 'right' | 'fill' | 'justify' | 'centerContinuous' | 'distributed';
+    vertical: 'top' | 'center' | 'bottom' | 'justify' | 'distributed';
+    wrap: boolean; shrink: boolean; indent: number; rotation: number | 'vertical'; direction: 'auto' | 'ltr' | 'rtl';
+  };
+}
+export interface RenderFont {
+  family: string; sizePt: number; color: string; bold: boolean; italic: boolean;
+  underline: 'none' | 'single' | 'double' | 'singleAccounting' | 'doubleAccounting'; strike: boolean;
+  vertAlign: 'baseline' | 'superscript' | 'subscript';
+}
+export interface RenderBorder { style: BorderStyle; color: string }
+export interface RenderEdges { top?: RenderBorder; left?: RenderBorder; right?: RenderBorder; bottom?: RenderBorder }
+export type RenderHyperlink =
+  | { kind: 'external'; href: string; allowed: true; tooltip?: string }
+  | { kind: 'external'; href: string; allowed: false; reason: 'scheme' | 'malformed'; tooltip?: string }
+  | { kind: 'internal'; sheet: number | null; ref: string; tooltip?: string };
+```
+
+- **`renderCell` is lazy.** It returns `null` when there is nothing to draw: no value, no style from the cell, its row or its column, and no merge anchor. Covered cells of a merge return `null`; the anchor carries the value and style. Results are cached in a bounded cache, so redrawing a window costs no recomputation.
+- **Style source.** A cell uses its own style (the reader's complete `xf`, §3.5.7). A cell without one takes the row style, then the column style. Fields missing from a style fall back to the workbook's default font (Calibri 11 when the file has none), black text, no fill, no borders, general/bottom alignment.
+- **Shared styles.** `RenderStyle` objects are cached in a `WeakMap` keyed by the model's style object. The reader shares one frozen `Style` per `xf` (§12 Q8), so a sheet with 20 distinct formats resolves 20 styles, whatever its size.
+- **Colours.** Every colour is concrete `#RRGGBB`, resolved with `resolveColor` (§4.4) against the workbook's theme and indexed palette:
+  - automatic and missing font colours are black;
+  - a pattern's missing foreground is black and its missing background white;
+  - borders without a colour are black.
+- **Border edges.** Each cell draws its top and left edges, and its right and bottom edges only at the end of the extent. The shared edge between two cells is resolved once:
+  - the heavier style wins, by weight: `hair`, `dotted`, `dashDotDot`, `dashDot`, `dashed`, `thin`, `mediumDashDotDot`, `slantDashDot`, `mediumDashDot`, `mediumDashed`, `medium`, `double`, `thick` `[to verify: Excel's precedence on screen]`;
+  - on a tie, the right or lower cell wins.
+  - Neighbours are the next visible row or column. A merged neighbour is represented by its anchor's style.
+  - Along a multi-row or multi-column merge, the edge is resolved against the neighbour at the anchor's row or column `[approximation]`.
+- **Formula text.** `'=' + formula`, with the `_xlfn.`, `_xlfn._xlws.` and `_xlpm.` prefixes removed outside string literals `[to verify: the full prefix list]`. `arrayFormula` is set when the cell has `arrayRef`. A formula without a cached value has `noCachedValue: true` and empty text; the render model never calculates.
+- **Hyperlinks.**
+  - **External targets:** trimmed. A target with control characters or no scheme is `malformed`. One whose scheme isn't in `hyperlinkSchemes` (case-insensitive) is `scheme`. Both are `allowed: false`, so the UI shows the text without opening anything (§8).
+  - **Internal locations:** a defined name, or a reference such as `'Sheet 2'!B4`, is resolved to a sheet index and an A1 reference. `sheet: null` when the sheet or name doesn't exist.
+- **Display text.** With a `format` hook, it is the hook's text, colour (ARGB → `#RRGGBB`), fill and alignment. The hook gets `locale`, `date1904` and the workbook's `indexedColors`. Without one, the text is `cellText(cell)` and the alignment follows the value type. For exact dates, read with `dates: 'serial'` (§5.2).
+
+#### 5.8.3 Navigation
+
+```ts
+export type RenderDirection = 'up' | 'down' | 'left' | 'right';
+export function step(s: RenderSheet, from: CellRef, dir: RenderDirection): CellRef;  // arrow keys
+export function edge(s: RenderSheet, from: CellRef, dir: RenderDirection): CellRef;  // Ctrl+arrow
+export function lastUsedCell(s: RenderSheet): CellRef;                                              // Ctrl+End
+```
+
+- **`step`** moves to the next visible cell. From inside a merge it moves from the merge's edge, and landing inside a merge returns its anchor. At the extent's edge it stays put.
+- **`edge`** follows Excel's rule:
+  - from a non-empty cell whose next visible neighbour is non-empty, it moves to the last non-empty cell before a blank;
+  - otherwise it moves to the next non-empty cell, or to the extent's edge if there is none.
+  - Hidden rows and columns are skipped `[to verify against Excel]`.
+  - A cell is empty when it has no value and no formula. Styles don't count.
+  - The scan is linear in the rows or columns crossed.
+- **`lastUsedCell`** is the last row and column of the used range, as Excel's Ctrl+End.
+
+#### 5.8.4 Copy and selection summary
+
+```ts
+export function rangeAsTsv(s: RenderSheet, range: RangeRef, options?: { values?: 'displayed' | 'raw' }): string;
+export function rangeAsHtml(s: RenderSheet, range: RangeRef): string;
+export function rangeStats(s: RenderSheet, range: RangeRef, limit?: number): { count: number; numericCount: number; sum: number; average: number | null; truncated: boolean };
+```
+
+- **TSV (`text/plain`).**
+  - Rows are separated by CRLF and cells by TAB, with displayed text by default.
+  - A field containing a tab, a line break or a quote is quoted, with quotes doubled, as Excel writes it.
+  - Merged areas contribute their anchor's text once; covered cells are empty.
+  - Hidden rows and columns are included, as in Excel's default copy `[to verify]`.
+  - Nothing is guarded against formulas: it is the user's own clipboard (react-xlsx-viewer decision Q15).
+- **HTML (`text/html`).**
+  - A `<table>` with `colspan`/`rowspan` for merges inside the range.
+  - Inline styles carry font weight, style, size, family and colour, plus background colour, horizontal alignment, wrapping and solid borders.
+  - Every text and attribute value is escaped, so file content can't add markup.
+- **`rangeStats`** is a status-bar summary over the cached values:
+  - `count`: the non-empty cells;
+  - `numericCount`, `sum` and `average`: over the numbers, including date serials;
+  - it scans at most `limit` cells (default 1,000,000) and sets `truncated` past that.
+  - This is arithmetic on cached values, not formula evaluation.
+
+#### 5.8.5 Measured cost
+
+`bench/render.mjs` (`npm run bench:render`; the CI job `Benchmarks` runs it and reports to its summary) measures the costs react-xlsx-viewer's design names (its §9). The workload is 10 columns of numbers with 8 shared styles, written and read back with `dates: 'serial'`. Measured on an Apple M2 laptop, Node 26.13.1:
+
+| cells | create (ms) | memory retained by the handle (MB) | 50 × 20 window, first draw / cached (ms) | scrolling, per window, p50 / max (ms) | Ctrl+Down, full column (ms) | TSV + HTML of 10,000 cells (ms) |
+|---:|---:|---:|---:|---:|---:|---:|
+| 100,000 | 1.0 | 0.11 | 1.65 / 0.09 | 0.05 / 0.73 | 1.6 | 16.2 |
+| 1,000,000 | 3.6 | 0.77 | 0.22 / 0.04 | 0.05 / 0.54 | 14.3 | 15.1 |
+
+- **Memory.** The handle costs O(rows + columns): about 8 bytes per row and per column for the offset tables. Per-cell results live in a cache capped at 20,000 cells, and styles are cached per distinct style object.
+- **Measurement notes.** The first-draw figure at 100,000 cells includes JIT warm-up, since that size runs first. Ctrl+Down scans linearly: about 14 ms across 100,000 rows.
+
+
 ---
 
 ## 6. Zip codec
@@ -1758,7 +1948,7 @@ These were the open questions of the review. Each one is decided, and the sectio
 |---|---|
 | 2.0 | xlsx read and write (cells, styles, sheet features), CSV/TSV read and write, HTML table input |
 | 2.x | `.xlsm` / `.xltx` / `.xltm` read and write-back with their extra parts preserved; preservation of unknown parts for lossless round trips; comments and notes; data validation; conditional formatting; images (read and write) |
-| 3.x | formula parser and evaluator (`javascript-excel/formula`), charts and drawings (read, plus a render model for the viewer) |
+| 3.x | formula parser and evaluator (`javascript-excel/formula`), charts and drawings (read, plus their part of the render model, §5.8) |
 | 4.x | legacy `.xls` (BIFF8) read, then write; `.xlsb` read; encrypted files (password, ECMA-376 agile encryption) |
 
 The 2.x row is designed in [design/2x.md](design/2x.md) (decided 2026-11-16: phases 2.1–2.5, dependency order, and what each phase will not do).

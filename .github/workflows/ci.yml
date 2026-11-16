@@ -118,10 +118,14 @@ jobs:
       - run: npm run build -w packages/javascript-excel
       - name: Benchmarks (Node 24)
         run: npm run bench -- --json "$RUNNER_TEMP/bench.json"
+      - name: Render model benchmarks (Node 24)
+        run: npm -w packages/javascript-excel run bench:render -- --json "$RUNNER_TEMP/bench-render.json"
       - uses: actions/upload-artifact@v7
         with:
           name: benchmarks
-          path: ${{ runner.temp }}/bench.json
+          path: |
+            ${{ runner.temp }}/bench.json
+            ${{ runner.temp }}/bench-render.json
 
   # The guides' examples (examples/), the README snippets and the API reference.
   # Not a required check.

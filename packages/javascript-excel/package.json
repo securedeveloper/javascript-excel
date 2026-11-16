@@ -83,6 +83,16 @@
         "default": "./dist/worker.cjs"
       }
     },
+    "./render": {
+      "import": {
+        "types": "./dist/render.d.ts",
+        "default": "./dist/render.js"
+      },
+      "require": {
+        "types": "./dist/render.d.cts",
+        "default": "./dist/render.cjs"
+      }
+    },
     "./format": {
       "import": {
         "types": "./dist/format.d.ts",
@@ -118,6 +128,7 @@
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "bench": "node --expose-gc bench/run.mjs",
     "bench:worker": "node --expose-gc bench/worker.mjs",
+    "bench:render": "node --expose-gc bench/render.mjs",
     "conformance:artifact": "node scripts/conformance.mjs artifact",
     "conformance:doc": "node scripts/conformance.mjs doc"
   },
