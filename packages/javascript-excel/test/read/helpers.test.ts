@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { shiftFormula } from "../../src/internal/read/formula";
-import { isDateFormat } from "../../src/internal/read/numfmt";
+import { BUILTIN_NUM_FMTS, isDateFormat } from "../../src/numfmt";
 import { resolveTarget } from "../../src/internal/read/opc";
 import { decodeXstring } from "../../src/internal/read/strings";
 
@@ -68,6 +68,15 @@ describe("date number formats (§3.4.1)", () => {
     ["_(* #,##0_);_(* (#,##0);_(* \"-\"_);_(@_)", false],
   ] as const)("%j -> %s", (fmt, expected) => {
     expect(isDateFormat(fmt)).toBe(expected);
+  });
+});
+
+describe("BUILTIN_NUM_FMTS", () => {
+  it("is the §11.2 table, frozen", () => {
+    expect(Object.keys(BUILTIN_NUM_FMTS).map(Number)).toEqual([0, 1, 2, 3, 4, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 37, 38, 39, 40, 45, 46, 47, 48, 49]);
+    expect(BUILTIN_NUM_FMTS[14]).toBe("mm-dd-yy");
+    expect(Object.isFrozen(BUILTIN_NUM_FMTS)).toBe(true);
+    for (const [id, code] of Object.entries(BUILTIN_NUM_FMTS)) expect(isDateFormat(code), code).toBe(isDateFormat(Number(id)));
   });
 });
 

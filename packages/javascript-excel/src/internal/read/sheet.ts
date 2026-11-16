@@ -8,7 +8,7 @@
 import type { Cell, CellValue, ColumnProps, Hyperlink, PrintSetup, RichText, RowProps, Sheet, SheetView } from "../../model";
 import type { ReadContext } from "./context";
 import { colLetters, colNumber, shiftFormula } from "./formula";
-import { isDateFormat } from "./numfmt";
+import { isDateFormat } from "../../numfmt";
 import type { Relationship } from "./opc";
 import { serialToDate } from "../../dates";
 import { StringItem, decodeXstring } from "./strings";
@@ -246,7 +246,7 @@ export class SheetParser implements XmlHandler {
         this.textTarget = undefined;
         return;
       case "f":
-        if (this.cell && this.textTarget === "f") this.cell.f = this.buf;
+        if (this.cell && this.textTarget === "f") this.cell.f = decodeXstring(this.buf);
         this.textTarget = undefined;
         return;
       case "c":

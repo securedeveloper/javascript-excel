@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { writeZip } from "../../src/internal/zip/write";
 import type { Cell, Sheet } from "../../src/model";
+import { readImpl } from "../../src/internal/read/reader";
 import { DEFAULT_READ_LIMITS, detectFormat, read, readSheetNames, type ReadOptions } from "../../src/read";
 import { build, NS, numFmtStyles } from "./build";
 
@@ -386,17 +387,46 @@ describe("formats that are rejected", () => {
     expect(await detectFormat(zip)).toBe("zip");
     expect(await detectFormat(new Uint8Array([1, 2, 3]))).toBe("unknown");
   });
-  it("xlsm is detected (and read like xlsx)", async () => {
-    const bytes = await build({ sheets: ["<sheetData/>"] });
-    const xlsm = await build({
-      sheets: ["<sheetData/>"],
+  it.each([
+    ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml", false],
+    ["xltx", "application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml", false],
+    ["xlsm", "application/vnd.ms-excel.sheet.macroEnabled.main+xml", true],
+    ["xltm", "application/vnd.ms-excel.template.macroEnabled.main+xml", true],
+  ] as const)("%s is detected and read; macro-enabled formats warn that macros are ignored", async (format, contentType, macros) => {
+    const bytes = await build({
+      sheets: ['<sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>'],
+      workbookRels: macros ? [["rV", "vbaProject", "vbaProject.bin"]] : [],
+      parts: macros ? { "xl/vbaProject.bin": new Uint8Array([1, 2, 3]) } : {},
       override: {
-        "[Content_Types].xml": '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.ms-excel.sheet.macroEnabled.main+xml"/></Types>',
+        "[Content_Types].xml": `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="${contentType}"/></Types>`,
       },
     });
-    expect(await detectFormat(bytes)).toBe("xlsx");
-    expect(await detectFormat(xlsm)).toBe("xlsm");
-    expect((await read(xlsm)).workbook.sheets).toHaveLength(1);
+    expect(await detectFormat(bytes)).toBe(format);
+    const r = await read(bytes);
+    expect(at(r.workbook.sheets[0]!, "A1")!.value).toBe(1);
+    expect(r.warnings.filter((w) => w.code === "UNSUPPORTED_PART").map((w) => w.message)).toEqual(macros ? [expect.stringMatching(/VBA macros are not read or run/)] : []);
+  });
+  it("a workbook part without a known content type is read as SpreadsheetML", async () => {
+    const bytes = await build({ sheets: ['<sheetData><row r="1"><c r="A1"><v>5</v></c></row></sheetData>'], override: { "[Content_Types].xml": null } });
+    expect(at(await sheet0(bytes), "A1")!.value).toBe(5);
+  });
+});
+
+describe("parts the model does not represent", () => {
+  it("are kept byte for byte with the internal retainParts option, and dropped otherwise", async () => {
+    const drawing = new TextEncoder().encode("<xdr:wsDr/>");
+    const vba = new Uint8Array([0xd0, 0xcf, 1, 2, 3]);
+    const bytes = await build({
+      sheets: ['<sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData><drawing r:id="rD"/>'],
+      sheetRels: { 0: [["rD", "drawing", "../drawings/drawing1.xml"]] },
+      parts: { "xl/drawings/drawing1.xml": drawing, "xl/vbaProject.bin": vba, "customXml/item1.xml": "<x/>" },
+    });
+    const r = await readImpl(bytes, {}, { retainParts: true });
+    expect([...r.parts!.keys()].sort()).toEqual(["customXml/item1.xml", "xl/drawings/drawing1.xml", "xl/vbaProject.bin"]);
+    expect(r.parts!.get("xl/drawings/drawing1.xml")).toEqual(drawing);
+    expect(r.parts!.get("xl/vbaProject.bin")).toEqual(vba);
+    expect(at(r.workbook.sheets[0]!, "A1")!.value).toBe(1);
+    expect("parts" in (await read(bytes))).toBe(false);
   });
 });
 

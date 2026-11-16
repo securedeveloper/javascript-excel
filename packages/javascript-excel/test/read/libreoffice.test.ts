@@ -40,8 +40,10 @@ describe.skipIf(!hasSoffice)("LibreOffice-written files", () => {
   it("the openpyxl fixture re-saved by LibreOffice reads to the same content", { timeout: 300_000 }, async () => {
     const src = join(dir, "features.xlsx");
     copyFileSync(new URL("../fixtures/read/openpyxl-features.xlsx", import.meta.url), src);
-    const original = await read(new Uint8Array(readFileSync(src)), { dateZone: "utc" });
-    const lo = await read(resave(src, "features"), { dateZone: "utc" });
+    // LibreOffice splits text that mixes scripts (Latin, CJK, emoji) into rich-text runs
+    // with a font per script, so compare the plain text.
+    const original = await read(new Uint8Array(readFileSync(src)), { dateZone: "utc", richText: "plain" });
+    const lo = await read(resave(src, "features"), { dateZone: "utc", richText: "plain" });
 
     expect(lo.workbook.sheets.map((s) => [s.name, s.state])).toEqual(original.workbook.sheets.map((s) => [s.name, s.state]));
     const a = original.workbook.sheets[0]!;
@@ -54,10 +56,6 @@ describe.skipIf(!hasSoffice)("LibreOffice-written files", () => {
         const got = b.rows[r]?.[c];
         if (cell.formula !== undefined) {
           expect(got?.formula, `formula ${r},${c}`).toBe(cell.formula);
-          continue;
-        }
-        if (cell.type === "richText") {
-          expect(got?.type).toBe("richText");
           continue;
         }
         expect(got?.value, `value ${r},${c}`).toEqual(cell.value);

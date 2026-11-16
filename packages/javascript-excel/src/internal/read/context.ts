@@ -29,6 +29,8 @@ type TextDecoderCtor = new (label?: string, options?: { fatal?: boolean }) => Te
 
 export class ReadContext {
   readonly warnings: ExcelWarning[] = [];
+  /** Names of the parts read so far (for keeping the others, see InternalReadOptions). */
+  readonly consumed: Set<string> = new Set();
   private dropped = 0;
   cells = 0;
   private lastRatio = 0;
@@ -80,6 +82,7 @@ export class ReadContext {
 
   /** Reads a whole part as text (for small parts: rels, content types, workbook). */
   async text(entry: ZipEntryInfo): Promise<string> {
+    this.consumed.add(entry.name);
     const bytes = await this.zip.read(entry, this.signal);
     return newDecoder(bytes).decode(stripBom(bytes));
   }
@@ -89,6 +92,7 @@ export class ReadContext {
    * re-thrown with the part name in the message and `details.part`.
    */
   async parse(entry: ZipEntryInfo, handler: XmlHandler, onChunk?: (bytes: number) => void): Promise<void> {
+    this.consumed.add(entry.name);
     const tok = new XmlTokenizer(handler, this.limits.maxXmlDepth);
     let decoder: TextDecoderLike | undefined;
     try {
