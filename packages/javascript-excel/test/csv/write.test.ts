@@ -130,7 +130,7 @@ describe("newline and BOM", () => {
   });
   it("toCsv: no BOM by default", () => {
     expect(toCsv([["a"]]).charCodeAt(0)).toBe(97);
-    expect(toCsv([["a"]], { bom: true })).toBe("﻿a\r\n");
+    expect(toCsv([["a"]], { bom: true })).toBe("\uFEFFa\r\n");
   });
   it("toCsvBlob: BOM by default, text/csv;charset=utf-8", async () => {
     const blob = toCsvBlob([["é"]]);

@@ -81,13 +81,13 @@ describe("newlines", () => {
 
 describe("BOM", () => {
   it("a leading U+FEFF is removed and reported", () => {
-    const r = parseCsv("﻿a,b\r\n");
+    const r = parseCsv("\uFEFFa,b\r\n");
     expect(r.rows).toEqual([["a", "b"]]);
     expect(r.bom).toBe(true);
     expect(parseCsv("a,b").bom).toBe(false);
   });
   it("a BOM before a quoted first field", () => {
-    expect(rows('﻿"a",b')).toEqual([["a", "b"]]);
+    expect(rows('\uFEFF"a",b')).toEqual([["a", "b"]]);
   });
 });
 
@@ -269,7 +269,7 @@ describe("robustness", () => {
   it("never throws in lenient mode on random input", () => {
     let seed = 42;
     const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
-    const alphabet = ['"', ",", ";", "\r", "\n", "a", " ", "\t", "﻿", "é"];
+    const alphabet = ['"', ",", ";", "\r", "\n", "a", " ", "\t", "\uFEFF", "é"];
     for (let n = 0; n < 2000; n++) {
       let s = "";
       const len = Math.floor(rnd() * 40);
