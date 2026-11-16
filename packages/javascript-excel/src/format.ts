@@ -10,6 +10,8 @@
  * @module javascript-excel/format
  */
 
+export type { Cell, CellErrorValue, CellInput, NumFmt, RichText } from "./model";
+
 import { cellText } from "./cells";
 import { dateToSerial } from "./dates";
 import { compile, type Compiled, type Section } from "./internal/format/parse";
@@ -18,8 +20,6 @@ import { formatDate, shortDateSection } from "./internal/format/date";
 import { formatNumber, general } from "./internal/format/number";
 import type { Cell, CellErrorValue, CellInput, NumFmt, RichText } from "./model";
 import { BUILTIN_NUM_FMTS } from "./numfmt";
-
-export type { Cell, CellErrorValue, CellInput, NumFmt, RichText } from "./model";
 
 /** What `formatValue` accepts: a cell's value. A Date is converted to a serial first (`dateZone`, `date1904`). */
 export type FormatInput = number | string | boolean | Date | CellErrorValue | RichText | null | undefined;

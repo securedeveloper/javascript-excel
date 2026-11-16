@@ -1075,7 +1075,7 @@ export interface FormattedValue {
 #### 5.6.2 Built-in ids
 
 - **Fixed ids:** 1–4, 9–13, 15–21, 37–40 and 45–49 render the codes of §11.2.
-- **Short-date ids:** 14 is the locale's short date, numeric with a four-digit year (`1/15/2024` in en-US, `15.01.2024` in de-DE). 22 is that plus ` h:mm`. The East Asian ids 27–36 and 50–58 show the short date too `[to verify per locale]`.
+- **Short-date ids:** 14 is the locale's short date, numeric with a four-digit year (`1/15/2024` in en-US, `15.01.2024` in de-DE). 22 is that plus ` h:mm`. The East Asian ids 27–31, 36 and 50–58 show the short date too, and 32–35 show `h:mm:ss` `[to verify per locale]`.
 - **Currency and accounting:** ids 5–8 and 41–44 use their en-US codes (`"$"#,##0_);\("$"#,##0\)` and so on) `[to verify for other locales]`.
 - **Other ids** render as General.
 
@@ -1092,7 +1092,19 @@ Excel is the authority; LibreOffice is the automated reference.
 - **The check.** The `LibreOffice` CI job writes every case of `test/format/cases.ts`, plus every number-formatted cell of the conformance files `10-number-formats` and `11-number-formats-locale`, to one workbook. It has LibreOffice export the workbook to CSV with "save cell contents as shown" in en-US, and compares each cell with `formatCell(cell, { locale: 'en-US' })` (`test/format/libreoffice.test.ts`).
 - **Where LibreOffice differs.** Every case where LibreOffice is known to differ is listed in that test with LibreOffice's output. The table below records it, with what this module does and why. Each is `[to verify]` against Excel in the conformance checklist.
 
-RESULTS_PLACEHOLDER
+Result in CI (LibreOffice 26.2, en-US): RESULT_COUNTS. Every difference has one of the known causes below. Any other difference fails the job.
+
+| Difference | LibreOffice | `formatValue` (Excel's behaviour, `[to verify]`) |
+|---|---|---|
+| Serials below 61 (the 1900 calendar) | Counts from 1899-12-30: serial 1 is 1899-12-31, no 1900-02-29, no day 0 | Serial 1 is 1900-01-01, 60 is 1900-02-29, below 1 is day 0 (`1900-01-00`), as Excel |
+| Time rounding | Truncates to the shown unit: 0.6458333 is `15:29:59`, `3:29 PM` | Rounds to the shown second first: `15:30:00`, `3:30 PM`; 45306.99999999 with `yyyy-mm-dd` is the next day |
+| General | Up to 15 significant digits, no width limit, 3-digit exponents (`0.333333333333333`, `1E+021`) | Fits 11 characters (`0.333333333`, `1E+21`, `1.23457E+11`) |
+| A decimal point with no digits after it | Dropped: `#,##0.###` shows `7` | Kept: `7.` |
+| `?` padding | U+2007 FIGURE SPACE | A plain space, as text copied from Excel has |
+| Built-in ids 39, 40, 47 | Excel's actual codes, `#,##0.00_);(#,##0.00)` and `mm:ss.0` | The ECMA-376 codes in §11.2 (`#,##0.00;(#,##0.00)`, `mmss.0`); conformance file 10 asks for the codes Excel shows |
+| `am/pm` and `A/P` case | `AM/PM` upper-cased, `A/P` lower-cased | As written in the code |
+
+Built-in ids 32–35 are rendered as `h:mm:ss`, which matches LibreOffice in en-US: they are times in the East Asian locales that define them `[to verify]`.
 
 ---
 

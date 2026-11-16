@@ -29,7 +29,8 @@ if (process.env["JSE_REQUIRE_LIBREOFFICE"] === "1" && !hasSoffice) throw new Err
 /**
  * Known ways LibreOffice differs from Excel (and from formatValue). Each rule must prove its
  * cause where it can (for example by formatting the value truncated to the second), so an
- * unrelated mismatch is never explained away. docs/api.md §5.6.4 lists them.
+ * unrelated mismatch is never explained away. The first rule that holds wins, so the broad
+ * calendar rule comes last. docs/api.md §5.6.4 lists them.
  */
 type Rule = { id: string; why: string; test: (p: Probe, lo: string, ours: string) => boolean };
 const num = (p: Probe): number | undefined => (typeof p.cell.value === "number" ? p.cell.value : undefined);
@@ -41,13 +42,13 @@ const truncated = (p: Probe, lo: string): boolean => {
   return [86_400, 864_000, 1_440].some((n) => fmt(Math.floor(v * n + 1e-9) / n, code(p)) === lo);
 };
 const RULES: Rule[] = [
-  { id: "1900-calendar", why: "LibreOffice counts every serial from 1899-12-30, so serials below 61 are one day earlier than in Excel, which keeps the fictitious 1900-02-29 (serial 60) and shows serials below 1 as day 0 (1900-01-00)", test: (p) => (num(p) ?? 99) < 61 && isDateFormat(code(p)) },
   { id: "time-rounding", why: "LibreOffice truncates to the shown second (15:29:59.997 shows 15:29:59); Excel rounds to it (15:30:00)", test: (p, lo) => truncated(p, lo) },
   { id: "general", why: "LibreOffice's General shows up to 15 significant digits with no width limit and 3-digit exponents; Excel's General fits the number into 11 characters", test: (p) => code(p) === "General" || code(p) === 0 },
   { id: "dangling-point", why: "LibreOffice drops a decimal point with no digits after it (#,##0.### shows 7); Excel keeps it (7.)", test: (_p, lo, ours) => ours.endsWith(".") && lo === ours.slice(0, -1) },
   { id: "question-mark-space", why: "LibreOffice pads ? placeholders with U+2007 FIGURE SPACE; formatValue uses a plain space, as text copied from Excel has", test: (_p, lo, ours) => lo.replace(/\u2007/g, " ") === ours },
   { id: "builtin-39-40-47", why: "LibreOffice's built-in ids 39, 40 and 47 are #,##0.00_);(#,##0.00), its [Red] twin and mm:ss.0; formatValue renders the codes of ECMA-376 §18.8.30 (§11.2), which conformance file 10 asks to check in Excel", test: (p, lo, ours) => [39, 40, 47].includes(code(p) as number) && (lo === `${ours} ` || lo === fmt(num(p) ?? 0, "mm:ss.0") || truncated({ ...p, cell: { ...p.cell, style: { numFmt: "mm:ss.0" } } }, lo)) },
   { id: "ampm-case", why: "LibreOffice shows am/pm as AM/PM and A/P as a/p; formatValue keeps the case written in the code", test: (_p, lo, ours) => lo.toLowerCase() === ours.toLowerCase() },
+  { id: "1900-calendar", why: "LibreOffice counts every serial from 1899-12-30, so serials below 61 are one day earlier than in Excel, which keeps the fictitious 1900-02-29 (serial 60) and shows serials below 1 as day 0 (1900-01-00)", test: (p, lo, ours) => (num(p) ?? 99) < 61 && isDateFormat(code(p)) && !truncated(p, lo) && lo.toLowerCase() !== ours.toLowerCase() },
 ];
 
 interface Probe {
