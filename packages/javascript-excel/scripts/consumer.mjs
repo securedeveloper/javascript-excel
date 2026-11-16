@@ -194,7 +194,7 @@ void bytes; void fromWorker; void asText; void exposeWorker;
 `;
 
 const RENDER_FIXTURE = `
-import { createRenderSheet, edge, rangeAsTsv, renderCell, rowAt, sheetSettings, type RenderCell, type RenderFormatter, type RenderOptions, type RenderSheet } from ${JSON.stringify(`${pkg.name}/render`)};
+import { createRenderSheet, edge, hasStoredRowHeight, rangeAsTsv, renderCell, rowAt, setRowHeights, sheetSettings, type RenderCell, type RenderFormatter, type RenderOptions, type RenderSheet } from ${JSON.stringify(`${pkg.name}/render`)};
 import { resolveColor, type Cell as RCell, type Workbook as RWorkbook } from ${JSON.stringify(pkg.name)};
 declare const book: RWorkbook<RCell>;
 const renderFmt: RenderFormatter = (cell, o) => ({ text: String(cell.value ?? ""), align: o.locale ? "right" : undefined });
@@ -205,6 +205,8 @@ const bg: string | undefined = rc?.style.background.kind === "solid" ? rc.style.
 const where: { row: number; col: number } = edge(rs, { row: 0, col: 0 }, "down");
 const tsv: string = rangeAsTsv(rs, { start: where, end: where }, { values: "raw" });
 const frozen: number = sheetSettings(rs).freeze.rows + rowAt(rs, 100);
+const grew: boolean = setRowHeights(rs, [[0, 40]]) && !hasStoredRowHeight(rs, 0);
+void grew;
 const argb: string = resolveColor({ theme: 4, tint: 0.4 }, { theme: book.theme, indexedColors: book.indexedColors });
 void bg; void tsv; void frozen; void argb;
 `;
