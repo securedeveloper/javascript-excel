@@ -80,7 +80,7 @@ One npm package, `javascript-excel`, with subpath exports. `package.json` declar
 | `javascript-excel/dom` | `fromTable`, `download` | DOM APIs, called only inside functions | The only module that touches `document`. Safe to import during SSR; calling it without a DOM throws `ENVIRONMENT_UNSUPPORTED`. |
 | `javascript-excel/worker` | `exposeWorker` (worker side), `createWorkerClient` (main-thread side) | Writer and reader, inside the worker only | Moves big jobs off the main thread. Main-thread code that imports only `createWorkerClient` does not ship the engine. |
 | `javascript-excel/import` | `importDataset`, `detectHeader`, `inferColumnTypes`, `coerceColumns`, `parseNumber`, `parseDate`, `mapColumns`, `applyMapping`, option and result types | Reader and CSV reader | Importing user files into `{ columns, data }` (§5.6). Apps that only write never load it. |
-| `javascript-excel/format` (2.x) | `formatValue`, `formatCell`, `FormatOptions`, `FormattedValue` | Format-code parser and renderer; locale data from `Intl` | Only apps that show formatted values (viewers, previews) pay for it. |
+| `javascript-excel/format` | `formatValue`, `formatCell`, `FormatOptions`, `FormattedValue` | Format-code parser and renderer; locale data from `Intl` | Only apps that show formatted values (viewers, previews) pay for it. |
 | `javascript-excel/render` | `createRenderSheet` and its geometry, cell, navigation and copy functions (§5.8) | Nothing from the reader or writer; number formatting only through the `format` option | Only viewers pay for it. |
 
 Rules:
@@ -452,7 +452,7 @@ export type NumFmt = number | string;
 - **Strings are custom codes**, written as `<numFmt>` with ids allocated from 164 upward, one per distinct code. The one exception is `'General'`, which maps to id 0. The writer does not map other strings to built-in ids, because a built-in id such as 14 renders in the user's locale while the string `'mm-dd-yy'` should render literally (§12 Q5).
 - The reader returns built-in ids as numbers and custom codes as strings, so `read` then `write` keeps formats unchanged.
 - `BUILTIN_NUM_FMTS` exports the spec table (§11.2), `isDateFormat(fmt)` the detection rule from §3.4.1.
-- Number formats are not rendered in 2.0.0 itself. `javascript-excel/format` (§5.7) renders them, in a 2.x minor (§12 Q14).
+- `javascript-excel/format` (§5.7) renders number formats: `1234.5` with `#,##0.00` shows as `1,234.50` (§12 Q14).
 
 #### 3.5.6 Colour
 
@@ -1229,7 +1229,7 @@ export interface MappedDataset { columns: ImportedColumn[]; data: Array<Record<s
 Validation of rows (functions, Standard Schema, async checks) is react-data-import's. javascript-excel reserves its error code, `VALIDATION_FAILED`.
 ### 5.7 Format (`javascript-excel/format`)
 
-Renders a value with an Excel number format, as Excel shows it in a cell: `1234.5` with `#,##0.00` is `1,234.50`, serial `45306` with `dddd, mmmm d, yyyy` is `Monday, January 15, 2024`. It is used by viewers, previews and anything that needs a cell's displayed text. Added in a 2.x minor (§12 Q14); not part of 2.0.0.
+Renders a value with an Excel number format, as Excel shows it in a cell: `1234.5` with `#,##0.00` is `1,234.50`, serial `45306` with `dddd, mmmm d, yyyy` is `Monday, January 15, 2024`. It is used by viewers, previews and anything that needs a cell's displayed text. Part of 2.0, from 2.0.0-alpha.3 (§12 Q14).
 
 ```ts
 export function formatValue(value: FormatInput, numFmt?: NumFmt, options?: FormatOptions): FormattedValue;
@@ -1926,7 +1926,7 @@ These were the open questions of the review. Each one is decided, and the sectio
 
 **Q13. `toDataset` in 2.0.** Decided (2026-11-16): 2.0 ships the minimal version in §4.3: a fixed header row, deduplicated keys and null-prototype rows. Header auto-detection, multi-row header flattening, column mapping and type inference follow with react-data-import, and live in the engine. They shipped in JSE-19 as `javascript-excel/import` (§5.6), as decided in react-data-import's API design (2026-11-16).
 
-**Q14. Number-format rendering.** Decided (2026-11-16): not in 2.0 (§3.5.5). It is planned as `javascript-excel/format` in a 2.x minor. 2.0's `autoWidth` uses `cellText()`. Moved ahead of the other 2.x work (2026-11-16, react-xlsx-viewer's design): the viewer's 1.0 needs it. Designed in §5.7 (JSE-18), independent of the 2.1–2.5 phases because it touches no file parts.
+**Q14. Number-format rendering.** Decided (2026-11-16): `javascript-excel/format` (§5.7) ships in 2.0, from 2.0.0-alpha.3. It was first planned for a 2.x minor; react-xlsx-viewer's design needs it for its 1.0, and Afzal moved it into 2.0 together with `/import`. `autoWidth` still measures `cellText()`, not formatted text.
 
 **Q15. Worker packaging.** Decided (2026-11-16): the app writes a two-line worker file (§5.5). Every major bundler handles `new Worker(new URL(...))` in app code. Node `worker_threads` support may come later.
 
