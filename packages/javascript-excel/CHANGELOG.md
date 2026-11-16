@@ -1,5 +1,11 @@
 # javascript-excel
 
+## 2.0.0-alpha.5
+
+### Minor Changes
+
+- 3fcf25b: `javascript-excel/render`: `setRowHeights(sheet, heights)` sets measured heights for rows without a stored height (a viewer's auto-fit). It grows rows only, clamped to 409 pt, and rebuilds the offsets from the first changed row. `hasStoredRowHeight(sheet, row)` tells which rows the file sized.
+
 ## 2.0.0-alpha.4
 
 ### Minor Changes
