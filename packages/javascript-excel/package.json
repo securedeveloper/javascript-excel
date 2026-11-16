@@ -34,24 +34,54 @@
   "types": "./dist/index.d.cts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./read": {
-      "import": "./dist/read.js",
-      "require": "./dist/read.cjs"
+      "import": {
+        "types": "./dist/read.d.ts",
+        "default": "./dist/read.js"
+      },
+      "require": {
+        "types": "./dist/read.d.cts",
+        "default": "./dist/read.cjs"
+      }
     },
     "./csv": {
-      "import": "./dist/csv.js",
-      "require": "./dist/csv.cjs"
+      "import": {
+        "types": "./dist/csv.d.ts",
+        "default": "./dist/csv.js"
+      },
+      "require": {
+        "types": "./dist/csv.d.cts",
+        "default": "./dist/csv.cjs"
+      }
     },
     "./dom": {
-      "import": "./dist/dom.js",
-      "require": "./dist/dom.cjs"
+      "import": {
+        "types": "./dist/dom.d.ts",
+        "default": "./dist/dom.js"
+      },
+      "require": {
+        "types": "./dist/dom.d.cts",
+        "default": "./dist/dom.cjs"
+      }
     },
     "./worker": {
-      "import": "./dist/worker.js",
-      "require": "./dist/worker.cjs"
+      "import": {
+        "types": "./dist/worker.d.ts",
+        "default": "./dist/worker.js"
+      },
+      "require": {
+        "types": "./dist/worker.d.cts",
+        "default": "./dist/worker.cjs"
+      }
     },
     "./package.json": "./package.json"
   },
