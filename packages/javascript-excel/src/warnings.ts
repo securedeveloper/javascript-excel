@@ -23,6 +23,7 @@ export type ExcelWarningCode =
   // builders
   | "COERCION_FAILED"
   | "NON_FINITE_NUMBER"
+  | "HYPERLINK_DROPPED"
   // CSV parser
   | "CSV_UNTERMINATED_QUOTE"
   | "CSV_STRAY_QUOTE"

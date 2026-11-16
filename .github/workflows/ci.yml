@@ -67,6 +67,30 @@ jobs:
           JSE_REQUIRE_LIBREOFFICE: "1"
         run: npm -w packages/javascript-excel exec -- vitest run test/write/libreoffice.test.ts test/read/libreoffice.test.ts
 
+  # javascript-excel/dom in a real browser (test/browser, Vitest browser mode +
+  # Playwright Chromium). Not a required check.
+  browser:
+    name: Browser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(npm -w packages/javascript-excel exec -- playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium-headless-shell
+      - name: Install Chromium (headless shell) and its system libraries
+        run: npm -w packages/javascript-excel exec -- playwright install --with-deps --only-shell chromium
+      - name: Browser tests
+        run: npm -w packages/javascript-excel run test:browser
+
   consumer-ts:
     name: Consumer TS
     runs-on: ubuntu-latest

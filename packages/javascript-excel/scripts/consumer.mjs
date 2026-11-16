@@ -21,7 +21,7 @@ const expected = {
   ".": { VERSION: pkg.version },
   "./read": { read: FUNCTION, readSheetNames: FUNCTION, detectFormat: FUNCTION },
   "./csv": { CSV_MIME: "text/csv;charset=utf-8", parseCsv: FUNCTION, readCsv: FUNCTION, toCsv: FUNCTION, toCsvBlob: FUNCTION },
-  "./dom": { ENTRY: "javascript-excel/dom" },
+  "./dom": { fromTable: FUNCTION, download: FUNCTION, DOWNLOAD_REVOKE_DELAY_MS: 40000 },
   "./worker": { ENTRY: "javascript-excel/worker" },
 };
 
@@ -30,7 +30,7 @@ const expected = {
 export const MARKERS = {
   "./read": "SHARED_FORMULA_UNRESOLVED",
   "./csv": "CSV_STRAY_QUOTE",
-  "./dom": "javascript-excel/dom",
+  "./dom": "[data-export-ignore]",
   "./worker": "javascript-excel/worker",
 };
 
@@ -122,6 +122,21 @@ function writeFeatures(): Promise<Uint8Array> {
 void sheetNameProblem;
 void plainText;
 void writeFeatures;
+// javascript-excel/dom: TableElement resolves to the DOM's HTMLTableElement.
+import { download, fromTable, type FromTableOptions } from ${JSON.stringify(`${pkg.name}/dom`)};
+const tableOptions: FromTableOptions = {
+  styles: "computed",
+  header: 2,
+  autoWidth: { max: 40, sampleRows: undefined },
+  hyperlinkSchemes: ["https"],
+  onWarning: (w) => void w.code,
+  cell: (el, ctx) => (ctx.header ? undefined : (el as HTMLTableCellElement).textContent ?? undefined),
+};
+function exportTable(t: HTMLTableElement): void {
+  const sheet = fromTable(t, tableOptions);
+  download(new Uint8Array(0), \`\${sheet.name}.xlsx\`);
+}
+void exportTable;
 // The shared types are the same from the core entry and from /csv.
 import type { AbortSignalLike as CoreSignal, BlobType as CoreBlob, ExcelWarning as CoreWarning } from ${JSON.stringify(pkg.name)};
 import type { AbortSignalLike as CsvSignal, BlobType as CsvBlob, ExcelWarning as CsvWarning } from ${JSON.stringify(`${pkg.name}/csv`)};
