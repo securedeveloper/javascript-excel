@@ -1451,6 +1451,8 @@ These were the open questions of the review. Each one is decided, and the sectio
 | 3.x | formula parser and evaluator (`javascript-excel/formula`), number-format renderer (`javascript-excel/format`, §12 Q14), charts and drawings (read, plus a render model for the viewer) |
 | 4.x | legacy `.xls` (BIFF8) read, then write; `.xlsb` read; encrypted files (password, ECMA-376 agile encryption) |
 
+The 2.x row is designed in [design/2x.md](design/2x.md) (proposal: phases 2.1–2.5, dependency order, and what each phase will not do).
+
 ### Guardrails for 2.0's design
 
 These follow from the roadmap and apply to every 2.0 change.
