@@ -22,11 +22,14 @@ import {
   rootRelsXml,
   THEME_XML,
   workbookRelsXml,
+  definedNamesXml,
   workbookXml,
   type PackagePlan,
 } from "./internal/write/parts";
 import { planRowCount, planSheet, SharedStrings, sheetXml, type SheetPlan, type WriteContext } from "./internal/write/sheet";
+import { hyperlinkSchemes } from "./internal/write/sheet-features";
 import { StyleRegistry } from "./internal/write/style-registry";
+import { validateSheetName, type SheetNameProblem } from "./sheet-names";
 
 /** MIME type of an .xlsx file. */
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -47,6 +50,8 @@ export interface WriteOptions {
   sharedStrings?: boolean | undefined;
   /** Time zone used to turn Date into serials. Default 'local'. */
   dateZone?: "local" | "utc" | undefined;
+  /** URL schemes allowed in external hyperlinks. Default ['http', 'https', 'mailto']. */
+  hyperlinkSchemes?: string[] | undefined;
   signal?: AbortSignalLike | undefined;
   onProgress?: ((p: Progress) => void) | undefined;
 }
@@ -54,19 +59,21 @@ export interface WriteOptions {
 /** Report progress at most once per this many rows. [placeholder, set in JSE-8] */
 const PROGRESS_EVERY_ROWS = 1000;
 
-/** Sheet names Excel rejects: 31 characters max, none of \ / ? * [ ] :, no leading or trailing apostrophe. */
+const SHEET_NAME_PROBLEMS: Record<SheetNameProblem, string> = {
+  empty: "must be a non-empty string",
+  "too-long": "is longer than 31 characters",
+  "forbidden-char": "contains one of \\ / ? * [ ] :",
+  apostrophe: "starts or ends with an apostrophe",
+  reserved: "'History' is reserved by Excel",
+};
+
 function checkSheetName(name: unknown, index: number): asserts name is string {
-  const fail = (why: string): never => {
-    throw new ValidationError("INVALID_SHEET_NAME", `Sheet ${index + 1} name ${JSON.stringify(name)}: ${why}.`, {
-      details: { sheet: name, index },
+  const problem = typeof name === "string" ? validateSheetName(name) : "empty";
+  if (problem) {
+    throw new ValidationError("INVALID_SHEET_NAME", `Sheet ${index + 1} name ${JSON.stringify(name)} ${SHEET_NAME_PROBLEMS[problem]}.`, {
+      details: { sheet: name, index, problem },
     });
-  };
-  if (typeof name !== "string" || name.length === 0) fail("must be a non-empty string");
-  const n = name as string;
-  if (n.length > 31) fail("longer than 31 characters");
-  if (/[\\/?*[\]:]/.test(n)) fail("contains one of \\ / ? * [ ] :");
-  if (n.startsWith("'") || n.endsWith("'")) fail("starts or ends with an apostrophe");
-  if (n.toLowerCase() === "history") fail("'History' is reserved by Excel");
+  }
 }
 
 interface Plan {
@@ -75,7 +82,7 @@ interface Plan {
   totalRows: number;
 }
 
-function planWorkbook(wb: Workbook): Plan {
+function planWorkbook(wb: Workbook, styles: StyleRegistry, schemes: ReadonlySet<string>): Plan {
   if (typeof wb !== "object" || wb === null || !Array.isArray(wb.sheets) || wb.sheets.length === 0) {
     throw new ValidationError("NO_SHEETS", "A workbook needs at least one sheet.");
   }
@@ -95,8 +102,8 @@ function planWorkbook(wb: Workbook): Plan {
     seen.set(key, i);
     const state = sheet.state ?? "visible";
     if (state !== "visible" && state !== "hidden" && state !== "veryHidden") {
-      throw new ValidationError("INVALID_SHEET_NAME", `Sheet ${sheet.name}: state must be 'visible', 'hidden' or 'veryHidden'.`, {
-        details: { sheet: sheet.name, state },
+      throw new ValidationError("INVALID_SHEET_PROPERTY", `Sheet ${sheet.name}: state must be 'visible', 'hidden' or 'veryHidden'.`, {
+        details: { sheet: sheet.name, path: "state", value: state },
       });
     }
   });
@@ -108,7 +115,7 @@ function planWorkbook(wb: Workbook): Plan {
   if ((active.state ?? "visible") !== "visible") {
     throw new ValidationError("INVALID_ACTIVE_SHEET", `The active sheet ${JSON.stringify(active.name)} must be visible.`, { details: { activeSheet } });
   }
-  const sheets = wb.sheets.map((s, i) => planSheet(s, i === activeSheet));
+  const sheets = wb.sheets.map((s, i) => planSheet(s, i, i === activeSheet, styles, schemes));
   return { sheets, activeSheet, totalRows: sheets.reduce((n, p) => n + planRowCount(p), 0) };
 }
 
@@ -117,7 +124,13 @@ export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Pr
   const { signal, onProgress } = options;
   throwIfAborted(signal);
   onProgress?.({ phase: "prepare", ratio: 0 });
-  const plan = planWorkbook(wb);
+  const styles = new StyleRegistry(wb.defaultFont);
+  const plan = planWorkbook(wb, styles, hyperlinkSchemes(options.hyperlinkSchemes));
+  const definedNames = definedNamesXml(
+    wb.definedNames,
+    plan.sheets.flatMap((p) => p.features.builtinNames),
+    plan.sheets.length,
+  );
   const props = wb.properties ?? {};
   const now = new Date();
   const modified = props.modified ?? now;
@@ -131,7 +144,7 @@ export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Pr
   const customPart = custom.length > 0 ? customXml(custom) : undefined;
 
   const ctx: WriteContext = {
-    styles: new StyleRegistry(wb.defaultFont),
+    styles,
     strings: sharedStrings ? new SharedStrings() : undefined,
     date1904: wb.date1904 === true,
     dateZone: options.dateZone ?? "local",
@@ -170,6 +183,9 @@ export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Pr
           }
         })(),
       };
+      // Hyperlink relationships are known once the sheet XML has been written.
+      const rels = sp.links.relsXml();
+      if (rels) yield { name: `xl/worksheets/_rels/sheet${i + 1}.xml.rels`, data: rels };
     }
     // Written after the sheets, which fill the string table and the style registry.
     onProgress?.({ phase: "styles", ratio: 0.9 });
@@ -184,6 +200,7 @@ export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Pr
         activeSheet: plan.activeSheet,
         date1904: ctx.date1904,
         fullCalcOnLoad: fullCalc === true || ((fullCalc === undefined || fullCalc === "auto") && ctx.formulaWithoutValue),
+        definedNames,
       }),
     };
     yield { name: "xl/_rels/workbook.xml.rels", data: workbookRelsXml(pkg) };

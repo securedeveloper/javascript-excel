@@ -4,8 +4,9 @@
  */
 
 import { ValidationError } from "../../errors";
-import type { DocProperties } from "../../model";
-import { num, XML_DECL, xmlAttr, xmlText } from "../xml";
+import type { DefinedName, DocProperties } from "../../model";
+import type { BuiltinName } from "./sheet-features";
+import { num, XML_DECL, xmlAttr, xmlText, xstring } from "../xml";
 
 const NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const NS_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -67,6 +68,8 @@ export interface WorkbookPlan {
   activeSheet: number;
   date1904: boolean;
   fullCalcOnLoad: boolean;
+  /** Validated <definedName> elements (see definedNamesXml). */
+  definedNames: string;
 }
 
 export function workbookXml(w: WorkbookPlan): string {
@@ -79,6 +82,7 @@ export function workbookXml(w: WorkbookPlan): string {
     x += `<sheet name="${xmlAttr(s.name)}" sheetId="${i + 1}"${state} r:id="rId${i + 1}"/>`;
   });
   x += "</sheets>";
+  if (w.definedNames) x += w.definedNames;
   if (w.fullCalcOnLoad) x += '<calcPr fullCalcOnLoad="1"/>';
   return `${x}</workbook>`;
 }
@@ -213,3 +217,67 @@ export const THEME_XML: string =
   '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'.repeat(3) +
   "</a:bgFillStyleLst>" +
   "</a:fmtScheme></a:themeElements></a:theme>";
+
+// ---------------------------------------------------------- defined names
+
+function nameError(message: string, details: Record<string, unknown>): ValidationError {
+  return new ValidationError("INVALID_DEFINED_NAME", message, { details });
+}
+
+// Excel's rules: start with a letter, '_' or '\'; then letters, digits, '.', '_', '\' or '?';
+// at most 255 characters; not a cell reference; not R/C on their own or an R1C1 reference.
+const NAME_RE = /^[\p{L}_\\][\p{L}\p{N}_.\\?]*$/u;
+const A1_LIKE = /^\$?([A-Za-z]{1,3})\$?([0-9]+)$/;
+const R1C1_LIKE = /^[Rr]([0-9]*)([Cc]([0-9]*))?$|^[Cc][0-9]*$/;
+
+function isCellLike(name: string): boolean {
+  const m = A1_LIKE.exec(name);
+  if (!m) return false;
+  const letters = m[1]!.toUpperCase();
+  let col = 0;
+  for (const ch of letters) col = col * 26 + (ch.charCodeAt(0) - 64);
+  const row = Number(m[2]);
+  return col <= 16384 && row >= 1 && row <= 1_048_576;
+}
+
+/**
+ * Validates user defined names and adds the built-in ones the sheets imply
+ * (autofilter database, print area, print titles). Names are unique per scope,
+ * case-insensitively. Returns the <definedNames> element, or ''.
+ */
+export function definedNamesXml(user: DefinedName[] | undefined, builtins: BuiltinName[], sheetCount: number): string {
+  const seen = new Set<string>();
+  const items: string[] = [];
+  const scopeKey = (name: string, sheet: number | undefined): string => `${sheet ?? "wb"}\u0000${name.toLowerCase()}`;
+  if (user !== undefined && !Array.isArray(user)) throw nameError("definedNames must be an array.", {});
+  (user ?? []).forEach((d, i) => {
+    if (typeof d !== "object" || d === null) throw nameError(`definedNames[${i}] must be an object.`, { index: i });
+    const { name } = d;
+    if (typeof name !== "string" || name.length === 0 || name.length > 255 || !NAME_RE.test(name) || isCellLike(name) || R1C1_LIKE.test(name)) {
+      throw nameError(`Defined name ${JSON.stringify(name)} is not a valid Excel name (start with a letter, '_' or '\\'; letters, digits, '.', '_'; no spaces; not a cell reference).`, { index: i, name });
+    }
+    if (name.toLowerCase().startsWith("_xlnm.")) {
+      throw nameError(`Defined name ${name} is reserved; set print.printArea, print.printTitles or autoFilter instead.`, { index: i, name });
+    }
+    if (d.sheet !== undefined && (!Number.isInteger(d.sheet) || d.sheet < 0 || d.sheet >= sheetCount)) {
+      throw nameError(`Defined name ${name}: sheet ${String(d.sheet)} is not a sheet index.`, { index: i, name, sheet: d.sheet });
+    }
+    if (typeof d.ref !== "string" || d.ref.replace(/^=/, "").length === 0) {
+      throw nameError(`Defined name ${name}: ref must be a non-empty formula such as "'Sheet 1'!$A$1".`, { index: i, name });
+    }
+    if (d.hidden !== undefined && typeof d.hidden !== "boolean") throw nameError(`Defined name ${name}: hidden must be a boolean.`, { index: i, name });
+    if (d.comment !== undefined && typeof d.comment !== "string") throw nameError(`Defined name ${name}: comment must be a string.`, { index: i, name });
+    const key = scopeKey(name, d.sheet);
+    if (seen.has(key)) throw nameError(`Defined name ${name} is defined twice in the same scope.`, { index: i, name });
+    seen.add(key);
+    let attrs = ` name="${xmlAttr(name)}"`;
+    if (d.comment) attrs += ` comment="${xmlAttr(d.comment)}"`;
+    if (d.sheet !== undefined) attrs += ` localSheetId="${d.sheet}"`;
+    if (d.hidden) attrs += ' hidden="1"';
+    items.push(`<definedName${attrs}>${xstring(d.ref.replace(/^=/, ""))}</definedName>`);
+  });
+  for (const b of builtins) {
+    items.push(`<definedName name="${b.name}" localSheetId="${b.sheet}"${b.hidden ? ' hidden="1"' : ""}>${xstring(b.ref)}</definedName>`);
+  }
+  return items.length ? `<definedNames>${items.join("")}</definedNames>` : "";
+}

@@ -120,10 +120,11 @@ export interface ColumnProps {
  * Column width.
  * - number or `{ wch }`: width in characters, as Excel's UI shows it (8.43 is the Calibri 11 default).
  * - `{ wpx }`: width in pixels at 96 dpi.
+ * - `'auto'`: estimated by the writer from the column's text (no font metrics).
  *
  * Reader output is always a number in characters.
  */
-export type ColumnWidth = number | { wch: number } | { wpx: number };
+export type ColumnWidth = number | { wch: number } | { wpx: number } | "auto";
 
 /** Sheet view settings. */
 export interface SheetView {

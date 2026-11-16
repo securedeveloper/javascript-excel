@@ -309,6 +309,12 @@ export class StyleRegistry {
     return this.normFont(new Checker(ctx), "font", style.font, this.defaultFont);
   }
 
+  /** Validates a colour and returns its CT_Color attributes (e.g. ` rgb="FFFF0000"`). */
+  colorAttrs(path: string, color: Color, ctx: StyleContext): string {
+    const n = new Checker(ctx).color(path, color);
+    return n ? colorAttrs(n) : "";
+  }
+
   get cellXfCount(): number {
     return this.xfs.length;
   }

@@ -77,7 +77,7 @@ export function packAndInstall(work) {
  */
 const MODEL_FIXTURE = `
 import type { Cell, Font, Style, Workbook } from ${JSON.stringify(pkg.name)};
-import { toBlob, toUint8Array } from ${JSON.stringify(pkg.name)};
+import { cellText, sanitizeSheetName, toBlob, toUint8Array, validateSheetName, type SheetNameProblem } from ${JSON.stringify(pkg.name)};
 const maybe = (on: boolean): true | undefined => (on ? true : undefined);
 const font: Font = { bold: maybe(false), size: undefined, color: undefined, underline: undefined };
 const style: Style = { font, fill: undefined, numFmt: undefined, protection: { locked: undefined } };
@@ -101,6 +101,27 @@ function write(w: Workbook): [Promise<Blob>, Promise<Uint8Array>] {
   return [toBlob(w), toUint8Array(w, { signal: new AbortController().signal, sharedStrings: undefined })];
 }
 void write;
+// Sheet features and helpers.
+const features: Workbook = {
+  definedNames: [{ name: "Rate", ref: "S!$A$1", sheet: undefined }],
+  sheets: [{
+    name: sanitizeSheetName("a/b"),
+    rows: [[{ value: "x", hyperlink: { location: "S!A1", tooltip: undefined } }]],
+    colProps: [{ width: "auto" }, { width: { wpx: 64 } }, undefined],
+    rowProps: [{ height: 20, outlineLevel: undefined }],
+    merges: ["A1:B1"],
+    view: { freeze: { rows: 1 }, rightToLeft: undefined },
+    print: { fitTo: { width: 1 }, orientation: "landscape" },
+  }],
+};
+const sheetNameProblem: SheetNameProblem | null = validateSheetName("ok");
+const plainText: string = cellText({ value: 1 }, { dateZone: "utc" });
+function writeFeatures(): Promise<Uint8Array> {
+  return toUint8Array(features, { hyperlinkSchemes: ["https"] });
+}
+void sheetNameProblem;
+void plainText;
+void writeFeatures;
 // The shared types are the same from the core entry and from /csv.
 import type { AbortSignalLike as CoreSignal, BlobType as CoreBlob, ExcelWarning as CoreWarning } from ${JSON.stringify(pkg.name)};
 import type { AbortSignalLike as CsvSignal, BlobType as CsvBlob, ExcelWarning as CsvWarning } from ${JSON.stringify(`${pkg.name}/csv`)};

@@ -118,6 +118,71 @@ def value(v):
     return {"repr": repr(v)}
 
 
+def dim_style(d):
+    return {"bold": bool(d.font.b), "fill": color(d.fill.fgColor) if d.fill.patternType else None} if d.has_style else None
+
+
+def hf_part(part):
+    return {k: getattr(part, k).text for k in ("left", "center", "right") if getattr(part, k).text}
+
+
+def sheet_info(ws):
+    sv = ws.sheet_view
+    pane = sv.pane
+    props = ws.sheet_properties
+    fmt = ws.sheet_format
+    ps = ws.page_setup
+    po = ws.print_options
+    pm = ws.page_margins
+    hf = ws.HeaderFooter
+    return {
+        "cols": {
+            k: {
+                "min": d.min, "max": d.max, "width": d.width, "customWidth": bool(d.customWidth), "bestFit": bool(d.bestFit),
+                "hidden": bool(d.hidden), "outlineLevel": d.outlineLevel, "collapsed": bool(d.collapsed), "style": dim_style(d),
+            }
+            for k, d in ws.column_dimensions.items()
+        },
+        "rows": {
+            str(k): {
+                "height": d.height, "customHeight": bool(d.customHeight), "hidden": bool(d.hidden),
+                "outlineLevel": d.outlineLevel, "collapsed": bool(d.collapsed), "style": dim_style(d),
+            }
+            for k, d in ws.row_dimensions.items()
+        },
+        "merges": sorted(str(r) for r in ws.merged_cells.ranges),
+        "autoFilter": ws.auto_filter.ref,
+        "freeze": ws.freeze_panes,
+        "view": {
+            "tabSelected": bool(sv.tabSelected), "rightToLeft": bool(sv.rightToLeft), "zoomScale": sv.zoomScale,
+            "showGridLines": sv.showGridLines, "showRowColHeaders": sv.showRowColHeaders,
+            "pane": {"xSplit": pane.xSplit, "ySplit": pane.ySplit, "topLeftCell": pane.topLeftCell, "activePane": pane.activePane, "state": pane.state} if pane else None,
+            "selection": [{"pane": x.pane, "activeCell": x.activeCell, "sqref": str(x.sqref)} for x in sv.selection],
+        },
+        "tabColor": color(props.tabColor),
+        "fitToPage": bool(props.pageSetUpPr.fitToPage) if props.pageSetUpPr else False,
+        "format": {
+            "defaultColWidth": fmt.defaultColWidth, "defaultRowHeight": fmt.defaultRowHeight, "customHeight": bool(fmt.customHeight),
+            "outlineLevelRow": fmt.outlineLevelRow, "outlineLevelCol": fmt.outlineLevelCol,
+        },
+        "hyperlinks": {
+            c.coordinate: {"target": c.hyperlink.target, "location": c.hyperlink.location, "tooltip": c.hyperlink.tooltip}
+            for row in ws.iter_rows() for c in row if c.hyperlink is not None
+        },
+        "pageSetup": {"orientation": ps.orientation, "paperSize": ps.paperSize, "scale": ps.scale, "fitToWidth": ps.fitToWidth, "fitToHeight": ps.fitToHeight},
+        "printOptions": {"horizontalCentered": bool(po.horizontalCentered), "verticalCentered": bool(po.verticalCentered), "headings": bool(po.headings), "gridLines": bool(po.gridLines)},
+        "margins": {k: getattr(pm, k) for k in ("left", "right", "top", "bottom", "header", "footer")},
+        "headerFooter": {
+            "oddHeader": hf_part(hf.oddHeader), "oddFooter": hf_part(hf.oddFooter), "evenHeader": hf_part(hf.evenHeader),
+            "firstFooter": hf_part(hf.firstFooter), "differentOddEven": bool(hf.differentOddEven), "differentFirst": bool(hf.differentFirst),
+        },
+        "printArea": ws.print_area,
+        "printTitleRows": ws.print_title_rows,
+        "printTitleCols": ws.print_title_cols,
+        "definedNames": {n: {"ref": d.attr_text, "hidden": bool(d.hidden)} for n, d in ws.defined_names.items()},
+    }
+
+
 def iso(d):
     return d.isoformat() if d else None
 
@@ -143,6 +208,8 @@ def main(path, values_only=False):
         },
         "custom": [{"name": p.name, "value": value(p.value)} for p in wb.custom_doc_props.props],
         "cellXfCount": len(wb._cell_styles),
+        "definedNames": {n: {"ref": d.attr_text, "hidden": bool(d.hidden), "comment": d.comment} for n, d in wb.defined_names.items()},
+        "sheetInfo": {ws.title: sheet_info(ws) for ws in wb.worksheets},
         "cells": {},
     }
     for ws in wb.worksheets:

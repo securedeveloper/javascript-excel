@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
-import { LONG_TEXT, valuesWorkbook } from "./golden-cases";
+import { featuresWorkbook, LONG_TEXT, valuesWorkbook } from "./golden-cases";
 import { toUint8Array, type BorderStyle, type PatternType, type Style, type Workbook, type WriteOptions } from "../../src/index";
 
 const PY = process.env["JSE_PYTHON"] ?? "python3";
@@ -38,7 +38,11 @@ interface DumpCell {
   alignment: { horizontal: string | null; vertical: string | null; textRotation: number; wrapText: boolean; shrinkToFit: boolean; indent: number; readingOrder: number; justifyLastLine: boolean };
   protection: { locked: boolean; hidden: boolean };
 }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Loose = any;
 interface Dump {
+  sheetInfo: Record<string, Loose>;
+  definedNames: Record<string, { ref: string; hidden: boolean; comment: string | null }>;
   sheets: Array<{ title: string; state: string }>;
   active: number;
   epoch1904: boolean;
@@ -320,6 +324,93 @@ describe.skipIf(!hasOpenpyxl)("golden files (openpyxl)", () => {
       expect(c["A2"]!.alignment.horizontal).toBe("center");
       expect(c["B2"]!.font).toMatchObject({ name: "Arial", italic: true, size: 20, bold: false });
       expect((c["B2"]!.border["top"] as { style: string }).style).toBe("thin");
+    });
+  });
+
+  // ---------------------------------------------------- sheet features
+  describe("sheet features", () => {
+    let d: Dump;
+    const report = (): Loose => d.sheetInfo["Report"];
+    it("writes the features workbook", async () => {
+      d = await golden("features", featuresWorkbook());
+      expect(Object.keys(d.sheetInfo)).toEqual(["Report", "Second", "Frozen rows", "Frozen cols"]);
+    });
+
+    it("column widths (characters, wch, wpx, auto, 0), hidden, outline, column style", () => {
+      const cols = report().cols;
+      // ECMA-376 §18.3.1.13 with a maximum digit width of 7 px (Calibri 11).
+      expect(cols["A"]).toMatchObject({ width: 20.7109375, customWidth: true });
+      expect(cols["B"]).toMatchObject({ width: 12.7109375, customWidth: true });
+      expect(cols["C"]).toMatchObject({ width: 14.28125, customWidth: true }); // 100 px → 13.57 characters
+      expect(cols["D"]).toMatchObject({ width: 19.7109375, customWidth: true, bestFit: true }); // widest text 17 (漢字 count 2) + 2 padding
+      expect(cols["E"]).toMatchObject({ hidden: true, width: 10.7109375 }); // default width 10 characters (openpyxl reports customWidth for any width; the XML is checked in writer-features.test.ts)
+      expect(cols["F"]).toMatchObject({ outlineLevel: 1, style: { bold: true, fill: null } });
+      expect(cols["G"]).toBeUndefined();
+      expect(cols["H"]).toMatchObject({ width: 0, hidden: true }); // width 0 also sets hidden, as Excel does
+      expect(report().format).toMatchObject({ defaultColWidth: 10.7109375, defaultRowHeight: 18, customHeight: true, outlineLevelRow: 2, outlineLevelCol: 1 });
+    });
+
+    it("row heights, hidden, outline, row style, and rows with properties but no cells", () => {
+      const rows = report().rows;
+      expect(rows["1"]).toMatchObject({ height: 30, customHeight: true, style: { bold: false, fill: { rgb: "FFDDEBF7" } } });
+      expect(rows["4"]).toMatchObject({ hidden: true });
+      expect(rows["5"]).toMatchObject({ outlineLevel: 2, collapsed: true });
+      expect(rows["15"]).toMatchObject({ height: 25, customHeight: true }); // beyond the last cell
+      // The row style also reached the row's cells.
+      expect(d.cells["Report"]!["A1"]!.fill.fgColor).toEqual({ rgb: "FFDDEBF7" });
+    });
+
+    it("merges, autofilter, freeze panes, zoom, gridlines, tab colour", () => {
+      const r = report();
+      expect(r.merges).toEqual(["A11:D11", "F11:G12"]);
+      expect(r.autoFilter).toBe("A1:D10");
+      expect(r.freeze).toBe("B2");
+      expect(r.view).toMatchObject({ tabSelected: true, zoomScale: 120, showGridLines: false, pane: { xSplit: 1, ySplit: 1, topLeftCell: "B2", activePane: "bottomRight", state: "frozen" } });
+      expect(r.tabColor).toEqual({ rgb: "FFFF0000" });
+      // openpyxl folds the hidden _xlnm._FilterDatabase name into auto_filter; writer-features.test.ts checks it in the XML.
+    });
+
+    it("other views: RTL, frozen rows with a selection, frozen columns", () => {
+      expect(d.sheetInfo["Second"].view).toMatchObject({ rightToLeft: true, tabSelected: false, pane: null });
+      expect(d.sheetInfo["Frozen rows"].freeze).toBe("A3");
+      expect(d.sheetInfo["Frozen rows"].view.pane).toMatchObject({ ySplit: 2, activePane: "bottomLeft" });
+      expect(d.sheetInfo["Frozen rows"].view.selection).toEqual([{ pane: "bottomLeft", activeCell: "B5", sqref: "B5:C6" }]);
+      expect(d.sheetInfo["Frozen cols"].freeze).toBe("C1");
+      expect(d.sheetInfo["Frozen cols"].view.pane).toMatchObject({ xSplit: 2, activePane: "topRight" });
+    });
+
+    it("sheet default style covers the columns; column styles layer on top", () => {
+      const s = d.sheetInfo["Second"];
+      expect(s.cols["A"]).toMatchObject({ style: { bold: true } });
+      expect(s.cols["B"]).toMatchObject({ min: 2, max: 16384, style: { bold: false } });
+      expect(d.cells["Second"]!["A1"]!.font).toMatchObject({ bold: true, italic: true });
+      expect(d.cells["Second"]!["B2"]!.font).toMatchObject({ bold: false, italic: true });
+    });
+
+    it("hyperlinks: external URL, mailto with tooltip, internal location", () => {
+      expect(report().hyperlinks).toEqual({
+        A2: { target: "https://example.com/a?b=1&c=2", location: null, tooltip: null },
+        B2: { target: "mailto:someone@example.com", location: null, tooltip: "Write to us" },
+        C2: { target: null, location: "'Second'!A1", tooltip: "go" },
+        D2: { target: "https://example.com/a?b=1&c=2", location: null, tooltip: null },
+      });
+    });
+
+    it("defined names, workbook and sheet scope", () => {
+      expect(d.definedNames["TaxRate"]).toEqual({ ref: "'Report'!$B$2", hidden: false, comment: null });
+      expect(d.sheetInfo["Second"].definedNames["LocalName"]).toEqual({ ref: "Second!$A$1", hidden: true });
+    });
+
+    it("print setup: orientation, paper, fit to width, margins, options, area, titles, header/footer", () => {
+      const r = report();
+      expect(r.pageSetup).toMatchObject({ orientation: "landscape", paperSize: 9, fitToWidth: 1, fitToHeight: 0 });
+      expect(r.fitToPage).toBe(true);
+      expect(r.margins).toEqual({ left: 0.5, right: 0.7, top: 1, bottom: 0.75, header: 0.3, footer: 0.3 });
+      expect(r.printOptions).toEqual({ horizontalCentered: true, verticalCentered: false, headings: true, gridLines: true });
+      expect(r.printArea).toBe("'Report'!$A$1:$D$20");
+      expect(r.printTitleRows).toBe("$1:$1");
+      expect(r.printTitleCols).toBe("$A:$A");
+      expect(r.headerFooter).toMatchObject({ oddHeader: { center: "Report" }, oddFooter: { right: "Page &P of &N" }, firstFooter: { center: "First page" }, differentFirst: true, differentOddEven: false });
     });
   });
 
