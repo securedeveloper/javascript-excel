@@ -1,0 +1,12 @@
+{
+  "name": "api-docs",
+  "private": true,
+  "description": "Generates the javascript-excel API reference from the published .d.ts files (TypeDoc). Not shipped.",
+  "scripts": {
+    "build": "typedoc --options typedoc.json"
+  },
+  "devDependencies": {
+    "typedoc": "0.28.20",
+    "typescript": "6.0.3"
+  }
+}

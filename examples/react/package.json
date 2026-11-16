@@ -1,0 +1,22 @@
+{
+  "name": "example-react",
+  "private": true,
+  "type": "module",
+  "description": "javascript-excel in React without hooks. For a full React layer, see react-data-export.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "javascript-excel": "2.0.0-alpha.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.8"
+  }
+}

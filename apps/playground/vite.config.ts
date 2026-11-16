@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
@@ -6,6 +7,11 @@ import { defineConfig } from "vite";
 // tarball (what npm users get) is covered by the package's smoke test.
 const src = fileURLToPath(new URL("../../packages/javascript-excel/src/", import.meta.url));
 
+// `vite preview` serves the same security headers as Vercel (vercel.json), so the
+// CSP is exercised locally before a deploy.
+const vercel = JSON.parse(readFileSync(new URL("./vercel.json", import.meta.url), "utf8")) as { headers: Array<{ headers: Array<{ key: string; value: string }> }> };
+const headers = Object.fromEntries(vercel.headers.flatMap((h) => h.headers.map(({ key, value }) => [key, value])));
+
 export default defineConfig({
   resolve: {
     alias: [
@@ -13,4 +19,6 @@ export default defineConfig({
       { find: /^javascript-excel\/(.+)$/, replacement: `${src}$1.ts` },
     ],
   },
+  worker: { format: "es" },
+  preview: { headers },
 });

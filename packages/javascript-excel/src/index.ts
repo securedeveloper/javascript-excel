@@ -4,6 +4,8 @@
  * This entry exports the workbook model types (docs/api.md §3), the error
  * classes (§7), the xlsx writer (§5.1) and the address, date and style
  * helpers (§4). Builders land in later pull requests.
+ *
+ * @module javascript-excel
  */
 
 export type {
@@ -71,4 +73,4 @@ export { decodeCell, decodeCol, decodeRange, encodeCell, encodeCol, encodeRange,
 export type { CellAddress, RangeAddress } from "./address";
 
 /** Package version. Set from package.json by `npm run version-packages` (scripts/sync-version.mjs); a unit test checks it. */
-export const VERSION = "2.0.0-alpha.1";
+export const VERSION = "2.0.0-alpha.2";

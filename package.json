@@ -5,21 +5,26 @@
   "license": "MIT",
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    "examples/*",
+    "tools/*"
   ],
   "engines": {
     "node": "^22.18.0 || ^24.11.0 || >=26.0.0"
   },
   "scripts": {
     "build": "npm -w packages/javascript-excel run build && npm -w apps/playground run build",
-    "test": "npm -w packages/javascript-excel run test",
-    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm -w packages/javascript-excel run test && npm -w apps/playground run test",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm -w packages/javascript-excel run lint",
     "smoke": "npm -w packages/javascript-excel run smoke",
     "consumer-ts": "npm -w packages/javascript-excel run consumer-ts",
     "test:release": "node --test \"scripts/*.test.mjs\"",
     "version-packages": "changeset version && node scripts/sync-version.mjs --package packages/javascript-excel --file packages/javascript-excel/src/index.ts && npm install --package-lock-only --no-audit --no-fund",
-    "bench": "npm -w packages/javascript-excel run bench --"
+    "bench": "npm -w packages/javascript-excel run bench --",
+    "examples": "npm run build -w packages/javascript-excel && npm run check -w examples/node -w examples/vanilla -w examples/react -w examples/vue && npm run build -w examples/vanilla -w examples/react -w examples/vue && npm start -w examples/node",
+    "docs:api": "npm run build -w packages/javascript-excel && npm run build -w tools/api-docs",
+    "docs:check": "node scripts/check-doc-snippets.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "3.0.3"
