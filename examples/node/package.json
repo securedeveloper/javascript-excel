@@ -8,7 +8,7 @@
     "check": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "javascript-excel": "2.0.0-alpha.2"
+    "javascript-excel": "2.0.0-alpha.3"
   },
   "devDependencies": {
     "@types/node": "22.20.5"
