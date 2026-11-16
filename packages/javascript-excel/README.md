@@ -15,7 +15,7 @@ npm install javascript-excel@next
 | `javascript-excel/csv` | CSV parse and serialize |
 | `javascript-excel/dom` | HTML `<table>` to sheet, `download()` |
 | `javascript-excel/worker` | run big jobs in a Web Worker |
-| `javascript-excel/format` | show values as Excel does: number formats, dates, colours (2.x) |
+| `javascript-excel/format` | show values as Excel does: number formats, dates, colours |
 | `javascript-excel/import` | a user's `.xlsx` or `.csv` to `{ columns, data }`: header detection, types, locales, column mapping |
 
 Each entry pulls in only what it needs: a writer-only app never ships the reader, the CSV code or the DOM code.
