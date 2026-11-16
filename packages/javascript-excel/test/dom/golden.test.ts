@@ -7,7 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { fromTable } from "../../src/dom";
-import { toUint8Array } from "../../src/index";
+import { toUint8Array, type Cell } from "../../src/index";
+import { read } from "../../src/read";
 
 const PY = process.env["JSE_PYTHON"] ?? "python3";
 // (Under happy-dom, import.meta.url is not a file: URL; Vitest runs from the package directory.)
@@ -37,7 +38,8 @@ describe.skipIf(!hasOpenpyxl)("fromTable → xlsx (openpyxl)", () => {
     </table>`;
     const sheet = fromTable(document.querySelector("table")!, { name: "Sales", styles: "computed", freezeHeader: true, autoFilter: true, autoWidth: true });
     const file = join(dir, "table.xlsx");
-    writeFileSync(file, await toUint8Array({ sheets: [sheet] }));
+    const bytes = await toUint8Array({ sheets: [sheet] });
+    writeFileSync(file, bytes);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const d = JSON.parse(execFileSync(PY, ["-I", script, file], { encoding: "utf8" })) as any;
     const c = d.cells["Sales"];
@@ -64,5 +66,18 @@ describe.skipIf(!hasOpenpyxl)("fromTable → xlsx (openpyxl)", () => {
     expect(c["A5"].fill.fgColor).toEqual({ rgb: "FFDDEBF7" });
     expect(c["B5"].value).toBe(4040.5);
     expect(Object.keys(info.cols)).toEqual(["A", "B", "C"]);
+
+    // And back through our own reader.
+    const { workbook, warnings } = await read(bytes);
+    expect(warnings).toEqual([]);
+    const back = workbook.sheets[0]!;
+    expect(back.merges).toEqual(["A1:A2", "B1:C1", "B5:C5"]);
+    expect(back.view).toMatchObject({ rightToLeft: true, freeze: { rows: 2 } });
+    expect(back.autoFilter).toBe("A2:C5");
+    const cell = (r: number, c: number): Cell => back.rows[r]![c] as Cell;
+    expect(cell(2, 0)).toMatchObject({ value: "Pens", hyperlink: { target: "https://example.com/pens" } }); // the reader normalises the shorthand
+    expect(cell(2, 1)).toMatchObject({ value: 1200.5, style: { numFmt: "#,##0.00" } });
+    expect(cell(3, 0).value).toBe("Pads\n(new)");
+    expect(cell(3, 2).value).toEqual(new Date(2024, 0, 15));
   });
 });
