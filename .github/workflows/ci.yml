@@ -32,14 +32,39 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/py"
           "$RUNNER_TEMP/py/bin/pip" install --quiet openpyxl==3.1.5
           echo "JSE_PYTHON=$RUNNER_TEMP/py/bin/python" >> "$GITHUB_ENV"
-      - name: Report LibreOffice availability
-        run: soffice --version || echo "LibreOffice is not installed on this runner; the LibreOffice check is skipped"
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
       - run: npm run lint
       - name: Packed-tarball smoke test
         run: npm run smoke
+
+  # Opens the golden workbooks in LibreOffice headless (test/write/libreoffice.test.ts).
+  # Not a required check. It fails, not skips, when LibreOffice or openpyxl is missing.
+  libreoffice:
+    name: LibreOffice
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install LibreOffice Calc (headless)
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends libreoffice-calc-nogui
+          soffice --version
+      - name: Python tools (openpyxl)
+        run: |
+          python3 -m venv "$RUNNER_TEMP/py"
+          "$RUNNER_TEMP/py/bin/pip" install --quiet openpyxl==3.1.5
+          echo "JSE_PYTHON=$RUNNER_TEMP/py/bin/python" >> "$GITHUB_ENV"
+      - name: LibreOffice headless check
+        env:
+          JSE_REQUIRE_LIBREOFFICE: "1"
+        run: npm -w packages/javascript-excel exec -- vitest run test/write/libreoffice.test.ts
 
   consumer-ts:
     name: Consumer TS

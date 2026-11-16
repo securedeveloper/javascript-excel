@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
+import { LONG_TEXT, valuesWorkbook } from "./golden-cases";
 import { toUint8Array, type BorderStyle, type PatternType, type Style, type Workbook, type WriteOptions } from "../../src/index";
 
 const PY = process.env["JSE_PYTHON"] ?? "python3";
@@ -63,39 +64,8 @@ const iso = (d: Date): string => {
 describe.skipIf(!hasOpenpyxl)("golden files (openpyxl)", () => {
   // ------------------------------------------------------------ values
   describe("cell values", () => {
-    const long = "x".repeat(32_767);
-    const values = (): Workbook => ({
-      sheets: [
-        {
-          name: "Values",
-          rows: [
-            ["plain", "été 漢字 😀", "=1+1", "  padded  ", "line1\r\nline2", "_x0041_ literal", "ctrl\u0001char", "", long],
-            [0, -0, 42, -3.5, 0.1 + 0.2, 1e21, 1e-7, Number.MAX_SAFE_INTEGER, 123456789.125],
-            [true, false],
-            [
-              new Date(2024, 0, 15),
-              new Date(2024, 0, 15, 10, 30, 15, 500),
-              new Date(1900, 0, 1),
-              new Date(1900, 1, 28),
-              new Date(1900, 2, 1),
-              new Date(9999, 11, 31),
-            ],
-            [{ error: "#NULL!" }, { error: "#DIV/0!" }, { error: "#VALUE!" }, { error: "#REF!" }, { error: "#NAME?" }, { error: "#NUM!" }, { error: "#N/A" }],
-            [
-              { formula: "SUM(B2:C2)", value: 42 },
-              { formula: "=A1&\"!\"", value: "plain!" },
-              { formula: "B2>0", value: false },
-              { formula: "1/0", value: { error: "#DIV/0!" } },
-              { formula: "TODAY()", value: new Date(2024, 0, 15) },
-              { formula: "NOW()" },
-              { formula: "B2:B3*2", arrayRef: "G6:G7", value: 0 },
-            ],
-            [{ value: null, style: { fill: "FFEE00" } }, { style: { font: { bold: true } } }, { value: "typed", type: "string" }],
-            [{ richText: [{ text: "Bold " , font: { bold: true } }, { text: "red", font: { color: "FF0000", italic: true } }, { text: " plain" }] }],
-          ],
-        },
-      ],
-    });
+    const long = LONG_TEXT;
+    const values = valuesWorkbook;
 
     for (const sharedStrings of [true, false]) {
       it(`round-trips every value type (${sharedStrings ? "shared" : "inline"} strings)`, async () => {
