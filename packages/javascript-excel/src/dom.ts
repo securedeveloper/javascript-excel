@@ -4,6 +4,8 @@
  * The only module that touches the DOM. Importing it never reads a global, so
  * it is safe during server-side rendering; the DOM is used only inside the
  * functions, and a table is read through its own window (iframes work).
+ *
+ * @module javascript-excel/dom
  */
 
 import { autoWidths, type AutoWidthOptions } from "./auto-width";

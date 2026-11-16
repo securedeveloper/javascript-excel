@@ -18,6 +18,8 @@
  * `transfer: true`. Calls on one client run one after another. Code that
  * imports only `createWorkerClient` does not ship the engine: the writer,
  * reader and CSV code are referenced from `exposeWorker` alone.
+ *
+ * @module javascript-excel/worker
  */
 
 import type { BinaryInput } from "./binary";

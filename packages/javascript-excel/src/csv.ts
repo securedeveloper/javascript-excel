@@ -5,6 +5,8 @@
  * LF and CR newlines, a UTF-8 BOM, and lenient recovery from malformed
  * quoting (warnings) unless `mode: 'strict'`. Pulls in nothing from the xlsx
  * code.
+ *
+ * @module javascript-excel/csv
  */
 
 import type { BinaryInput, BlobType } from "./binary";

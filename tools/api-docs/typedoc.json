@@ -1,0 +1,20 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "javascript-excel",
+  "entryPoints": [
+    "../../packages/javascript-excel/dist/index.d.ts",
+    "../../packages/javascript-excel/dist/read.d.ts",
+    "../../packages/javascript-excel/dist/csv.d.ts",
+    "../../packages/javascript-excel/dist/dom.d.ts",
+    "../../packages/javascript-excel/dist/worker.d.ts"
+  ],
+  "tsconfig": "./tsconfig.json",
+  "out": "out",
+  "readme": "../../packages/javascript-excel/README.md",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "includeVersion": true,
+  "githubPages": false,
+  "disableSources": true,
+  "treatWarningsAsErrors": false
+}

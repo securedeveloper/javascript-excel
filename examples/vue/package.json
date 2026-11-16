@@ -1,0 +1,19 @@
+{
+  "name": "example-vue",
+  "private": true,
+  "type": "module",
+  "description": "javascript-excel in Vue 3: export a dataset and open a file.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "javascript-excel": "2.0.0-alpha.2",
+    "vue": "3.5.45"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vite": "8.3.8"
+  }
+}
