@@ -1,6 +1,6 @@
 # javascript-excel
 
-> **2.0 is a from-scratch rewrite and is in progress.** This prerelease ships only placeholder entry points and is not usable yet.
+> **2.0 is a from-scratch rewrite and is in progress.** So far only `javascript-excel/csv` (CSV parse and serialize) is implemented; the xlsx writer and reader are not usable yet.
 >
 > The last 1.x release is `javascript-excel@1.0.3`. Keep using it until 2.0 is released.
 

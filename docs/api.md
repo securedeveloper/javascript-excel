@@ -807,41 +807,52 @@ How the reader works, as far as the API is concerned:
 
 ```ts
 export function parseCsv(text: string, options?: CsvParseOptions): CsvParseResult;
-export function readCsv(input: string | BinaryInput, options?: CsvParseOptions & { encoding?: string }): Promise<CsvParseResult>;
+export function readCsv(input: string | BinaryInput, options?: CsvReadOptions): Promise<CsvParseResult>;
 export function toCsv(source: Sheet | CellInput[][], options?: CsvWriteOptions): string;
-export function toCsvBlob(source: Sheet | CellInput[][], options?: CsvWriteOptions): Blob; // 'text/csv;charset=utf-8'
+export function toCsvBlob(source: Sheet | CellInput[][], options?: CsvWriteOptions): BlobType; // type: CSV_MIME
+
+export const CSV_MIME = 'text/csv;charset=utf-8';
 
 export interface CsvParseOptions {
   /** A single character, or 'auto' (default): picks from , ; TAB | by field-count consistency over the first records. */
   delimiter?: string | 'auto';
   quote?: string;                      // default '"'; a quote inside a quoted field is doubled (RFC 4180)
-  /** Default false: every field is a string. true: numbers, TRUE/FALSE, ISO 8601 dates (no locale guessing). */
+  /**
+   * Default false: every field is a string. true: unquoted fields that are numbers, TRUE/FALSE
+   * (or true/false) or ISO 8601 dates become numbers, booleans and Dates. No locale guessing.
+   * Quoted fields always stay strings.
+   */
   inferTypes?: boolean;
-  skipEmptyLines?: boolean;            // default false
+  dateZone?: 'local' | 'utc';          // ISO dates without an offset (inferTypes); default 'local' (§12 Q2)
+  skipEmptyLines?: boolean;            // default false: a blank line gives an empty row []
   /** 'lenient' (default): malformed input gives warnings. 'strict': throws CsvError. */
   mode?: 'lenient' | 'strict';
-  maxRows?: number;                    // default unlimited
-  maxFieldBytes?: number;              // default [placeholder, set in JSE-5]
-  signal?: AbortSignal;                // readCsv only
+  maxRows?: number;                    // default unlimited; stops reading with warning CSV_ROWS_TRUNCATED
+  maxFieldBytes?: number;              // default 1,048,576 (1 MiB of UTF-8); a bigger field throws LimitError
+}
+
+export interface CsvReadOptions extends CsvParseOptions {
+  encoding?: string;                   // used without a BOM; any TextDecoder label; default 'utf-8'
+  signal?: AbortSignalLike;            // a DOM or Node AbortSignal
 }
 
 export interface CsvParseResult {
   rows: CellValue[][];                 // string[][] unless inferTypes
   delimiter: string;                   // the one used (detected or given)
-  newline: '\r\n' | '\n' | '\r';       // the first one seen
+  newline: '\r\n' | '\n' | '\r';       // the first one seen; '\r\n' when the input has none
   bom: boolean;                        // input started with a BOM (removed from the data)
-  warnings: ExcelWarning[];            // CSV_UNTERMINATED_QUOTE, CSV_FIELD_COUNT, CSV_STRAY_QUOTE, ...
+  warnings: ExcelWarning[];            // CSV_UNTERMINATED_QUOTE, CSV_STRAY_QUOTE, CSV_FIELD_COUNT, CSV_INVALID_ENCODING, CSV_ROWS_TRUNCATED
 }
 
 export interface CsvWriteOptions {
   delimiter?: string;                  // default ','
-  newline?: '\r\n' | '\n';             // default '\r\n' (RFC 4180)
+  newline?: '\r\n' | '\n';             // default '\r\n' (RFC 4180), also after the last record
   quote?: 'auto' | 'all';              // 'auto' (default): quote fields containing delimiter, quote, CR or LF
   /** Prepend a UTF-8 BOM so Excel detects UTF-8. toCsvBlob default true, toCsv default false. */
   bom?: boolean;
   /** Formula-injection guard, default true. See below. */
   escapeFormulas?: boolean;
-  /** Dates: 'iso' (default; YYYY-MM-DD, or YYYY-MM-DDTHH:mm:ss when there is a time) or a function. */
+  /** Dates: 'iso' (default; YYYY-MM-DD, or YYYY-MM-DDTHH:mm:ss, plus .sss when there are milliseconds) or a function. */
   dates?: 'iso' | ((d: Date) => string);
   dateZone?: 'local' | 'utc';
   /** Formula cells: write the cached value (default) or the formula text ('formula', which still passes the guard). */
@@ -849,10 +860,17 @@ export interface CsvWriteOptions {
 }
 ```
 
-- **Decoding** (`readCsv`): a UTF-8, UTF-16LE or UTF-16BE BOM wins. Otherwise `encoding` applies (any label `TextDecoder` accepts), default `'utf-8'`. Invalid bytes become U+FFFD with a warning.
-- **Newlines** CRLF, LF and CR are all record separators. Quoted fields may contain any of them.
-- **Serialising values:** numbers as `String(n)` (shortest round-trip, never locale-formatted), booleans as `TRUE`/`FALSE`, errors as their code, rich text as plain text, empty cells as empty fields. A `Sheet` is serialised from `A1` to its last used cell; merges, styles and hyperlinks are dropped.
-- **Formula-injection guard (on by default).** A **string** field that starts with `=`, `+`, `-`, `@`, TAB (`\t`) or CR (`\r`) is written with a leading `'`, so a spreadsheet app opening the CSV treats it as text. Numbers, booleans and dates from the model are not strings and are never prefixed, so `-5` stays `-5`. `escapeFormulas: false` turns the guard off. It applies to `toCsv` and `toCsvBlob` only; the xlsx writer does not need it, because xlsx cells have explicit types (§3.4).
+`BinaryInput` is `Uint8Array | ArrayBuffer | BlobType`. The package compiles without DOM types, so `BlobType` resolves to the platform `Blob` when the consumer's TypeScript setup declares one (lib `dom` or `@types/node`) and to a structural `BlobLike` (`size`, `type`, `arrayBuffer()`) otherwise. `AbortSignalLike` is the structural `{ aborted, reason }` part of `AbortSignal`.
+
+- **Parsing:** one pass, hand-written scanner, no recursion, linear time. RFC 4180 fields and quoting; CRLF, LF and CR are all record separators, and quoted fields may contain any of them. A trailing newline does not add a record. A blank line is an empty row (`[]`), which is never a `CSV_FIELD_COUNT` mismatch.
+- **Malformed input** (lenient): an unclosed quote runs to the end of the input (`CSV_UNTERMINATED_QUOTE`); a quote inside an unquoted field is kept, and text after a closing quote is appended to the field, as Python's `csv` module does (`CSV_STRAY_QUOTE`); a record whose field count differs from the first record's is kept (`CSV_FIELD_COUNT`). Warnings carry `ref`, the A1 cell of the record and field, and a message with the line number. At most 1,000 warnings are kept, then one `WARNINGS_TRUNCATED`. `mode: 'strict'` throws `CsvError` `CSV_MALFORMED` instead, with `details: { warning, ref, line }`. `CSV_ROWS_TRUNCATED` is not malformed input and is reported in both modes.
+- **Delimiter detection:** over the first 20 records (at most 64 KiB), quote-aware. The candidate whose most common field count (above 1) covers the most records wins; ties go to the earlier of `, ; TAB |`. A single-column file gives `,`.
+- **Type inference** (`inferTypes`): numbers in plain decimal or exponent form (`-1.5`, `.5`, `1e3`), but not `007`, `1.`, `0x10`, `Infinity` or integers beyond 2^53, which stay text; `TRUE`/`FALSE`/`true`/`false`; ISO 8601 `YYYY-MM-DD` and `YYYY-MM-DDTHH:mm[:ss[.sss]]` (`T` or space) with optional `Z` or `±HH:mm`, validated (no 2023-02-29). Quoted and empty fields stay strings.
+- **Decoding** (`readCsv`): a UTF-8, UTF-16LE or UTF-16BE BOM wins. Otherwise `encoding` applies (any label `TextDecoder` accepts; an unknown label is a `TypeError`), default `'utf-8'`. Invalid bytes become U+FFFD with warning `CSV_INVALID_ENCODING` (strict mode: `CSV_MALFORMED`).
+- **Async:** `readCsv` parses in chunks of about 1M characters, yields to the event loop between them and checks `signal`; an abort rejects with `signal.reason`, as `fetch` does. `parseCsv` is synchronous.
+- **Options** that are not valid (a delimiter that is not one character, or is CR, LF or the quote; an unknown enum value) throw `TypeError`.
+- **Serialising values:** numbers as `String(n)` (shortest round-trip, never locale-formatted; `NaN`/`±Infinity` throw `INVALID_NUMBER`), booleans as `TRUE`/`FALSE`, errors as their code, rich text as plain text, empty cells as empty fields, invalid `Date`s throw `INVALID_DATE`. A `Sheet` is serialised from `A1` to its last used cell as a rectangle (a cell is used when it has a value or a formula; style alone does not count); merges, styles and hyperlinks are dropped. A `CellInput[][]` is written as given, so ragged rows stay ragged.
+- **Formula-injection guard (on by default).** A **string** field that starts with `=`, `+`, `-`, `@`, TAB (`\t`) or CR (`\r`) is written with a leading `'`, so a spreadsheet app opening the CSV treats it as text. This covers plain strings, rich text, string cached values of formula cells, and formula text with `formulas: 'formula'`. Numbers, booleans and dates from the model are not strings and are never prefixed, so `-5` stays `-5`; the output of a custom `dates` function is not prefixed either. `escapeFormulas: false` turns the guard off. The guard is one-way: reading the file back gives the prefixed text. It applies to `toCsv` and `toCsvBlob` only; the xlsx writer does not need it, because xlsx cells have explicit types (§3.4).
 
 ### 5.4 DOM (`javascript-excel/dom`)
 
@@ -1032,7 +1050,7 @@ export interface ExcelWarning {
 }
 ```
 
-- **CSV:** lenient by default (warnings `CSV_UNTERMINATED_QUOTE`, `CSV_STRAY_QUOTE`, `CSV_FIELD_COUNT`, `CSV_INVALID_ENCODING`); `mode: 'strict'` throws `CSV_MALFORMED` instead.
+- **CSV:** lenient by default (warnings `CSV_UNTERMINATED_QUOTE`, `CSV_STRAY_QUOTE`, `CSV_FIELD_COUNT`, `CSV_INVALID_ENCODING`); `mode: 'strict'` throws `CSV_MALFORMED` instead. `CSV_ROWS_TRUNCATED` (`maxRows` reached) is reported in both modes (§5.3).
 
 ---
 
