@@ -18,7 +18,7 @@
     "smoke": "npm -w packages/javascript-excel run smoke",
     "consumer-ts": "npm -w packages/javascript-excel run consumer-ts",
     "test:release": "node --test \"scripts/*.test.mjs\"",
-    "version-packages": "changeset version && npm install --package-lock-only --no-audit --no-fund",
+    "version-packages": "changeset version && node scripts/sync-version.mjs --package packages/javascript-excel --file packages/javascript-excel/src/index.ts && npm install --package-lock-only --no-audit --no-fund",
     "bench": "npm -w packages/javascript-excel run bench --"
   },
   "devDependencies": {
