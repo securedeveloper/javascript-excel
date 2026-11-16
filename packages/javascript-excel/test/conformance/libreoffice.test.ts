@@ -9,6 +9,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { cellText, toUint8Array, type Cell, type CellInput } from "../../src/index";
 import { read } from "../../src/read";
@@ -18,6 +19,8 @@ const SOFFICE = process.env["JSE_SOFFICE"] ?? "soffice";
 const hasSoffice = spawnSync(SOFFICE, ["--version"], { stdio: "ignore", timeout: 120_000 }).status === 0;
 if (process.env["JSE_REQUIRE_LIBREOFFICE"] === "1" && !hasSoffice) throw new Error(`LibreOffice check required but soffice (${SOFFICE}) is missing`);
 const dir = mkdtempSync(join(tmpdir(), "jse-lo-conformance-"));
+// A private LibreOffice profile: two headless instances on the default profile block each other.
+const profile = `-env:UserInstallation=${pathToFileURL(join(dir, "profile")).href}`;
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 const isText = (c: CellInput): boolean => {
@@ -36,7 +39,7 @@ describe.skipIf(!hasSoffice)("conformance corpus in LibreOffice", () => {
     writeFileSync(file, await toUint8Array(input, entry.options));
     const out = join(dir, "resaved", entry.id);
     mkdirSync(out, { recursive: true });
-    execFileSync(SOFFICE, ["--headless", "--norestore", "--convert-to", "xlsx", "--outdir", out, file], { stdio: "ignore", timeout: 300_000 });
+    execFileSync(SOFFICE, [profile, "--headless", "--norestore", "--convert-to", "xlsx", "--outdir", out, file], { stdio: "ignore", timeout: 300_000 });
     const { workbook } = await read(new Uint8Array(readFileSync(join(out, `${entry.id}.xlsx`))));
     // LibreOffice has no "very hidden" state; it re-saves such sheets as hidden.
     const state = (st: string | undefined): string => (st === "veryHidden" ? "hidden" : (st ?? "visible"));
