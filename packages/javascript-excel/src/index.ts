@@ -69,4 +69,4 @@ export { decodeCell, decodeCol, decodeRange, encodeCell, encodeCol, encodeRange,
 export type { CellAddress, RangeAddress } from "./address";
 
 /** Package version. Kept in sync with package.json by a unit test. */
-export const VERSION = "2.0.0-alpha.0";
+export const VERSION = "2.0.0-alpha.1";
