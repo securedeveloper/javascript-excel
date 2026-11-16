@@ -1,5 +1,23 @@
 # javascript-excel
 
+## 2.0.0-alpha.2
+
+### Minor Changes
+
+- 8e8348f: Add the dataset builders:
+  - `fromDataset({ columns, data }, options)`: `key`, `path` and function accessors; header groups as merged header cells; falsy (conditional) columns skipped; per-column `type` coercion, `numFmt`, `width` (including `'auto'`), `hidden` and styles.
+  - Freeze and autofilter on the header rows, and a totals row with `SUBTOTAL` formulas whose cached values are computed from the data.
+  - `fromDatasets` stacks several blocks on one sheet.
+  - `toDataset(sheet)` reads a sheet back into `{ columns, data }` with null-prototype rows.
+- e6a4a94: Add `javascript-excel/worker`: `exposeWorker()` for the app's two-line worker file and `createWorkerClient(worker)` with `write`, `read`, `toCsv` and `parseCsv`; progress, warnings and AbortSignal work across the boundary, results are transferred, errors keep their class and code. Performance: the shared strings table is written in chunks (no long main-thread block for large tables), CRC-32 uses slicing-by-8, and `onProgress` is throttled to one event per 50 ms.
+
+### Patch Changes
+
+- 46ad4e1: `fromDataset` shares style objects across rows (one per column, and one per column and `rowStyle` object for banding) instead of building a new one per cell. The writer then resolves each distinct style once from its identity cache. In a local run of 1M rows × 4 styled, banded columns, building went from 2.6 s to 0.5 s and writing from 11.7 s to 7.3 s.
+- 6e37bc8: `dateToSerial`, and so the writer, now accepts 1899-12-31, Excel's day 0, as serials 0 to below 1. `serialToDate` returns time-only values on that day, so a time-only cell read back by `read()` can now be written again; it used to throw `INVALID_DATE`.
+- 3d1b402: The `exports` map now names the type declarations explicitly: each subpath has `import: { types: "./dist/x.d.ts", default: "./dist/x.js" }` and `require: { types: "./dist/x.d.cts", default: "./dist/x.cjs" }`. TypeScript already found the declarations next to the JavaScript files; the explicit `types` conditions don't depend on that lookup.
+- 65c5275: The writer's content-keyed style cache now applies only to styles made of plain objects. A style containing an object with `toJSON` (or another non-plain object) could share a cache key with a valid style and skip validation: an invalid colour `{ toJSON: () => "FF0000" }` was written as red instead of throwing `INVALID_STYLE`. Such styles are now resolved as they are.
+
 ## 2.0.0-alpha.1
 
 ### Minor Changes
