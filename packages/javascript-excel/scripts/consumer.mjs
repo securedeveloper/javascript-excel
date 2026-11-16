@@ -77,6 +77,7 @@ export function packAndInstall(work) {
  */
 const MODEL_FIXTURE = `
 import type { Cell, Font, Style, Workbook } from ${JSON.stringify(pkg.name)};
+import { toBlob, toUint8Array } from ${JSON.stringify(pkg.name)};
 const maybe = (on: boolean): true | undefined => (on ? true : undefined);
 const font: Font = { bold: maybe(false), size: undefined, color: undefined, underline: undefined };
 const style: Style = { font, fill: undefined, numFmt: undefined, protection: { locked: undefined } };
@@ -94,6 +95,18 @@ const wb: Workbook = {
   calc: { fullCalcOnLoad: undefined },
 };
 void wb;
+// The writer's declarations: BlobType resolves to the DOM Blob, and a DOM AbortSignal fits AbortSignalLike.
+// (No async/await: TS 5.x bundler mode defaults to an ES5 target without the Promise constructor.)
+function write(w: Workbook): [Promise<Blob>, Promise<Uint8Array>] {
+  return [toBlob(w), toUint8Array(w, { signal: new AbortController().signal, sharedStrings: undefined })];
+}
+void write;
+// The shared types are the same from the core entry and from /csv.
+import type { AbortSignalLike as CoreSignal, BlobType as CoreBlob, ExcelWarning as CoreWarning } from ${JSON.stringify(pkg.name)};
+import type { AbortSignalLike as CsvSignal, BlobType as CsvBlob, ExcelWarning as CsvWarning } from ${JSON.stringify(`${pkg.name}/csv`)};
+declare const shared: [CoreSignal, CoreBlob, CoreWarning, CsvSignal, CsvBlob, CsvWarning];
+const sameTypes: [CsvSignal, CsvBlob, CsvWarning, CoreSignal, CoreBlob, CoreWarning] = [shared[0], shared[1], shared[2], shared[3], shared[4], shared[5]];
+void sameTypes;
 `;
 
 /**

@@ -13,10 +13,12 @@ import { decodeBytes } from "./internal/csv/decode";
 import { CsvParser, DEFAULT_MAX_FIELD_BYTES, type ParseConfig } from "./internal/csv/parse";
 import { serialize, type WriteConfig } from "./internal/csv/write";
 import type { CellInput, CellValue, Sheet } from "./model";
+import type { AbortSignalLike } from "./signal";
 import type { ExcelWarning } from "./warnings";
 
 export type { BinaryInput, BlobLike, BlobType } from "./binary";
 export type { ExcelWarning, ExcelWarningCode } from "./warnings";
+export type { AbortSignalLike } from "./signal";
 export type {
   Cell,
   CellErrorValue,
@@ -60,12 +62,6 @@ export interface CsvReadOptions extends CsvParseOptions {
   encoding?: string | undefined;
   /** Rejects with `signal.reason` when aborted. */
   signal?: AbortSignalLike | undefined;
-}
-
-/** The members of `AbortSignal` that `readCsv` uses. A DOM or Node `AbortSignal` fits. */
-export interface AbortSignalLike {
-  readonly aborted: boolean;
-  readonly reason?: unknown;
 }
 
 /** Result of `parseCsv` and `readCsv`. */

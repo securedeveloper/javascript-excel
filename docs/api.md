@@ -699,7 +699,8 @@ export function validateSheetName(name: string): null | 'empty' | 'too-long' | '
 
 ```ts
 export function toUint8Array(wb: Workbook, options?: WriteOptions): Promise<Uint8Array>;
-export function toBlob(wb: Workbook, options?: WriteOptions): Promise<Blob>; // type: XLSX_MIME
+export function toBlob(wb: Workbook, options?: WriteOptions): Promise<BlobType>; // type: XLSX_MIME
+// BlobType, BinaryInput and AbortSignalLike are shared by every entry point; see "Shared types" at the end of §5.3.
 
 export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -712,7 +713,7 @@ export interface WriteOptions {
   dateZone?: 'local' | 'utc';
   /** Allowed URL schemes for external hyperlinks. Default ['http', 'https', 'mailto']. */
   hyperlinkSchemes?: string[];
-  signal?: AbortSignal;
+  signal?: AbortSignalLike;
   onProgress?: (p: Progress) => void;
 }
 
@@ -724,17 +725,17 @@ export interface Progress {
 }
 ```
 
-- Validation runs before any output and throws `ValidationError` (§7). The writer emits no warnings: any input it cannot write faithfully is an error.
+- Invalid input throws `ValidationError` (§7), and no bytes are returned. Workbook-level checks (sheet names, active sheet, document properties) run first. Cells and styles are checked as their sheet is written, which is still before the archive is complete. The writer emits no warnings: any input it cannot write faithfully is an error.
 - Parts written: `[Content_Types].xml`, `_rels/.rels`, `docProps/core.xml`, `docProps/app.xml`, `docProps/custom.xml` (if any), `xl/workbook.xml`, `xl/_rels/workbook.xml.rels`, `xl/styles.xml`, `xl/theme/theme1.xml`, `xl/sharedStrings.xml` (if used), `xl/worksheets/sheetN.xml` and `xl/worksheets/_rels/sheetN.xml.rels` (for hyperlinks).
 - XML is produced as chunk arrays and fed to the compressor in pieces; the whole sheet is never built as one string. The output is assembled in memory, so peak memory is roughly the model plus the compressed file.
 - **Deterministic output:** the same model and options give identical bytes when `properties.created` and `properties.modified` are set. Zip entry timestamps come from `modified`.
-- Abort: rejects with `signal.reason` (a `DOMException` named `AbortError` by default), the same as `fetch`. The writer checks the signal and yields to the event loop between chunks of rows `[chunk size: placeholder, set in JSE-8]`.
+- Abort: rejects with `signal.reason` (a `DOMException` named `AbortError` by default), the same as `fetch`. The writer checks the signal between sheet XML chunks (about 64 K characters each). Explicitly yielding to the event loop, for UI responsiveness on the main thread, is JSE-8 `[chunk size and yield interval: placeholder, set in JSE-8]`.
 - `onProgress` is throttled `[interval: placeholder, set in JSE-8]`.
 
 ### 5.2 Read (`javascript-excel/read`)
 
 ```ts
-export type BinaryInput = Uint8Array | ArrayBuffer | Blob;   // Node Buffer is a Uint8Array
+export type BinaryInput = Uint8Array | ArrayBuffer | BlobType;   // Node Buffer is a Uint8Array; see §5.3
 
 export function read(input: BinaryInput, options?: ReadOptions): Promise<ReadResult>;
 export function readSheetNames(input: BinaryInput, options?: Pick<ReadOptions, 'limits' | 'signal'>):
@@ -760,7 +761,7 @@ export interface ReadOptions {
   /** Rich text as runs (default) or flattened to a plain string. */
   richText?: 'runs' | 'plain';
   limits?: Partial<ReadLimits>;
-  signal?: AbortSignal;
+  signal?: AbortSignalLike;
   onProgress?: (p: Progress) => void;
   onWarning?: (w: ExcelWarning) => void; // called as warnings occur, in addition to ReadResult.warnings
 }
@@ -860,7 +861,7 @@ export interface CsvWriteOptions {
 }
 ```
 
-`BinaryInput` is `Uint8Array | ArrayBuffer | BlobType`. The package compiles without DOM types, so `BlobType` resolves to the platform `Blob` when the consumer's TypeScript setup declares one (lib `dom` or `@types/node`) and to a structural `BlobLike` (`size`, `type`, `arrayBuffer()`) otherwise. `AbortSignalLike` is the structural `{ aborted, reason }` part of `AbortSignal`.
+**Shared types.** `BinaryInput`, `BlobType`, `BlobLike`, `AbortSignalLike` and `ExcelWarning` are one set of declarations (`src/binary.ts`, `src/signal.ts`, `src/warnings.ts`), exported from the core entry and from `/csv`, and later from `/read`. `BinaryInput` is `Uint8Array | ArrayBuffer | BlobType`. The package compiles without DOM types, so `BlobType` resolves to the platform `Blob` when the consumer's TypeScript setup declares one (lib `dom` or `@types/node`) and to a structural `BlobLike` (`size`, `type`, `arrayBuffer()`) otherwise. `AbortSignalLike` is the structural `{ aborted, reason }` part of `AbortSignal`.
 
 - **Parsing:** one pass, hand-written scanner, no recursion, linear time. RFC 4180 fields and quoting; CRLF, LF and CR are all record separators, and quoted fields may contain any of them. A trailing newline does not add a record. A blank line is an empty row (`[]`), which is never a `CSV_FIELD_COUNT` mismatch.
 - **Malformed input** (lenient): an unclosed quote runs to the end of the input (`CSV_UNTERMINATED_QUOTE`); a quote inside an unquoted field is kept, and text after a closing quote is appended to the field, as Python's `csv` module does (`CSV_STRAY_QUOTE`); a record whose field count differs from the first record's is kept (`CSV_FIELD_COUNT`). Warnings carry `ref`, the A1 cell of the record and field, and a message with the line number. At most 1,000 warnings are kept, then one `WARNINGS_TRUNCATED`. `mode: 'strict'` throws `CsvError` `CSV_MALFORMED` instead, with `details: { warning, ref, line }`. `CSV_ROWS_TRUNCATED` is not malformed input and is reported in both modes.
@@ -945,12 +946,12 @@ Internal. Not exported in 2.0, so its shape can still change; this is revisited 
 /** Compression only. The container format (headers, central directory, CRC-32) is in-house and not pluggable. */
 interface ZipCodec {
   /** Raw DEFLATE (RFC 1951), no zlib/gzip wrapper. Input arrives in chunks. */
-  deflateRaw(chunks: AsyncIterable<Uint8Array> | Iterable<Uint8Array>, signal?: AbortSignal): Promise<Uint8Array>;
+  deflateRaw(chunks: AsyncIterable<Uint8Array> | Iterable<Uint8Array>, signal?: AbortSignalLike): Promise<Uint8Array>;
   /** Streams output; aborts with LIMIT_EXCEEDED as soon as maxOutputBytes or the ratio limit is passed. */
   inflateRaw(
     data: Uint8Array,
     limits: { maxOutputBytes: number; maxRatio: number },
-    signal?: AbortSignal,
+    signal?: AbortSignalLike,
   ): AsyncIterable<Uint8Array>;
 }
 ```
@@ -1010,6 +1011,7 @@ Aborts are not `ExcelError`s: they reject with `signal.reason`, as `fetch` does.
 | `OVERLAPPING_MERGE` | Validation | Two merges overlap |
 | `INVALID_COLUMN` | Validation | `fromDataset`: no usable accessor, or a forbidden path segment |
 | `TOO_MANY_STYLES` | Validation | More than 64,000 distinct cell formats, Excel's limit `[to verify]` |
+| `INVALID_PROPERTY` | Validation | A document property is invalid: not a string, an invalid `Date`, a duplicate or empty custom property name, a non-finite number |
 | `ZIP64_REQUIRED` | Validation | §6 |
 | `UNSUPPORTED_FORMAT` | Format | `.xls`/encrypted (CFB), `.xlsb`, `.ods`, and Strict OOXML if not mapped (§5.2); `details.format` says which |
 | `NOT_XLSX` | Format | A zip without a workbook part |

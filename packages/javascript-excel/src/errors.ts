@@ -25,6 +25,7 @@ export type ExcelErrorCode =
   | "INVALID_COLUMN"
   | "TOO_MANY_STYLES"
   | "ZIP64_REQUIRED"
+  | "INVALID_PROPERTY"
   // FormatError
   | "UNSUPPORTED_FORMAT"
   | "NOT_XLSX"
