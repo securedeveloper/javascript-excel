@@ -42,6 +42,7 @@ Numbers does not support every Excel feature (for example pattern fills, outline
 | `16-print.xlsx` | Print setup: orientation, paper size, fit to width, margins, centring, gridlines, headings, print area, print titles, headers and footers |
 | `17-workbook.xlsx` | Workbook properties, default font and sheet names: document properties (core, app, custom), a non-default workbook font, sheet names at the 31-character limit, quoting in references |
 | `18-limits.xlsx` | Format limits: the last cell (XFD1048576), 32,767-character text, 64,000 distinct cell formats *(large file)* |
+| `19-builders.xlsx` | Dataset builders (fromDataset, fromDatasets): header groups as merged cells, conditional columns, typed and formatted columns, banded rows, auto widths, freeze and filter on the header, SUBTOTAL totals with cached values, stacked datasets |
 | `99-kitchen-sink.xlsx` | Kitchen sink: every sheet of every non-heavy corpus file in one workbook, with all defined names and properties |
 
 ### 01-values.xlsx: Cell values
@@ -203,6 +204,16 @@ Covers the last cell (XFD1048576), 32,767-character text, 64,000 distinct cell f
 | Where | Look at | Expected | Excel Win | Excel Mac | Numbers |
 |---|---|---|---|---|---|
 | Opening the file | Open it and wait (it is large). | No repair prompt. Ctrl/Cmd+End jumps to XFD1048576. The writer emits 64,000 cell formats (the default one plus 63,999), the most it allows; Excel's documented limit is 64,000. **(open item)** | | | |
+
+### 19-builders.xlsx: Dataset builders (fromDataset, fromDatasets)
+
+Covers header groups as merged cells, conditional columns, typed and formatted columns, banded rows, auto widths, freeze and filter on the header, SUBTOTAL totals with cached values, stacked datasets.
+
+| Where | Look at | Expected | Excel Win | Excel Mac | Numbers |
+|---|---|---|---|---|---|
+| Dataset!A1:F7 | Compare with the Builders guide sheet. | Merged header cells, the banding, the totals row values and the date format all as the guide says; rows 1–2 stay frozen. | | | |
+| Dataset, filter on Team | Filter Team to 'Core'. | Only Ada and Grace remain, and the Q1 total becomes 2,060.50 (SUBTOTAL ignores filtered rows). | | | |
+| Stacked | Look at the two blocks. | Block 2 is one row below block 1 and one column to the right, with its own bold header. | | | |
 
 ### 99-kitchen-sink.xlsx: Kitchen sink
 
