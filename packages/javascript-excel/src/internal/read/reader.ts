@@ -13,7 +13,7 @@ import { ReadContext } from "./context";
 import { ODS_MIME, OTHER_FORMATS, sniffContainer, WORKBOOK_FORMATS, workbookFormat, type FormatName, type WorkbookFormat } from "./formats";
 import { DEFAULT_LIMITS } from "./limits";
 import { Package, type Relationship } from "./opc";
-import { SheetParser } from "./sheet";
+import { MAX_ROWS, SheetParser } from "./sheet";
 import { SharedStringsParser } from "./strings";
 import { EMPTY_STYLES, StylesParser, type StyleTable } from "./styles";
 import { CustomPropsParser, PropsParser, ThemeParser, WorkbookParser, type SheetEntry } from "./workbook";
@@ -183,6 +183,7 @@ export async function readImpl(input: BinaryInput, options?: ReadOptions, intern
   checkEnum("dates", o.dates, ["date", "serial"]);
   checkEnum("dateZone", o.dateZone, ["local", "utc"]);
   checkEnum("richText", o.richText, ["runs", "plain"]);
+  if (o.maxRows !== undefined && (!Number.isInteger(o.maxRows) || o.maxRows < 0)) throw new TypeError(`maxRows must be a non-negative integer, got ${String(o.maxRows)}`);
   throwIfAborted(o.signal);
   const bytes = await toBytes(input, "read");
   throwIfAborted(o.signal);
@@ -269,6 +270,7 @@ export async function readImpl(input: BinaryInput, options?: ReadOptions, intern
       dateZone: o.dateZone ?? "local",
       richText: o.richText ?? "runs",
       date1904: wbp.date1904,
+      maxRows: o.maxRows ?? MAX_ROWS,
     }, rel?.target ?? workbookPart);
     parser.sharedStrings = sst;
     const part = rel ? pkg.part(rel.target) : undefined;

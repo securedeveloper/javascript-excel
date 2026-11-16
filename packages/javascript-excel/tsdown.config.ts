@@ -10,6 +10,7 @@ const config: UserConfig = defineConfig({
     csv: "src/csv.ts",
     dom: "src/dom.ts",
     worker: "src/worker.ts",
+    import: "src/import.ts",
   },
   format: ["esm", "cjs"],
   platform: "neutral",

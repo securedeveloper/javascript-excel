@@ -28,12 +28,14 @@ import { readCsv, toCsv } from "./csv";
 import { CsvError, EnvironmentError, ExcelError, FormatError, isExcelError, LimitError, ValidationError, type ExcelErrorCode } from "./errors";
 import type { CellInput, Sheet, Workbook } from "./model";
 import { read, type ReadOptions, type ReadResult } from "./read";
+import { importDataset, type ImportDatasetOptions, type ImportDatasetResult } from "./internal/import/pipeline";
 import type { AbortSignalLike } from "./signal";
 import type { ExcelWarning } from "./warnings";
 import { toUint8Array, type Progress, type WriteOptions } from "./write";
 
 export type { AbortSignalLike } from "./signal";
 export type { Progress } from "./write";
+export type { ImportDatasetOptions, ImportDatasetResult } from "./internal/import/pipeline";
 
 /** The side of a message channel the library uses: a `Worker`, the worker's `self`, or a `MessagePort`. */
 export interface MessageEndpoint {
@@ -60,11 +62,13 @@ export interface WorkerClient {
   read(input: BinaryInput, options?: ReadOptions & TransferOption): Promise<ReadResult>;
   toCsv(source: Sheet | CellInput[][], options?: CsvWriteOptions): Promise<string>;
   parseCsv(input: string | BinaryInput, options?: (CsvParseOptions & Pick<CsvReadOptions, "encoding" | "signal">) & TransferOption): Promise<CsvParseResult>;
+  /** Runs javascript-excel/import's `importDataset` in the worker (docs/api.md §5.6). */
+  importDataset(input: string | BinaryInput, options?: ImportDatasetOptions & TransferOption): Promise<ImportDatasetResult>;
   /** Terminates the worker. Calls still in flight reject with an `AbortError`. */
   terminate(): void;
 }
 
-type Op = "write" | "read" | "toCsv" | "parseCsv";
+type Op = "write" | "read" | "toCsv" | "parseCsv" | "importDataset";
 
 /** Marks the library's messages, so an app can use the same worker for its own messages too. */
 const TAG = "javascript-excel/worker@1";
@@ -168,6 +172,11 @@ async function run(ep: MessageEndpoint, req: Request, signal: { aborted: boolean
       }
       case "parseCsv": {
         const result = await readCsv(req.input as string | BinaryInput, options as CsvReadOptions);
+        post({ done: true, result });
+        return;
+      }
+      case "importDataset": {
+        const result = await importDataset(req.input as string | BinaryInput, options as ImportDatasetOptions);
         post({ done: true, result });
         return;
       }
@@ -306,6 +315,7 @@ export function createWorkerClient(worker: WorkerLike): WorkerClient {
     read: (input, options) => call("read", input, options as Record<string, unknown> | undefined) as Promise<ReadResult>,
     toCsv: (source, options) => call("toCsv", source, options as Record<string, unknown> | undefined) as Promise<string>,
     parseCsv: (input, options) => call("parseCsv", input, options as Record<string, unknown> | undefined) as Promise<CsvParseResult>,
+    importDataset: (input, options) => call("importDataset", input, options as Record<string, unknown> | undefined) as Promise<ImportDatasetResult>,
     terminate: () => {
       worker.terminate();
       for (const [id, p] of pending) {

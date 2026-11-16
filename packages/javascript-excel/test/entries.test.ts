@@ -5,6 +5,7 @@ import * as csv from "../src/csv";
 import * as dom from "../src/dom";
 import * as read from "../src/read";
 import * as worker from "../src/worker";
+import * as importEntry from "../src/import";
 
 describe("entries", () => {
   it("VERSION matches package.json", () => {
@@ -21,6 +22,10 @@ describe("entries", () => {
 
   it("/dom exports the documented API", () => {
     expect(Object.keys(dom).sort()).toEqual(["DOWNLOAD_REVOKE_DELAY_MS", "download", "fromTable"]);
+  });
+
+  it("/import exports the documented API", () => {
+    expect(Object.keys(importEntry).sort()).toEqual(["applyMapping", "coerceColumns", "detectHeader", "importDataset", "inferColumnTypes", "mapColumns", "parseDate", "parseNumber"]);
   });
 
   it("/csv exports the documented API", () => {
