@@ -279,7 +279,7 @@ The reader returns each cell as a `Cell` with `type` set. Bare values are never 
 
 Excel stores dates as serial numbers. The writer converts `Date` to a serial and the reader converts back, both in the time zone set by `dateZone` (default `'local'`, see §12 Q2).
 
-- **1900 system** (default): serial 1 = 1900-01-01. Excel treats 1900 as a leap year, so serial 60 is the non-existent 1900-02-29 and every serial from 61 onwards is offset by one. The writer writes dates from 1900-03-01 onwards with the epoch 1899-12-30, and earlier dates with epoch 1899-12-31, which matches Excel. The reader returns serial 60 as a number with warning `INVALID_DATE_SERIAL`.
+- **1900 system** (default): serial 1 = 1900-01-01. Excel treats 1900 as a leap year, so serial 60 is the non-existent 1900-02-29 and every serial from 61 onwards is offset by one. The writer writes dates from 1900-03-01 onwards with the epoch 1899-12-30, and earlier dates with epoch 1899-12-31, which matches Excel. The reader returns serial 60 as a number with warning `INVALID_DATE_SERIAL`. Serials from 0 to below 1 are Excel's day 0 ("1900-01-00"), which is how time-only values such as 0.5 (12:00) are stored. `serialToDate` returns them on 1899-12-31, and `serialToDate(60)` returns 1900-03-01; flagging serial 60 is the reader's job.
 - **1904 system** (`date1904: true`): serial 0 = 1904-01-01.
 - Range: 1900-01-01 (1904 system: 1904-01-01) to 9999-12-31. Outside it, or for an invalid `Date`, the writer throws `INVALID_DATE`.
 - Fractions are times of day; the writer keeps millisecond precision.
