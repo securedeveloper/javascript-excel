@@ -23,6 +23,7 @@ Conventions in this document:
 10. [Worked examples](#10-worked-examples)
 11. [Appendix: OOXML reference tables](#11-appendix-ooxml-reference-tables)
 12. [Design decisions](#12-design-decisions)
+13. [Roadmap beyond 2.0](#13-roadmap-beyond-20)
 
 ---
 
@@ -39,15 +40,19 @@ Conventions in this document:
 7. **Serve the consumers:** dataset export (`{ columns, data }`), HTML table export, file import back to `{ columns, data }`, and a future read-only viewer that needs styles, merges, sizes, freeze panes, number formats and formula text with cached values.
 8. **Faithful output:** files open in Excel (Windows and Mac), LibreOffice, Numbers and Google Sheets without a repair prompt.
 
-### Non-goals
+### Non-goals for 2.0
 
-- **Lossless round-trip of arbitrary files.** `write(read(file))` keeps everything in the model below. Parts the model does not cover (charts, drawings, pivots, comments, and so on) are dropped, with a warning on read. There is no "pass unknown parts through" mode in 2.0.
-- **Formula evaluation.** Formulas are stored as text with their cached values. Evaluation is a separate, later module.
+The first two are later phases (§13), not permanent exclusions.
+
+- **Lossless round-trip of arbitrary files.** `write(read(file))` keeps everything in the model below. Parts the model does not cover (charts, drawings, pivots, comments, and so on) are dropped, with a warning on read. There is no "pass unknown parts through" mode in 2.0; preserving unknown parts is planned for 2.x.
+- **Formula evaluation.** Formulas are stored as text with their cached values. Evaluation is a separate, later module (3.x).
 - **A synchronous API.** All file I/O is `async` (§6).
 - **Pixel-exact layout.** Column widths, auto-width and row heights use the spec's character-width formulas, not font metrics.
 - **Compatibility with the 1.x API.** 2.0 is a rewrite. The 1.x constructor that took injected `jszip` / `saveAs` instances is gone.
 
 ### Out of scope for 2.0
+
+The project's end goal is to read, write and view every kind of Excel and CSV file. Everything below is therefore a **phase boundary, not a permanent non-goal**: §13 places each item in a later phase, and 2.0's design must not close the door on any of them.
 
 | Feature | Notes |
 |---|---|
@@ -1371,3 +1376,28 @@ These were the open questions of the review. Each one is decided, and the sectio
 **Q18. `key` vs `path` in column definitions.** Decided (2026-11-16): separate fields, with `key` read literally and `path` for nested data (§4.3). react-data-export may still accept a single field and map it.
 
 **Q19. Invalid sheet names in builders.** Decided (2026-11-16): `fromDataset` and `fromTable` throw `INVALID_SHEET_NAME`, like the core. `sanitizeSheetName()` is exported for callers that take names from user data (§4.6).
+
+---
+
+## 13. Roadmap beyond 2.0
+
+**End goal:** read, write and view every kind of Excel and CSV file. 2.0 is the first phase. Later phases add the following, and the version that delivers each is the plan as of 2026-11-16, not a commitment.
+
+| Phase | Adds |
+|---|---|
+| 2.0 | xlsx read and write (cells, styles, sheet features), CSV/TSV read and write, HTML table input |
+| 2.x | `.xlsm` / `.xltx` / `.xltm` read and write-back with their extra parts preserved; preservation of unknown parts for lossless round trips; comments and notes; data validation; conditional formatting; images (read and write) |
+| 3.x | formula parser and evaluator (`javascript-excel/formula`), number-format renderer (`javascript-excel/format`, §12 Q14), charts and drawings (read, plus a render model for the viewer) |
+| 4.x | legacy `.xls` (BIFF8) read, then write; `.xlsb` read; encrypted files (password, ECMA-376 agile encryption) |
+
+### Guardrails for 2.0's design
+
+These follow from the roadmap and apply to every 2.0 change.
+
+- **The model grows by optional fields.** The writer ignores fields it does not know (§3.1, §9.1), so later phases add optional fields to `Workbook`, `Sheet` and `Cell` in minor releases. Expected additions include sheet-level comments, data validations, conditional formats, drawings and images, and Excel tables, and workbook-level preserved parts. Their names and shapes are designed in the phase that adds them; until then no 2.0 field may use those meanings.
+- **The writer's part list is open.** Parts register their content types and relationships with an internal package registry (`[Content_Types].xml` defaults and overrides, `_rels/.rels`, `workbook.xml.rels`, and a relationships builder per sheet that hyperlinks already use). A new part, such as `xl/comments1.xml`, a drawing or an image, adds itself without changing the existing ones.
+- **Format detection is a table.** `detectFormat` (§5.2) identifies each container and format separately, and `UNSUPPORTED_FORMAT` names the format in `details.format`. Adding a reader for `.xls` or `.xlsb` later means adding a table entry and a reader, not removing a wall.
+- **The reader can keep what it does not model.** Its part handling is designed so that a later phase can carry unmodelled parts through to the writer for lossless write-back.
+- **Formula text is always preserved**, verbatim with its cached value (§3.4.2), so evaluation can come later without a model change.
+- **Unions may widen in later phases.** For example, `ErrorCode` may gain newer Excel errors such as `#SPILL!` once the writer can write them (§3.4). Code that switches over model unions should keep a default branch.
+

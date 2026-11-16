@@ -16,17 +16,14 @@ import { writeZip, type ZipWriteEntry } from "./internal/zip/write";
 import { encodeUtf8 } from "./internal/platform";
 import {
   appXml,
-  contentTypesXml,
   coreXml,
   customXml,
-  rootRelsXml,
   THEME_XML,
-  workbookRelsXml,
   definedNamesXml,
   workbookXml,
-  type PackagePlan,
 } from "./internal/write/parts";
 import { planRowCount, planSheet, SharedStrings, sheetXml, type SheetPlan, type WriteContext } from "./internal/write/sheet";
+import { CONTENT_TYPE, PackageParts, REL_TYPE } from "./internal/write/package";
 import { hyperlinkSchemes } from "./internal/write/sheet-features";
 import { StyleRegistry } from "./internal/write/style-registry";
 import { validateSheetName, type SheetNameProblem } from "./sheet-names";
@@ -136,7 +133,31 @@ export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Pr
   const modified = props.modified ?? now;
   const custom = props.custom ?? [];
   const sharedStrings = options.sharedStrings !== false;
-  const pkg: PackagePlan = { sheetCount: plan.sheets.length, sharedStrings, customProperties: custom.length > 0 };
+  // Every part registers its content type and relationship here (package.ts),
+  // so new parts can be added without changing the existing ones.
+  const pkg = new PackageParts();
+  pkg.addOverride("xl/workbook.xml", CONTENT_TYPE.workbook);
+  const sheetRelIds = plan.sheets.map((_, i) => {
+    pkg.addOverride(`xl/worksheets/sheet${i + 1}.xml`, CONTENT_TYPE.worksheet);
+    return pkg.workbook.add(REL_TYPE.worksheet, `worksheets/sheet${i + 1}.xml`);
+  });
+  pkg.addOverride("xl/theme/theme1.xml", CONTENT_TYPE.theme);
+  pkg.workbook.add(REL_TYPE.theme, "theme/theme1.xml");
+  pkg.addOverride("xl/styles.xml", CONTENT_TYPE.styles);
+  pkg.workbook.add(REL_TYPE.styles, "styles.xml");
+  if (sharedStrings) {
+    pkg.addOverride("xl/sharedStrings.xml", CONTENT_TYPE.sharedStrings);
+    pkg.workbook.add(REL_TYPE.sharedStrings, "sharedStrings.xml");
+  }
+  pkg.addOverride("docProps/core.xml", CONTENT_TYPE.coreProperties);
+  pkg.addOverride("docProps/app.xml", CONTENT_TYPE.extendedProperties);
+  pkg.root.add(REL_TYPE.officeDocument, "xl/workbook.xml");
+  pkg.root.add(REL_TYPE.coreProperties, "docProps/core.xml");
+  pkg.root.add(REL_TYPE.extendedProperties, "docProps/app.xml");
+  if (custom.length > 0) {
+    pkg.addOverride("docProps/custom.xml", CONTENT_TYPE.customProperties);
+    pkg.root.add(REL_TYPE.customProperties, "docProps/custom.xml");
+  }
 
   // Properties first: they fail fast and are cheap.
   const core = coreXml(props, now);
@@ -164,8 +185,8 @@ export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Pr
   };
 
   async function* entries(): AsyncGenerator<ZipWriteEntry> {
-    yield { name: "[Content_Types].xml", data: contentTypesXml(pkg) };
-    yield { name: "_rels/.rels", data: rootRelsXml(pkg) };
+    yield { name: "[Content_Types].xml", data: pkg.contentTypesXml() };
+    yield { name: "_rels/.rels", data: pkg.root.xml()! };
     yield { name: "docProps/core.xml", data: core };
     yield { name: "docProps/app.xml", data: app };
     if (customPart) yield { name: "docProps/custom.xml", data: customPart };
@@ -184,7 +205,7 @@ export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Pr
         })(),
       };
       // Hyperlink relationships are known once the sheet XML has been written.
-      const rels = sp.links.relsXml();
+      const rels = sp.rels.xml();
       if (rels) yield { name: `xl/worksheets/_rels/sheet${i + 1}.xml.rels`, data: rels };
     }
     // Written after the sheets, which fill the string table and the style registry.
@@ -196,14 +217,14 @@ export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Pr
     yield {
       name: "xl/workbook.xml",
       data: workbookXml({
-        sheets: plan.sheets.map((p) => ({ name: p.sheet.name, state: p.sheet.state ?? "visible" })),
+        sheets: plan.sheets.map((p, i) => ({ name: p.sheet.name, state: p.sheet.state ?? "visible", relId: sheetRelIds[i]! })),
         activeSheet: plan.activeSheet,
         date1904: ctx.date1904,
         fullCalcOnLoad: fullCalc === true || ((fullCalc === undefined || fullCalc === "auto") && ctx.formulaWithoutValue),
         definedNames,
       }),
     };
-    yield { name: "xl/_rels/workbook.xml.rels", data: workbookRelsXml(pkg) };
+    yield { name: "xl/_rels/workbook.xml.rels", data: pkg.workbook.xml()! };
     onProgress?.({ phase: "zip", ratio: 0.95 });
   }
 

@@ -13,6 +13,7 @@ import { encodeUtf8 } from "../platform";
 import { needsPreserve, num, XML_DECL, xstring } from "../xml";
 import { mergeStyles } from "../../styles";
 import { cellText } from "../../cells";
+import { Rels } from "./package";
 import { hyperlinkOf, SheetFeatures, SheetLinks } from "./sheet-features";
 import { fontXml, type NFont, type StyleRegistry } from "./style-registry";
 
@@ -110,6 +111,8 @@ export interface SheetPlan {
   sheet: Sheet;
   features: SheetFeatures;
   links: SheetLinks;
+  /** The sheet's relationships (xl/worksheets/_rels/sheetN.xml.rels). */
+  rels: Rels;
   /** Used range, or undefined for an empty sheet. */
   minRow: number;
   maxRow: number;
@@ -124,10 +127,12 @@ export interface SheetPlan {
  */
 export function planSheet(sheet: Sheet, index: number, tabSelected: boolean, styles: StyleRegistry, schemes: ReadonlySet<string>): SheetPlan {
   const features = new SheetFeatures(sheet, index, tabSelected, styles);
+  const rels = new Rels();
   const plan: SheetPlan = {
     sheet,
     features,
-    links: new SheetLinks(sheet.name, schemes),
+    rels,
+    links: new SheetLinks(sheet.name, schemes, rels),
     minRow: Infinity,
     maxRow: -1,
     minCol: Infinity,

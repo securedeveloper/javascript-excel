@@ -1,6 +1,6 @@
 /**
- * Package-level parts: content types, relationships, workbook.xml, document
- * properties and the default theme (docs/api.md §5.1).
+ * workbook.xml, defined names, document properties and the default theme
+ * (docs/api.md §5.1). Content types and relationships are in package.ts.
  */
 
 import { ValidationError } from "../../errors";
@@ -10,61 +10,9 @@ import { num, XML_DECL, xmlAttr, xmlText, xstring } from "../xml";
 
 const NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const NS_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-const NS_PKG_REL = "http://schemas.openxmlformats.org/package/2006/relationships";
-const REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-const CT = "application/vnd.openxmlformats-officedocument";
-
-export interface PackagePlan {
-  sheetCount: number;
-  sharedStrings: boolean;
-  customProperties: boolean;
-}
-
-export function contentTypesXml(p: PackagePlan): string {
-  let x =
-    `${XML_DECL}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
-    `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
-    `<Default Extension="xml" ContentType="application/xml"/>` +
-    `<Override PartName="/xl/workbook.xml" ContentType="${CT}.spreadsheetml.sheet.main+xml"/>`;
-  for (let i = 1; i <= p.sheetCount; i++) {
-    x += `<Override PartName="/xl/worksheets/sheet${i}.xml" ContentType="${CT}.spreadsheetml.worksheet+xml"/>`;
-  }
-  x +=
-    `<Override PartName="/xl/theme/theme1.xml" ContentType="${CT}.theme+xml"/>` +
-    `<Override PartName="/xl/styles.xml" ContentType="${CT}.spreadsheetml.styles+xml"/>`;
-  if (p.sharedStrings) x += `<Override PartName="/xl/sharedStrings.xml" ContentType="${CT}.spreadsheetml.sharedStrings+xml"/>`;
-  x +=
-    `<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>` +
-    `<Override PartName="/docProps/app.xml" ContentType="${CT}.extended-properties+xml"/>`;
-  if (p.customProperties) x += `<Override PartName="/docProps/custom.xml" ContentType="${CT}.custom-properties+xml"/>`;
-  return `${x}</Types>`;
-}
-
-export function rootRelsXml(p: PackagePlan): string {
-  let x =
-    `${XML_DECL}<Relationships xmlns="${NS_PKG_REL}">` +
-    `<Relationship Id="rId1" Type="${REL}/officeDocument" Target="xl/workbook.xml"/>` +
-    `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>` +
-    `<Relationship Id="rId3" Type="${REL}/extended-properties" Target="docProps/app.xml"/>`;
-  if (p.customProperties) x += `<Relationship Id="rId4" Type="${REL}/custom-properties" Target="docProps/custom.xml"/>`;
-  return `${x}</Relationships>`;
-}
-
-export function workbookRelsXml(p: PackagePlan): string {
-  let x = `${XML_DECL}<Relationships xmlns="${NS_PKG_REL}">`;
-  for (let i = 1; i <= p.sheetCount; i++) {
-    x += `<Relationship Id="rId${i}" Type="${REL}/worksheet" Target="worksheets/sheet${i}.xml"/>`;
-  }
-  const n = p.sheetCount;
-  x +=
-    `<Relationship Id="rId${n + 1}" Type="${REL}/theme" Target="theme/theme1.xml"/>` +
-    `<Relationship Id="rId${n + 2}" Type="${REL}/styles" Target="styles.xml"/>`;
-  if (p.sharedStrings) x += `<Relationship Id="rId${n + 3}" Type="${REL}/sharedStrings" Target="sharedStrings.xml"/>`;
-  return `${x}</Relationships>`;
-}
 
 export interface WorkbookPlan {
-  sheets: Array<{ name: string; state: "visible" | "hidden" | "veryHidden" }>;
+  sheets: Array<{ name: string; state: "visible" | "hidden" | "veryHidden"; relId: string }>;
   activeSheet: number;
   date1904: boolean;
   fullCalcOnLoad: boolean;
@@ -79,7 +27,7 @@ export function workbookXml(w: WorkbookPlan): string {
     `<bookViews><workbookView${w.activeSheet > 0 ? ` activeTab="${w.activeSheet}"` : ""}/></bookViews><sheets>`;
   w.sheets.forEach((s, i) => {
     const state = s.state === "visible" ? "" : ` state="${s.state}"`;
-    x += `<sheet name="${xmlAttr(s.name)}" sheetId="${i + 1}"${state} r:id="rId${i + 1}"/>`;
+    x += `<sheet name="${xmlAttr(s.name)}" sheetId="${i + 1}"${state} r:id="${s.relId}"/>`;
   });
   x += "</sheets>";
   if (w.definedNames) x += w.definedNames;

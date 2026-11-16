@@ -12,6 +12,7 @@ import { decodeCell, decodeCol, decodeRange, encodeCell, encodeCol, MAX_COLS, MA
 import { ValidationError, type ExcelErrorCode } from "../../errors";
 import type { Cell, ColumnWidth, Hyperlink, PrintSetup, Sheet, SheetView } from "../../model";
 import { num, xmlAttr, xstring } from "../xml";
+import { Rels, REL_TYPE } from "./package";
 import type { StyleRegistry } from "./style-registry";
 
 // ------------------------------------------------------------ widths
@@ -500,14 +501,18 @@ export function hyperlinkSchemes(option: unknown): ReadonlySet<string> {
   return new Set(option.map((s: string) => s.toLowerCase().replace(/:$/, "")));
 }
 
-/** The hyperlinks of one sheet and their relationships. */
+/**
+ * The hyperlinks of one sheet. External targets are added to the sheet's
+ * relationships (`rels`), which later sheet-level parts (comments, drawings)
+ * share.
+ */
 export class SheetLinks {
   private readonly items: string[] = [];
-  private readonly rels = new Map<string, string>(); // target → rId
 
   constructor(
     private readonly sheet: string,
     private readonly schemes: ReadonlySet<string>,
+    private readonly rels: Rels,
   ) {}
 
   add(ref: string, link: Hyperlink | undefined): void {
@@ -532,27 +537,12 @@ export class SheetLinks {
     const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):/.exec(target)?.[1]?.toLowerCase();
     if (!scheme) fail(`the URL has no scheme; allowed schemes: ${[...this.schemes].join(", ")}`);
     if (!this.schemes.has(scheme!)) fail(`scheme '${scheme}:' is not allowed (allowed: ${[...this.schemes].join(", ")}; see WriteOptions.hyperlinkSchemes)`);
-    let id = this.rels.get(target);
-    if (id === undefined) {
-      id = `rId${this.rels.size + 1}`;
-      this.rels.set(target, id);
-    }
+    const id = this.rels.add(REL_TYPE.hyperlink, target, true);
     this.items.push(`<hyperlink ref="${ref}" r:id="${id}"${tip}/>`);
   }
 
   xml(): string {
     return this.items.length ? `<hyperlinks>${this.items.join("")}</hyperlinks>` : "";
-  }
-
-  /** The sheet's relationships part, or undefined when it has no external links. */
-  relsXml(): string | undefined {
-    if (this.rels.size === 0) return undefined;
-    let x =
-      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
-    for (const [target, id] of this.rels) {
-      x += `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${xmlAttr(target)}" TargetMode="External"/>`;
-    }
-    return `${x}</Relationships>`;
   }
 }
 
