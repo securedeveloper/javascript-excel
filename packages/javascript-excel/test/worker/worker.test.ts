@@ -137,6 +137,24 @@ describe("worker client over a MessageChannel", () => {
     expect(terminated()).toBe(true);
   });
 
+  it("compact: true sends the same workbook (same bytes) and transfers the cell buffers", async () => {
+    const { client, sent } = pair();
+    const plain = await client.write(wb(3000), { dateZone: "utc" });
+    const compact = await client.write(wb(3000), { dateZone: "utc", compact: true });
+    expect(compact).toEqual(plain);
+    const req = sent.at(-1) as { input: { compact?: number }; options: Record<string, unknown> };
+    expect(req.input.compact).toBe(1);
+    expect("compact" in req.options).toBe(false);
+  });
+
+  it("compact: true for toCsv, with a Sheet and with bare rows", async () => {
+    const { client } = pair();
+    const rows = [["a", 1, { value: true, style: { font: { bold: true } } }], [new Date(Date.UTC(2024, 0, 1)), null, "=x"]];
+    const expected = await client.toCsv(rows, { dateZone: "utc" });
+    expect(await client.toCsv(rows, { dateZone: "utc", compact: true })).toBe(expected);
+    expect(await client.toCsv({ name: "S", rows }, { dateZone: "utc", compact: true })).toBe(expected);
+  });
+
   it("ignores messages that are not the library's", async () => {
     const { client } = pair();
     expect(await client.toCsv([["a"]])).toBe("a\r\n");

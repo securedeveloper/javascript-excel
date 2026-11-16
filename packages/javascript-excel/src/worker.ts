@@ -29,6 +29,7 @@ import { read, type ReadOptions, type ReadResult } from "./read";
 import type { AbortSignalLike } from "./signal";
 import type { ExcelWarning } from "./warnings";
 import { toUint8Array, type Progress, type WriteOptions } from "./write";
+import { decodeWorkbook, encodeWorkbook, isCompactWorkbook } from "./internal/worker/compact";
 
 export type { AbortSignalLike } from "./signal";
 export type { Progress } from "./write";
@@ -52,11 +53,24 @@ export interface TransferOption {
   transfer?: boolean | undefined;
 }
 
+/** Options for sending a workbook (or CSV source) to the worker. */
+export interface CompactOption {
+  /**
+   * Send the cells as a compact columnar encoding (typed arrays that are
+   * transferred, a string list and a deduplicated style table) instead of
+   * structured-cloning every cell object. Default false. Cuts the calling
+   * thread's cost for large sheets of plain values and `{ value, style }`
+   * cells (README, Performance); cells with formulas, hyperlinks, rich text
+   * or errors are still cloned as they are. The worker sees the same model.
+   */
+  compact?: boolean | undefined;
+}
+
 /** The main-thread side of a worker running `exposeWorker()`. */
 export interface WorkerClient {
-  write(wb: Workbook, options?: WriteOptions & TransferOption): Promise<Uint8Array>;
+  write(wb: Workbook, options?: WriteOptions & TransferOption & CompactOption): Promise<Uint8Array>;
   read(input: BinaryInput, options?: ReadOptions & TransferOption): Promise<ReadResult>;
-  toCsv(source: Sheet | CellInput[][], options?: CsvWriteOptions): Promise<string>;
+  toCsv(source: Sheet | CellInput[][], options?: CsvWriteOptions & CompactOption): Promise<string>;
   parseCsv(input: string | BinaryInput, options?: (CsvParseOptions & Pick<CsvReadOptions, "encoding" | "signal">) & TransferOption): Promise<CsvParseResult>;
   /** Terminates the worker. Calls still in flight reject with an `AbortError`. */
   terminate(): void;
@@ -76,6 +90,8 @@ interface Request {
   progress?: boolean;
   warnings?: boolean;
   cancel?: boolean;
+  /** toCsv with compact: the source was a bare row array, sent as a one-sheet workbook. */
+  compactRows?: boolean;
 }
 
 interface SerializedError {
@@ -150,7 +166,8 @@ async function run(ep: MessageEndpoint, req: Request, signal: { aborted: boolean
     if (req.warnings) options["onWarning"] = (w: ExcelWarning) => post({ warning: w });
     switch (req.op) {
       case "write": {
-        const bytes = await toUint8Array(req.input as Workbook, options as WriteOptions);
+        const wb = isCompactWorkbook(req.input) ? decodeWorkbook(req.input) : (req.input as Workbook);
+        const bytes = await toUint8Array(wb, options as WriteOptions);
         post({ done: true, result: bytes }, [bytes.buffer]);
         return;
       }
@@ -161,7 +178,12 @@ async function run(ep: MessageEndpoint, req: Request, signal: { aborted: boolean
       }
       case "toCsv": {
         delete options["signal"];
-        post({ done: true, result: toCsv(req.input as Sheet | CellInput[][], options as CsvWriteOptions) });
+        let source = req.input as Sheet | CellInput[][];
+        if (isCompactWorkbook(req.input)) {
+          const sheet = decodeWorkbook(req.input).sheets[0]!;
+          source = req.compactRows ? (sheet.rows as CellInput[][]) : sheet;
+        }
+        post({ done: true, result: toCsv(source, options as CsvWriteOptions) });
         return;
       }
       case "parseCsv": {
@@ -259,6 +281,8 @@ export function createWorkerClient(worker: WorkerLike): WorkerClient {
     const onProgress = o["onProgress"] as ((p: Progress) => void) | undefined;
     const onWarning = o["onWarning"] as ((w: ExcelWarning) => void) | undefined;
     const transfer = o["transfer"] === true;
+    const compact = o["compact"] === true;
+    delete o["compact"];
     delete o["signal"];
     delete o["onProgress"];
     delete o["onWarning"];
@@ -283,8 +307,28 @@ export function createWorkerClient(worker: WorkerLike): WorkerClient {
         onWarning,
         cleanup: () => signal?.removeEventListener?.("abort", onAbort),
       });
-      const req: Request = { tag: TAG, id, op, input, options: o, progress: onProgress !== undefined, warnings: onWarning !== undefined };
       const list: unknown[] = [];
+      let payload = input;
+      let compactRows = false;
+      if (compact && (op === "write" || op === "toCsv")) {
+        try {
+          let wb = input as Workbook;
+          if (op === "toCsv") {
+            compactRows = Array.isArray(input);
+            wb = { sheets: [compactRows ? { name: "csv", rows: input as CellInput[][] } : (input as Sheet)] };
+          }
+          const enc = encodeWorkbook(wb);
+          payload = enc.message;
+          list.push(...enc.transfer);
+        } catch (err) {
+          pending.delete(id);
+          signal?.removeEventListener?.("abort", onAbort);
+          reject(err);
+          return;
+        }
+      }
+      const req: Request = { tag: TAG, id, op, input: payload, options: o, progress: onProgress !== undefined, warnings: onWarning !== undefined };
+      if (compactRows) req.compactRows = true;
       if (transfer) {
         if (input instanceof ArrayBuffer) list.push(input);
         else if (input instanceof Uint8Array) list.push(input.buffer);
