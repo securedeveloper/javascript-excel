@@ -53,6 +53,12 @@ describe("dateToSerial / serialToDate", () => {
     expect(serialToDate(dateToSerial(d)).getTime()).toBe(d.getTime());
   });
 
+  it("1900 system: serials 0..1 are day 0 (1899-12-31), as time-only values are stored", () => {
+    expect(serialToDate(0.5).getTime()).toBe(new Date(1899, 11, 31, 12).getTime());
+    expect(serialToDate(0).getTime()).toBe(new Date(1899, 11, 31).getTime());
+    expect(serialToDate(0.75, { dateZone: "utc" }).toISOString()).toBe("1899-12-31T18:00:00.000Z");
+  });
+
   it("serial 60 (the fictitious 1900-02-29) maps to 1900-03-01", () => {
     expect(serialToDate(60).getTime()).toBe(new Date(1900, 2, 1).getTime());
   });
@@ -62,7 +68,8 @@ describe("dateToSerial / serialToDate", () => {
     expect(code(() => dateToSerial(new Date(1899, 11, 31)))).toBe("INVALID_DATE");
     expect(code(() => dateToSerial(new Date(1903, 11, 31), { date1904: true }))).toBe("INVALID_DATE");
     expect(code(() => dateToSerial(new Date(10000, 0, 1)))).toBe("INVALID_DATE");
-    expect(code(() => serialToDate(0))).toBe("INVALID_DATE");
+    expect(code(() => serialToDate(-1))).toBe("INVALID_DATE");
+    expect(code(() => serialToDate(-0.5, { date1904: true }))).toBe("INVALID_DATE");
     expect(code(() => serialToDate(Number.POSITIVE_INFINITY))).toBe("INVALID_DATE");
   });
 });

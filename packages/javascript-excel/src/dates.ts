@@ -57,14 +57,16 @@ export function dateToSerial(d: Date, options?: DateOptions): number {
 
 /**
  * Converts an Excel serial number to a Date (inverse of `dateToSerial`).
- * Serial 60 in the 1900 system (Excel's fictitious 1900-02-29) has no real
- * date and gives 1900-03-01. Throws `INVALID_DATE` for non-finite or
- * out-of-range serials.
+ * - 1900 system: serials 0 to <1 are Excel's day 0 ("1900-01-00", i.e.
+ *   1899-12-31), which is how time-only values such as 0.5 (12:00) are
+ *   stored. Serial 60 (the fictitious 1900-02-29) has no real date and gives
+ *   1900-03-01; callers that must flag it (the reader) check for it themselves.
+ * - 1904 system: serial 0 = 1904-01-01.
+ * Throws `INVALID_DATE` for negative, non-finite or out-of-range serials.
  */
 export function serialToDate(serial: number, options?: DateOptions): Date {
   const max = options?.date1904 ? (MAX - EPOCH_1904) / DAY_MS : (MAX - EPOCH_1900) / DAY_MS;
-  const min = options?.date1904 ? 0 : 1;
-  if (!Number.isFinite(serial) || serial < min || serial > max) {
+  if (!Number.isFinite(serial) || serial < 0 || serial > max) {
     throw new ValidationError("INVALID_DATE", `Serial ${serial} is not a valid date.`, { details: { value: serial } });
   }
   let ms: number;
