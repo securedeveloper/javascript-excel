@@ -481,7 +481,8 @@ describe.skipIf(!hasOpenpyxl)("golden files (openpyxl)", () => {
       expect(d.cells["S"]!["B1"]!.font).toMatchObject({ name: "Arial", size: 10, bold: true });
     });
 
-    it("a large sheet: 20,000 rows x 10 columns", async () => {
+    // openpyxl loads 200,000 cells twice (formulas and cached values); that is slow on CI runners.
+    it("a large sheet: 20,000 rows x 10 columns", { timeout: 60_000 }, async () => {
       const rows = Array.from({ length: 20_000 }, (_, r) => Array.from({ length: 10 }, (_, c) => (c % 3 === 0 ? `r${r}c${c}` : r * 10 + c)));
       const d = await golden("large", { sheets: [{ name: "Big", rows }] }, undefined, true);
       const c = d.cells["Big"]!;
