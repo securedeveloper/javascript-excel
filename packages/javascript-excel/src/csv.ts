@@ -189,7 +189,7 @@ export async function readCsv(input: string | BinaryInput, options?: CsvReadOpti
 /** Serializes a sheet (A1 to its last used cell) or an array of rows to CSV text. */
 export function toCsv(source: Sheet | CellInput[][], options?: CsvWriteOptions): string {
   const text = serialize(source, writeConfig(options));
-  return options?.bom === true ? `﻿${text}` : text;
+  return options?.bom === true ? `\uFEFF${text}` : text;
 }
 
 /** Like `toCsv`, as a `Blob` of type `text/csv;charset=utf-8`, with a BOM unless `bom: false`. */
@@ -199,7 +199,7 @@ export function toCsvBlob(source: Sheet | CellInput[][], options?: CsvWriteOptio
     throw new EnvironmentError("ENVIRONMENT_UNSUPPORTED", "Blob is not available in this runtime; use toCsv instead.", { details: { api: "Blob" } });
   }
   const text = serialize(source, writeConfig(options));
-  return new Ctor([options?.bom === false ? text : `﻿${text}`], { type: CSV_MIME });
+  return new Ctor([options?.bom === false ? text : `\uFEFF${text}`], { type: CSV_MIME });
 }
 
 function writeConfig(options: CsvWriteOptions | undefined): WriteConfig {
