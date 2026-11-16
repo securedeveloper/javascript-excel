@@ -1,0 +1,16 @@
+{
+  "name": "example-node",
+  "private": true,
+  "type": "module",
+  "description": "javascript-excel in Node: write an .xlsx and a .csv to disk, then read them back.",
+  "scripts": {
+    "start": "node write-and-read.ts",
+    "check": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "javascript-excel": "2.0.0-alpha.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5"
+  }
+}

@@ -4,6 +4,8 @@
  * This entry exports the workbook model types (docs/api.md §3), the error
  * classes (§7), the xlsx writer (§5.1) and the address, date and style
  * helpers (§4). Builders land in later pull requests.
+ *
+ * @module javascript-excel
  */
 
 export type {

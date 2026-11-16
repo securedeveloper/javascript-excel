@@ -122,6 +122,29 @@ jobs:
           name: benchmarks
           path: ${{ runner.temp }}/bench.json
 
+  # The guides' examples (examples/), the README snippets and the API reference.
+  # Not a required check.
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Code in the READMEs and guides matches examples/
+        run: npm run docs:check
+      - name: Build the package; check, build and run the examples
+        run: npm run examples
+      - name: API reference (TypeDoc, from the .d.ts)
+        run: npm run build -w tools/api-docs
+      - uses: actions/upload-artifact@v7
+        with:
+          name: api-reference
+          path: tools/api-docs/out
+
   consumer-ts:
     name: Consumer TS
     runs-on: ubuntu-latest

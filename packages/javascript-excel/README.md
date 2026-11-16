@@ -1,13 +1,30 @@
 # javascript-excel
 
-> **2.0 is a from-scratch rewrite and is in progress.** The prerelease builds sheets from `{ columns, data }` datasets (`fromDataset`, `fromDatasets`, and `toDataset` for the way back), writes complete `.xlsx` files (cells, styles and sheet features), reads `.xlsx` files (`javascript-excel/read`), parses and serializes CSV (`javascript-excel/csv`), turns HTML tables into sheets and downloads files (`javascript-excel/dom`), and runs big jobs in a Web Worker (`javascript-excel/worker`). The API may change before 2.0.0.
->
-> The last 1.x release is `javascript-excel@1.0.3`. Keep using it until 2.0 is released.
+Read and write `.xlsx` and `.csv` files in browsers, Web Workers and Node.js. TypeScript, no runtime dependencies, tree-shakable entry points.
 
+> **Prerelease.** `2.0.0-alpha.x` is a from-scratch rewrite. Everything listed below ships today, and the API may still change before 2.0.0. The last 1.x release is `javascript-excel@1.0.3`.
+
+```sh
+npm install javascript-excel@next
+```
+
+| entry | for |
+|---|---|
+| `javascript-excel` | the workbook model, the `.xlsx` writer, dataset builders, dates, addresses, errors |
+| `javascript-excel/read` | the `.xlsx` reader |
+| `javascript-excel/csv` | CSV parse and serialize |
+| `javascript-excel/dom` | HTML `<table>` to sheet, `download()` |
+| `javascript-excel/worker` | run big jobs in a Web Worker |
+
+Each entry pulls in only what it needs: a writer-only app never ships the reader, the CSV code or the DOM code.
+
+## Write an `.xlsx`
+
+<!-- example: examples/snippets/src/write.ts -->
 ```ts
-import { toUint8Array } from "javascript-excel";
+import { toBlob, toUint8Array, type Workbook } from "javascript-excel";
 
-const bytes = await toUint8Array({
+const workbook: Workbook = {
   sheets: [
     {
       name: "Report",
@@ -16,23 +33,23 @@ const bytes = await toUint8Array({
         ["Pens", 10, { value: 1.5, style: { numFmt: "#,##0.00" } }],
         ["Total", { formula: "SUM(B2:B2)", value: 10 }, new Date()],
       ],
+      view: { freeze: { rows: 1 } },
+      colProps: [{ width: "auto" }],
     },
   ],
-});
+};
+
+const bytes: Uint8Array = await toUint8Array(workbook); // Node: writeFileSync("report.xlsx", bytes)
+const blob = await toBlob(workbook); // browser: download it, upload it, ...
 ```
 
-`toBlob()` returns the same file as a `Blob` for browser downloads.
+A workbook is plain data: sheets with `rows[r][c]`, where a cell is a value (`string`, `number`, `boolean`, `Date`, `{ error }`, `{ richText }`) or a `{ value, formula, style, hyperlink }` object.
 
-**Written today:** strings (shared or inline), numbers, booleans, dates (1900 and 1904 systems), error values, rich text, formulas with cached values, array formulas, styled empty cells. The full style model: fonts, all fill patterns and gradients, all border styles with a colour per side, alignment (rotation, indent, reading order), protection flags, and built-in and custom number formats. Styles are deduplicated. Sheet order, names, visibility, the active sheet, the default font and document properties are written too.
+## From a dataset (`{ columns, data }`)
 
-**Sheet features:** column widths (characters, pixels or `'auto'`) and column styles, row heights and row styles, hidden rows and columns, outline levels, merges, autofilter, freeze panes, right-to-left sheets, zoom and selection, tab colours, default sizes, hyperlinks (external URLs limited to `http`, `https` and `mailto` unless you allow more with `hyperlinkSchemes`; internal locations), defined names, and print setup (orientation, paper size, fit to page, scale, margins, print area and titles, headers and footers).
-
-Every writable field of the model is written; nothing is dropped silently. (`theme`, `indexedColors` and `dimension` are filled in by the reader and ignored on write.) Input that cannot be written faithfully throws a typed `ValidationError`.
-
-**Datasets** (`{ columns, data }`):
-
+<!-- example: examples/snippets/src/dataset.ts -->
 ```ts
-import { fromDataset, toBlob } from "javascript-excel";
+import { fromDataset, toDataset, toUint8Array } from "javascript-excel";
 
 const sheet = fromDataset(
   {
@@ -44,25 +61,101 @@ const sheet = fromDataset(
   },
   { freezeHeader: true, autoFilter: true, totals: { label: "Total" } },
 );
+const bytes = await toUint8Array({ sheets: [sheet] });
+
+// ...and back from a sheet that was read: { columns, data } with one object per row.
+const { columns, data } = toDataset(sheet);
 ```
 
-`fromDataset` supports `key`, `path` and function accessors, header groups (merged header cells), conditional columns, per-column types, number formats and widths, and a totals row with `SUBTOTAL` formulas and cached values. `fromDatasets` stacks several datasets on one sheet, and `toDataset` reads a sheet back into `{ columns, data }`.
+## Read an `.xlsx`
 
-**HTML tables** (`javascript-excel/dom`):
+<!-- example: examples/snippets/src/read.ts -->
+```ts
+import { read } from "javascript-excel/read";
 
+declare const file: Blob; // a File from <input type="file">, a Uint8Array or an ArrayBuffer
+
+const { workbook, warnings } = await read(file);
+for (const sheet of workbook.sheets) {
+  console.log(sheet.name, sheet.dimension, sheet.rows[0]?.map((cell) => cell?.value));
+}
+```
+
+## CSV
+
+<!-- example: examples/snippets/src/csv.ts -->
+```ts
+import { parseCsv, readCsv, toCsv, toCsvBlob } from "javascript-excel/csv";
+
+const text = toCsv([["name", "amount"], ["Ada", 1250.5], ["=1+1", -5]]); // "=1+1" is written as "'=1+1"
+const blob = toCsvBlob([["name"], ["Ada"]]); // UTF-8 with a BOM, so Excel opens it correctly
+
+const { rows, delimiter } = parseCsv("name;amount\nAda;1250,50\n"); // detects ";"
+declare const upload: Blob;
+const typed = await readCsv(upload, { inferTypes: true }); // numbers, TRUE/FALSE and ISO dates typed
+```
+
+## HTML tables and downloads
+
+<!-- example: examples/snippets/src/dom.ts -->
 ```ts
 import { toBlob } from "javascript-excel";
 import { download, fromTable } from "javascript-excel/dom";
 
-const sheet = fromTable(document.querySelector("table")!, { styles: "computed", freezeHeader: true, autoWidth: true });
+const table = document.querySelector("table")!;
+const sheet = fromTable(table, { styles: "computed", freezeHeader: true, autoWidth: true });
 download(await toBlob({ sheets: [sheet] }), "report.xlsx");
 ```
 
-`fromTable` reads `<thead>`, `<tbody>` and `<tfoot>`. It turns `colspan`/`rowspan` into merges, understands `data-type`, `data-value` and `data-numfmt` hints, skips hidden and `data-export-ignore` rows, keeps links, and with `styles: "computed"` maps bold, italic, underline, colour, background and alignment. `download` saves bytes, Blobs or strings through a temporary link without any dependency. Importing the module is safe during server-side rendering.
+## In a Web Worker
 
-Runs on Node.js 22+ and in browsers with `CompressionStream('deflate-raw')`. Types are tested with TypeScript 5.0–7, with `moduleResolution` set to `node16`, `nodenext` or `bundler`.
+<!-- example: examples/snippets/src/worker.ts -->
+```ts
+// excel.worker.ts (the app writes these two lines):
+//   import { exposeWorker } from "javascript-excel/worker";
+//   exposeWorker();
+import type { Workbook } from "javascript-excel";
+import { createWorkerClient } from "javascript-excel/worker";
 
-Source, status and issues: https://github.com/securedeveloper/javascript-excel
+declare const workbook: Workbook;
+const excel = createWorkerClient(new Worker(new URL("./excel.worker.ts", import.meta.url), { type: "module" }));
+const controller = new AbortController();
+const bytes = await excel.write(workbook, { signal: controller.signal, onProgress: (p) => console.log(p.phase, p.ratio) });
+```
+
+## What ships
+
+- **Writer:** strings, numbers, booleans, dates (1900 and 1904 systems), errors, rich text, formulas with cached values and array formulas, and styled empty cells.
+  - **Styles:** the full style model (fonts, pattern and gradient fills, all border styles with a colour per side, alignment, protection, built-in and custom number formats), deduplicated.
+  - **Sheet features:** column widths (characters, pixels or `"auto"`), row heights, hidden rows and columns, outline levels, merges, autofilter, freeze panes, right-to-left sheets, zoom, tab colours, hyperlinks (external URLs limited to `http`, `https` and `mailto` by default), defined names and print setup.
+  - **Workbook:** document properties.
+  - **Validation:** input that can't be written faithfully throws a typed `ValidationError`.
+- **Reader:** `.xlsx`, `.xlsm`, `.xltx` and `.xltm`, including ISO 29500 Strict files.
+  - Reads values, shared, inline and rich strings, and formula text with cached values (shared formulas expanded).
+  - Styles come back as shared frozen objects. Merges, column widths and row heights, views and panes, print setup, hyperlinks, defined names and document properties are read too.
+  - **Untrusted files:** bounded by limits on size, zip entries, compression ratio, XML depth, cells and shared strings. A `DOCTYPE` is rejected, nothing is ever fetched or executed, and file content never becomes an object key.
+  - **Rejected formats:** `.xls`, `.xlsb`, `.ods` and encrypted files throw `UNSUPPORTED_FORMAT`.
+- **CSV:** RFC 4180 parsing with delimiter detection, BOM and CRLF/LF/CR handling, lenient or strict modes, and optional type inference. `readCsv` decodes bytes in any `TextDecoder` encoding. Serializing gives you quoting, a BOM for Excel, ISO dates and a formula-injection guard, which is on by default.
+- **Datasets:** `fromDataset` and `fromDatasets` support `key`, `path` and function accessors, grouped headers, number formats, widths and a totals row. `toDataset` reads a sheet back into `{ columns, data }`.
+- **DOM:** `fromTable` handles `colspan`/`rowspan` merges, `data-*` type hints and computed styles. `download()` needs no dependency, and the module is safe to import during SSR.
+- **Worker:** progress, warnings and `AbortSignal` work across the boundary, and results are transferred, not copied.
+- **Not in 2.0:** `.xls`/`.xlsb`/`.ods`, charts, images, comments, pivot tables, conditional formatting and formula evaluation. These are planned for later releases, not ruled out.
+
+## Runtime support
+
+- Node.js 22 and later.
+- Browsers with `CompressionStream('deflate-raw')`: Chrome and Edge 103+, Firefox 113+, Safari 16.4+.
+- TypeScript 5.0–7, with `moduleResolution` `node16`, `nodenext` or `bundler`. Types ship with the package.
+
+Performance is measured in CI at 10k, 100k and 1M cells (for example, writing 1M numbers takes 1.3 s and reading them back 1.25 s on a GitHub Actions runner). The full table is in the [repository README](https://github.com/securedeveloper/javascript-excel#performance).
+
+## Documentation
+
+- Guides with runnable examples: [Node](https://github.com/securedeveloper/javascript-excel/blob/main/docs/guides/node.md), [vanilla browser](https://github.com/securedeveloper/javascript-excel/blob/main/docs/guides/vanilla.md), [React](https://github.com/securedeveloper/javascript-excel/blob/main/docs/guides/react.md), [Vue 3](https://github.com/securedeveloper/javascript-excel/blob/main/docs/guides/vue.md).
+- For React components on top of this library, see [react-data-export](https://github.com/securedeveloper/react-data-export).
+- The design and full API: [docs/api.md](https://github.com/securedeveloper/javascript-excel/blob/main/docs/api.md).
+
+Source and issues: https://github.com/securedeveloper/javascript-excel
 
 ## License
 

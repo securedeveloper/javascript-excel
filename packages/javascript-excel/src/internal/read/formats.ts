@@ -6,8 +6,10 @@
  * is one more row plus a decoder; the reader dispatches on `decoder`.
  */
 
-/** Every format `detectFormat` can name. */
-export type FormatName = "xlsx" | "xlsm" | "xltx" | "xltm" | "xlsb" | "ods" | "cfb" | "zip" | "unknown";
+import type { DetectedFormat } from "../../read";
+
+/** Every format `detectFormat` can name (the public `DetectedFormat`). */
+export type FormatName = DetectedFormat;
 
 /** The decoders the reader has. Formats without one are rejected with UNSUPPORTED_FORMAT. */
 export type Decoder = "spreadsheetml";

@@ -6,7 +6,9 @@
 
 ## Goal
 
-A TypeScript library, with no runtime dependencies, for reading and writing `.xlsx` and `.csv` files in browsers, Web Workers and Node 22+. Each feature is documented here once it ships.
+A TypeScript library, with no runtime dependencies, for reading and writing `.xlsx` and `.csv` files in browsers, Web Workers and Node 22+.
+
+**Using it:** start with the [package README](packages/javascript-excel/README.md), which covers install, quick starts and what ships, and the [guides](docs/guides/README.md), which have runnable Node, vanilla, React and Vue 3 examples. The design and full API are in [docs/api.md](docs/api.md). An API reference generated from the type declarations is built in CI (artifact `api-reference`, or `npm run docs:api` locally).
 
 ## TypeScript
 
@@ -18,6 +20,9 @@ Types are tested with TypeScript 5.0–7. Your `tsconfig.json` must use `moduleR
 |---|---|
 | `packages/javascript-excel` | the published npm package |
 | `apps/playground` | Vite playground (work in progress) |
+| `examples/` | runnable examples used by the guides (Node, vanilla, React, Vue 3) and the README snippets; checked in CI |
+| `docs/` | `api.md` (design and API) and `guides/` |
+| `tools/api-docs` | API reference generator (TypeDoc) |
 
 ## Development
 
@@ -31,6 +36,9 @@ npm run build       # package (tsdown) + playground (vite)
 npm run lint        # publint on the package
 npm run smoke       # pack the tarball, install it, import/require every subpath
 npm run consumer-ts # type-check the packed tarball with TypeScript 5.0–7.0
+npm run examples    # build the package, check and build every example, run the Node one
+npm run docs:check  # the code in the READMEs and guides matches examples/
+npm run docs:api    # API reference from the .d.ts into tools/api-docs/out
 npm run dev -w apps/playground
 ```
 

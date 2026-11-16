@@ -1,0 +1,16 @@
+{
+  "name": "example-snippets",
+  "private": true,
+  "type": "module",
+  "description": "The quick-start snippets shown in the package README, type-checked against the built package.",
+  "scripts": {
+    "check": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "javascript-excel": "2.0.0-alpha.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "7.0.2"
+  }
+}

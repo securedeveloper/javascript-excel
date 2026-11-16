@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>javascript-excel: vanilla example</title>
+  </head>
+  <body>
+    <table id="orders">
+      <thead>
+        <tr><th>Order</th><th>Customer</th><th>Total</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1001</td><td>Ada</td><td data-type="number" data-numfmt="#,##0.00">1250.50</td></tr>
+        <tr><td>1002</td><td>Grace</td><td data-type="number" data-numfmt="#,##0.00">980.00</td></tr>
+      </tbody>
+    </table>
+    <button id="export">Export the table to .xlsx</button>
+    <button id="big">Write 100,000 rows in a worker</button>
+    <label>Open an .xlsx: <input id="open" type="file" accept=".xlsx,.xlsm" /></label>
+    <pre id="output"></pre>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
