@@ -91,6 +91,26 @@ jobs:
       - name: Browser tests
         run: npm -w packages/javascript-excel run test:browser
 
+  # Write/read/CSV benchmarks at 10k, 100k and 1M cells (packages/javascript-excel/bench/run.mjs).
+  # Not a required check: it reports numbers (job summary + artifact) and fails only if a run crashes.
+  bench:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w packages/javascript-excel
+      - name: Benchmarks (Node 24)
+        run: npm run bench -- --json "$RUNNER_TEMP/bench.json"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: benchmarks
+          path: ${{ runner.temp }}/bench.json
+
   consumer-ts:
     name: Consumer TS
     runs-on: ubuntu-latest

@@ -22,7 +22,7 @@ const expected = {
   "./read": { read: FUNCTION, readSheetNames: FUNCTION, detectFormat: FUNCTION },
   "./csv": { CSV_MIME: "text/csv;charset=utf-8", parseCsv: FUNCTION, readCsv: FUNCTION, toCsv: FUNCTION, toCsvBlob: FUNCTION },
   "./dom": { fromTable: FUNCTION, download: FUNCTION, DOWNLOAD_REVOKE_DELAY_MS: 40000 },
-  "./worker": { ENTRY: "javascript-excel/worker" },
+  "./worker": { exposeWorker: FUNCTION, createWorkerClient: FUNCTION },
 };
 
 // A string only that subpath's code contains, so the tree-shaking check can
@@ -160,6 +160,17 @@ pending.then((r) => { const v = r.workbook.sheets[0]?.rows[0]?.[0]?.value; const
 void lim; void fmt; void names;
 `;
 
+const WORKER_FIXTURE = `
+import { createWorkerClient, exposeWorker, type WorkerClient } from ${JSON.stringify(`${pkg.name}/worker`)};
+declare const domWorker: Worker;
+const client: WorkerClient = createWorkerClient(domWorker);
+const ac = new AbortController();
+const bytes: Promise<Uint8Array> = client.write({ sheets: [{ name: "S", rows: [[1]] }] }, { signal: ac.signal, onProgress: (p) => void p.ratio, transfer: undefined });
+const fromWorker = client.read(new Uint8Array(0), { transfer: true, onWarning: (w) => void w.code });
+const asText: Promise<string> = client.toCsv([["a"]]);
+void bytes; void fromWorker; void asText; void exposeWorker;
+`;
+
 const CSV_FIXTURE = `
 import { parseCsv, readCsv, toCsv, toCsvBlob, type CsvParseResult, type CsvWriteOptions } from ${JSON.stringify(`${pkg.name}/csv`)};
 const parsed: CsvParseResult = parseCsv("a,b\\r\\n1,2\\r\\n", { delimiter: "auto", inferTypes: true, mode: undefined });
@@ -187,7 +198,8 @@ export function writeTypeFixture(app) {
     "\n" +
     MODEL_FIXTURE +
     CSV_FIXTURE +
-    READ_FIXTURE;
+    READ_FIXTURE +
+    WORKER_FIXTURE;
   writeFileSync(join(app, "esm.mts"), typed);
   writeFileSync(join(app, "cjs.cts"), typed);
   writeFileSync(join(app, "bundler.ts"), typed);

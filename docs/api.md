@@ -642,7 +642,7 @@ export interface DatasetOptions<T> {
 export interface AutoWidthOptions {
   min?: number;                        // characters, default 8.43 (Excel default)
   max?: number;                        // characters, default 60 (a readability choice made in JSE-4, not a measurement); cap 255
-  sampleRows?: number;                 // rows measured, default all [placeholder, set in JSE-8]
+  sampleRows?: number;                 // rows measured, default all (JSE-8: measuring every row of 1M cells cost no more than run-to-run noise)
 }
 ```
 
@@ -744,8 +744,8 @@ export interface Progress {
 - Parts written: `[Content_Types].xml`, `_rels/.rels`, `docProps/core.xml`, `docProps/app.xml`, `docProps/custom.xml` (if any), `xl/workbook.xml`, `xl/_rels/workbook.xml.rels`, `xl/styles.xml`, `xl/theme/theme1.xml`, `xl/sharedStrings.xml` (if used), `xl/worksheets/sheetN.xml` and `xl/worksheets/_rels/sheetN.xml.rels` (for hyperlinks).
 - XML is produced as chunk arrays and fed to the compressor in pieces; the whole sheet is never built as one string. The output is assembled in memory, so peak memory is roughly the model plus the compressed file.
 - **Deterministic output:** the same model and options give identical bytes when `properties.created` and `properties.modified` are set. Zip entry timestamps come from `modified`.
-- Abort: rejects with `signal.reason` (a `DOMException` named `AbortError` by default), the same as `fetch`. The writer checks the signal between sheet XML chunks (about 64 K characters each). Explicitly yielding to the event loop, for UI responsiveness on the main thread, is JSE-8 `[chunk size and yield interval: placeholder, set in JSE-8]`.
-- `onProgress` is throttled `[interval: placeholder, set in JSE-8]`.
+- Abort: rejects with `signal.reason` (a `DOMException` named `AbortError` by default), the same as `fetch`. The writer checks the signal between sheet XML chunks (about 64 K characters each). Every chunk goes through the platform's `CompressionStream`, which already returns to the event loop, so no explicit yielding is added: JSE-8 measured the longest main-thread block of a 1M-cell write at 11–13 ms (unique strings included), and of a read at 3–10 ms. The shared strings table is written in chunks too. Before JSE-8 it was built as one string, which blocked for 161 ms at 1M unique strings. For heavy jobs that must not touch the UI thread at all, use `/worker` (§5.5).
+- `onProgress` is throttled to one event per 50 ms. The first event, every change of `phase` or `sheet`, and the final `ratio: 1` are always delivered, and `ratio` never decreases. Unthrottled, the reader emitted an event every 0.3 ms and the writer every 7 ms (2,011 and 105 events for 1M cells), which a UI cannot use and which a worker would turn into as many messages. The reader uses the same throttle.
 
 ### 5.2 Read (`javascript-excel/read`)
 
@@ -971,26 +971,34 @@ export interface DownloadOptions {
 ```ts
 // excel.worker.ts (two lines the app writes)
 import { exposeWorker } from 'javascript-excel/worker';
-exposeWorker();
+exposeWorker();                                   // serves on `self`; pass an endpoint to serve elsewhere
 
 // main thread
-export function createWorkerClient(worker: Worker): WorkerClient;
+export function createWorkerClient(worker: WorkerLike): WorkerClient;   // a DOM `Worker` fits WorkerLike
 
 export interface WorkerClient {
-  write(wb: Workbook, options?: WriteOptions & { transfer?: boolean }): Promise<Uint8Array>;
-  read(input: BinaryInput, options?: ReadOptions & { transfer?: boolean }): Promise<ReadResult>;
+  write(wb: Workbook, options?: WriteOptions & TransferOption): Promise<Uint8Array>;
+  read(input: BinaryInput, options?: ReadOptions & TransferOption): Promise<ReadResult>;
   toCsv(source: Sheet | CellInput[][], options?: CsvWriteOptions): Promise<string>;
-  parseCsv(input: string | BinaryInput, options?: CsvParseOptions): Promise<CsvParseResult>;
+  parseCsv(input: string | BinaryInput, options?: CsvParseOptions & { encoding?: string; signal?: AbortSignalLike } & TransferOption): Promise<CsvParseResult>;
   terminate(): void;
 }
+export interface TransferOption { transfer?: boolean }
+export interface MessageEndpoint {               // a Worker, the worker's self, or a MessagePort
+  postMessage(message: unknown, transfer?: unknown[]): void;
+  addEventListener(type: 'message', listener: (event: { data: unknown }) => void): void;
+}
+export interface WorkerLike extends MessageEndpoint { terminate(): void }
 ```
 
 - The app owns the worker file and creates it with `new Worker(new URL('./excel.worker.ts', import.meta.url), { type: 'module' })`. This is the pattern Vite, webpack 5 and Next.js all bundle correctly, and avoids shipping a prebuilt worker URL (§12 Q15).
-- `onProgress` callbacks and `signal` work across the boundary. Aborting sends a cancel message; the worker stops at its next check and the promise rejects with `signal.reason`.
+- `onProgress`, `onWarning` and `signal` work across the boundary. Aborting rejects the call at once with `signal.reason` (as `fetch` does) and sends a cancel message; the worker stops at its next check, and its queue moves on. `terminate()` rejects the calls in flight with an `AbortError`.
+- Errors keep their class and `code`: an `ExcelError` thrown in the worker is rebuilt on the main thread, so `isExcelError(err)` and `err.code` work. `TypeError` and `RangeError` stay what they are.
 - **Transfer:** results (`Uint8Array`) are transferred back, not copied. Inputs are copied by default. With `transfer: true`, an input `ArrayBuffer` or `Uint8Array` is transferred and becomes detached in the caller. `Blob`s are always cheap to send.
-- The model crosses the boundary through structured clone, which is why it is plain data (§3.1). Functions (dataset accessors, `cell` hooks, `rowStyle`) cannot cross, so `fromDataset` and `fromTable` run on the main thread and the resulting `Sheet` is sent to the worker.
-- Several calls may be in flight on one client; they run one after another in the worker.
-- Node `worker_threads` is not supported by `/worker` in 2.0. Node users call `read`/`toUint8Array` directly, or in their own worker. Support may come in a later minor.
+- The model crosses the boundary through structured clone, which is why it is plain data (§3.1). Functions cannot cross: an option holding a function (other than `onProgress`/`onWarning`), for example `toCsv`'s `dates` formatter, is rejected with a `TypeError` before anything is sent. `fromDataset` and `fromTable` run on the main thread and the resulting `Sheet` is sent to the worker.
+- Several calls may be in flight on one client; they run one after another in the worker. The library's messages carry a tag, so the app can use the same worker for its own messages.
+- Code that imports only `createWorkerClient` does not ship the engine: the smoke test bundles it alone and finds no writer, reader or CSV code (5.2 KiB unminified).
+- Node `worker_threads` is not supported by `/worker` in 2.0 out of the box (its `Worker` is an `EventEmitter`, not an `EventTarget`). A three-line adapter works, and the tests use one. Node users usually call `read`/`toUint8Array` directly.
 
 ---
 

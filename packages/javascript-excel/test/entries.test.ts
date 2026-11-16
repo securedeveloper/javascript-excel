@@ -4,15 +4,15 @@ import { VERSION } from "../src/index";
 import * as csv from "../src/csv";
 import * as dom from "../src/dom";
 import * as read from "../src/read";
-import { ENTRY as WORKER } from "../src/worker";
+import * as worker from "../src/worker";
 
 describe("entries", () => {
   it("VERSION matches package.json", () => {
     expect(VERSION).toBe(pkg.version);
   });
 
-  it("each placeholder subpath module names itself", () => {
-    expect([WORKER]).toEqual(["javascript-excel/worker"]);
+  it("/worker exports the documented API", () => {
+    expect(Object.keys(worker).sort()).toEqual(["createWorkerClient", "exposeWorker"]);
   });
 
   it("/read exports the documented API", () => {

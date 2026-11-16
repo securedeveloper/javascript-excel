@@ -78,6 +78,23 @@ export class SharedStrings {
   toXml(): string {
     return `${XML_DECL}<sst xmlns="${NS_MAIN}" count="${this.count}" uniqueCount="${this.items.length}">${this.items.join("")}</sst>`;
   }
+
+  /**
+   * The table as UTF-8 chunks of about CHUNK_CHARS characters, so a large
+   * table is never built as one string (JSE-8: a 1M-unique-string table was
+   * a 160 ms synchronous join and its own copy in memory).
+   */
+  *chunks(): Generator<Uint8Array> {
+    let buf = `${XML_DECL}<sst xmlns="${NS_MAIN}" count="${this.count}" uniqueCount="${this.items.length}">`;
+    for (const item of this.items) {
+      buf += item;
+      if (buf.length >= CHUNK_CHARS) {
+        yield encodeUtf8(buf);
+        buf = "";
+      }
+    }
+    yield encodeUtf8(`${buf}</sst>`);
+  }
 }
 
 function textElement(s: string): string {
