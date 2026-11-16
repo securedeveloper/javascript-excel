@@ -50,6 +50,21 @@ interface RawHyperlink {
   tooltip: string | undefined;
 }
 
+/** Maximum digit width of Calibri 11 in pixels; the writer uses the same value (internal/write/sheet-features.ts). */
+const MAX_DIGIT_WIDTH = 7;
+
+/**
+ * A column width as stored in the file (characters plus padding, ECMA-376
+ * §18.3.1.13) to the width Excel's UI shows, which the model uses (§3.3).
+ * The inverse of the writer's conversion: 20 is written as 20.7109375 and
+ * reads back as 20.
+ */
+export function fileWidthToChars(width: number): number {
+  if (width <= 0) return 0;
+  const px = Math.trunc(((256 * width + Math.trunc(128 / MAX_DIGIT_WIDTH)) / 256) * MAX_DIGIT_WIDTH);
+  return Math.max(0, Math.trunc(((px - 5) / MAX_DIGIT_WIDTH) * 100 + 0.5) / 100);
+}
+
 /** Parses "B12" -> [row 11, col 1]; undefined if not an A1 cell reference. */
 export function parseRef(ref: string): [number, number] | undefined {
   const m = /^\$?([A-Za-z]{1,3})\$?(\d{1,7})$/.exec(ref);
@@ -182,7 +197,7 @@ export class SheetParser implements XmlHandler {
         return;
       case "sheetFormatPr": {
         const w = num(a.get("defaultColWidth"));
-        if (w !== undefined) this.sheet.defaultColWidth = w;
+        if (w !== undefined) this.sheet.defaultColWidth = fileWidthToChars(w);
         const h = num(a.get("defaultRowHeight"));
         if (h !== undefined) this.sheet.defaultRowHeight = h;
         return;
@@ -315,7 +330,7 @@ export class SheetParser implements XmlHandler {
     if (min === undefined || max === undefined || min < 1 || max < min) return;
     const p: ColumnProps = {};
     const w = num(a.get("width"));
-    if (w !== undefined && (bool(a.get("customWidth"), false) || a.get("customWidth") === undefined)) p.width = w;
+    if (w !== undefined && (bool(a.get("customWidth"), false) || a.get("customWidth") === undefined)) p.width = fileWidthToChars(w);
     if (bool(a.get("hidden"), false)) p.hidden = true;
     const ol = int(a.get("outlineLevel"));
     if (ol !== undefined && ol > 0) p.outlineLevel = ol;

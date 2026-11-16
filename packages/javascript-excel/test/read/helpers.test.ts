@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { shiftFormula } from "../../src/internal/read/formula";
 import { BUILTIN_NUM_FMTS, isDateFormat } from "../../src/numfmt";
 import { resolveTarget } from "../../src/internal/read/opc";
+import { fileWidthToChars } from "../../src/internal/read/sheet";
+import { charsToFileWidth, pixelsToChars } from "../../src/internal/write/sheet-features";
 import { decodeXstring } from "../../src/internal/read/strings";
 
 describe("shared formula shifter (Q6)", () => {
@@ -77,6 +79,18 @@ describe("BUILTIN_NUM_FMTS", () => {
     expect(BUILTIN_NUM_FMTS[14]).toBe("mm-dd-yy");
     expect(Object.isFrozen(BUILTIN_NUM_FMTS)).toBe(true);
     for (const [id, code] of Object.entries(BUILTIN_NUM_FMTS)) expect(isDateFormat(code), code).toBe(isDateFormat(Number(id)));
+  });
+});
+
+describe("column widths", () => {
+  it("invert the writer's conversion for every width Excel's UI can show (each whole pixel up to 255 characters)", () => {
+    for (let px = 5; px <= 255 * 7 + 5; px++) {
+      const chars = pixelsToChars(px);
+      expect(fileWidthToChars(charsToFileWidth(chars)), `${px}px`).toBe(chars);
+    }
+    expect(fileWidthToChars(charsToFileWidth(20))).toBe(20);
+    expect(fileWidthToChars(8.43 + 0.71)).toBe(8.43);
+    expect(fileWidthToChars(0)).toBe(0);
   });
 });
 

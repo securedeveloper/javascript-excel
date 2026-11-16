@@ -85,7 +85,8 @@ describe("openpyxl fixtures", () => {
     expect(at(s, "A2")!.style).toEqual({ fill: { type: "pattern", pattern: "darkGrid", fgColor: { rgb: "FF00FF00" }, bgColor: { rgb: "FF0000FF" } } });
     expect(at(s, "A3")!.style!.alignment).toEqual({ horizontal: "left", indent: 2, rotation: -45 });
     expect(s.merges).toEqual(["C1:D2"]);
-    expect(s.colProps?.[0]).toEqual({ width: 30 });
+    // openpyxl stores width 30 as given; Excel shows that as 29.29 characters, which the model uses.
+    expect(s.colProps?.[0]).toEqual({ width: 29.29 });
     expect(s.colProps?.[2]).toMatchObject({ hidden: true });
     expect(s.rowProps?.[1]).toEqual({ height: 40 });
     expect(s.view).toEqual({ zoom: 150, freeze: { rows: 1, cols: 1 } });

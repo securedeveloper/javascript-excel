@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import type { Cell, CellInput, Style, Workbook } from "../../src/model";
 import { read, type ReadOptions } from "../../src/read";
 import { toUint8Array, type WriteOptions } from "../../src/write";
+import { featuresWorkbook } from "../write/golden-cases";
 
 const FIXED = new Date(Date.UTC(2024, 0, 1));
 const props = { created: FIXED, modified: FIXED };
@@ -137,7 +138,60 @@ describe("read(write(x))", () => {
     expect(r1![1]!.style).toMatchObject(builtin);
   });
 
-  // Defined names, merges, widths, freeze panes and hyperlinks are written by JSE-4; their round trips land with it.
+  it("sheet features (JSE-4's featuresWorkbook): names, layout, merges, views, print, hyperlinks", async () => {
+    const wb = await roundTrip(featuresWorkbook());
+    expect(wb.definedNames).toEqual([
+      { name: "TaxRate", ref: "'Report'!$B$2" },
+      { name: "LocalName", ref: "Second!$A$1", sheet: 1, hidden: true, comment: "local to Second" },
+    ]);
+    const [report, second, frozenRows, frozenCols] = wb.sheets;
+    expect(report).toMatchObject({
+      tabColor: { rgb: "FFFF0000" },
+      defaultColWidth: 10,
+      defaultRowHeight: 18,
+      merges: ["A11:D11", "F11:G12"],
+      autoFilter: "A1:D10",
+      view: { freeze: { rows: 1, cols: 1 }, zoom: 120, showGridLines: false },
+      print: {
+        orientation: "landscape",
+        paperSize: 9,
+        fitTo: { width: 1, height: 0 },
+        margins: { left: 0.5, top: 1 },
+        center: { horizontal: true },
+        gridLines: true,
+        headings: true,
+        printArea: "A1:D20",
+        printTitles: { rows: "1:1", cols: "A:A" },
+        header: { odd: "&CReport" },
+        footer: { odd: "&RPage &P of &N", first: "&CFirst page" },
+      },
+    });
+    const cols = report!.colProps!;
+    expect(cols[0]!.width).toBeCloseTo(20, 0);
+    expect(cols[1]!.width).toBeCloseTo(12, 0);
+    expect(typeof cols[2]!.width).toBe("number"); // 100 px, converted to characters by the writer
+    expect(typeof cols[3]!.width).toBe("number"); // "auto", measured by the writer
+    expect(cols[4]).toMatchObject({ hidden: true });
+    expect(cols[5]).toMatchObject({ outlineLevel: 1, style: { font: { bold: true } } });
+    const rows = report!.rowProps!;
+    expect(rows[0]).toMatchObject({ height: 30, style: { fill: { pattern: "solid", fgColor: { rgb: "FFDDEBF7" } } } });
+    expect(rows[3]).toMatchObject({ hidden: true });
+    expect(rows[4]).toMatchObject({ outlineLevel: 2, collapsed: true });
+    expect(rows[14]).toMatchObject({ height: 25 });
+    const links = report!.rows[1]!.map((c) => c!.hyperlink);
+    expect(links).toEqual([
+      { target: "https://example.com/a?b=1&c=2" },
+      { target: "mailto:someone@example.com", tooltip: "Write to us" },
+      { location: "'Second'!A1", tooltip: "go" },
+      { target: "https://example.com/a?b=1&c=2" },
+    ]);
+    expect(second!.view).toEqual({ rightToLeft: true });
+    expect(second!.colProps![0]).toMatchObject({ style: { font: { bold: true, italic: true } } });
+    expect(frozenRows!.view).toEqual({ freeze: { rows: 2 }, activeCell: "B5", selection: "B5:C6" });
+    // The writer puts the selection in the pane right of the split, so the active cell reads back as C1.
+    expect(frozenCols!.view).toEqual({ freeze: { cols: 2 }, activeCell: "C1" });
+  });
+
   it("workbook structure: sheet order, visibility, active sheet, properties", async () => {
     const wb = await roundTrip({
       activeSheet: 2,
