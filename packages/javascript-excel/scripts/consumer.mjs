@@ -19,7 +19,7 @@ const specifier = (sub) => (sub === "." ? pkg.name : `${pkg.name}/${sub.slice(2)
 export const FUNCTION = Symbol("function");
 const expected = {
   ".": { VERSION: pkg.version },
-  "./read": { ENTRY: "javascript-excel/read" },
+  "./read": { read: FUNCTION, readSheetNames: FUNCTION, detectFormat: FUNCTION },
   "./csv": { CSV_MIME: "text/csv;charset=utf-8", parseCsv: FUNCTION, readCsv: FUNCTION, toCsv: FUNCTION, toCsvBlob: FUNCTION },
   "./dom": { ENTRY: "javascript-excel/dom" },
   "./worker": { ENTRY: "javascript-excel/worker" },
@@ -28,7 +28,7 @@ const expected = {
 // A string only that subpath's code contains, so the tree-shaking check can
 // tell whether a bundle kept it.
 export const MARKERS = {
-  "./read": "javascript-excel/read",
+  "./read": "SHARED_FORMULA_UNRESOLVED",
   "./csv": "CSV_STRAY_QUOTE",
   "./dom": "javascript-excel/dom",
   "./worker": "javascript-excel/worker",
@@ -134,6 +134,17 @@ void sameTypes;
  * CSV API usage: option and result types resolve, the result is typed, and a
  * Blob-or-structural return type is usable without DOM types.
  */
+const READ_FIXTURE = `
+import { read, readSheetNames, detectFormat, DEFAULT_READ_LIMITS, type ReadResult, type ReadOptions, type ReadLimits, type DetectedFormat } from ${JSON.stringify(`${pkg.name}/read`)};
+const ropts: ReadOptions = { sheets: ["Sheet1", 0], styles: true, dates: "date", dateZone: "utc", richText: undefined, limits: { maxCells: 10 }, signal: undefined, onWarning: (w) => void w.code };
+const pending: Promise<ReadResult> = read(new Uint8Array(0), ropts);
+const lim: number = (DEFAULT_READ_LIMITS satisfies Readonly<ReadLimits>).maxRatio;
+const fmt: Promise<DetectedFormat> = detectFormat(new ArrayBuffer(0));
+const names: Promise<Array<{ name: string; index: number; state: "visible" | "hidden" | "veryHidden" }>> = readSheetNames(new Uint8Array(0));
+pending.then((r) => { const v = r.workbook.sheets[0]?.rows[0]?.[0]?.value; const t: string | undefined = r.workbook.sheets[0]?.rows[0]?.[0]?.type; void v; void t; }, () => {});
+void lim; void fmt; void names;
+`;
+
 const CSV_FIXTURE = `
 import { parseCsv, readCsv, toCsv, toCsvBlob, type CsvParseResult, type CsvWriteOptions } from ${JSON.stringify(`${pkg.name}/csv`)};
 const parsed: CsvParseResult = parseCsv("a,b\\r\\n1,2\\r\\n", { delimiter: "auto", inferTypes: true, mode: undefined });
@@ -160,7 +171,8 @@ export function writeTypeFixture(app) {
     ).join("\n") +
     "\n" +
     MODEL_FIXTURE +
-    CSV_FIXTURE;
+    CSV_FIXTURE +
+    READ_FIXTURE;
   writeFileSync(join(app, "esm.mts"), typed);
   writeFileSync(join(app, "cjs.cts"), typed);
   writeFileSync(join(app, "bundler.ts"), typed);

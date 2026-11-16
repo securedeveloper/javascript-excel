@@ -32,13 +32,13 @@ export interface ZipReadLimits {
   maxRatio: number;
 }
 
-/** The zip-related defaults of docs/api.md §5.2. All are [placeholder, set in JSE-6]. */
+/** The zip-related defaults of docs/api.md §5.2, the same values as DEFAULT_READ_LIMITS (measured in JSE-6). */
 export const DEFAULT_ZIP_LIMITS: Readonly<ZipReadLimits> = Object.freeze({
   maxInputBytes: 256 * 1024 * 1024,
   maxEntries: 10_000,
   maxEntryBytes: 512 * 1024 * 1024,
   maxTotalBytes: 1024 * 1024 * 1024,
-  maxRatio: 100,
+  maxRatio: 1000,
 });
 
 export interface ZipEntryInfo {

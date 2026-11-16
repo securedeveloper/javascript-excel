@@ -10,6 +10,7 @@
 import type { BinaryInput, BlobType } from "./binary";
 import { CsvError, EnvironmentError } from "./errors";
 import { decodeBytes } from "./internal/csv/decode";
+import { toBytes } from "./internal/input";
 import { CsvParser, DEFAULT_MAX_FIELD_BYTES, type ParseConfig } from "./internal/csv/parse";
 import { serialize, type WriteConfig } from "./internal/csv/write";
 import type { CellInput, CellValue, Sheet } from "./model";
@@ -161,7 +162,7 @@ export async function readCsv(input: string | BinaryInput, options?: CsvReadOpti
   if (typeof input === "string") {
     text = input;
   } else {
-    const bytes = await toBytes(input);
+    const bytes = await toBytes(input, "readCsv", "a string, ");
     throwIfAborted(signal);
     const label = options?.encoding ?? "utf-8";
     const decoded = decodeBytes(bytes, label);
@@ -215,19 +216,6 @@ function writeConfig(options: CsvWriteOptions | undefined): WriteConfig {
     dateZone: o.dateZone ?? "local",
     formulas: o.formulas ?? "value",
   };
-}
-
-async function toBytes(input: BinaryInput): Promise<Uint8Array> {
-  if (input instanceof Uint8Array) return input;
-  if (input instanceof ArrayBuffer) return new Uint8Array(input);
-  if (typeof input === "object" && input !== null && typeof (input as { arrayBuffer?: unknown }).arrayBuffer === "function") {
-    return new Uint8Array(await (input as { arrayBuffer(): Promise<ArrayBuffer> }).arrayBuffer());
-  }
-  if (ArrayBuffer.isView(input)) {
-    const v = input as ArrayBufferView;
-    return new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
-  }
-  throw new TypeError("readCsv: input must be a string, Uint8Array, ArrayBuffer or Blob");
 }
 
 function throwIfAborted(signal: AbortSignalLike | undefined): void {
