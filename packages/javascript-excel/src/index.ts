@@ -68,5 +68,5 @@ export { BUILTIN_NUM_FMTS, isDateFormat } from "./numfmt";
 export { decodeCell, decodeCol, decodeRange, encodeCell, encodeCol, encodeRange, MAX_COLS, MAX_ROWS } from "./address";
 export type { CellAddress, RangeAddress } from "./address";
 
-/** Package version. Kept in sync with package.json by a unit test. */
+/** Package version. Set from package.json by `npm run version-packages` (scripts/sync-version.mjs); a unit test checks it. */
 export const VERSION = "2.0.0-alpha.1";
