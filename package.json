@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "npm -w packages/javascript-excel run build && npm -w apps/playground run build",
-    "test": "npm -w packages/javascript-excel run test",
+    "test": "npm -w packages/javascript-excel run test && npm -w apps/playground run test",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm -w packages/javascript-excel run lint",
     "smoke": "npm -w packages/javascript-excel run smoke",
