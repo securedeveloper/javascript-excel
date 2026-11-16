@@ -6,7 +6,8 @@
     "../../packages/javascript-excel/dist/read.d.ts",
     "../../packages/javascript-excel/dist/csv.d.ts",
     "../../packages/javascript-excel/dist/dom.d.ts",
-    "../../packages/javascript-excel/dist/worker.d.ts"
+    "../../packages/javascript-excel/dist/worker.d.ts",
+    "../../packages/javascript-excel/dist/render.d.ts"
   ],
   "tsconfig": "./tsconfig.json",
   "out": "out",

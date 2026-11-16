@@ -23,6 +23,7 @@ const expected = {
   "./csv": { CSV_MIME: "text/csv;charset=utf-8", parseCsv: FUNCTION, readCsv: FUNCTION, toCsv: FUNCTION, toCsvBlob: FUNCTION },
   "./dom": { fromTable: FUNCTION, download: FUNCTION, DOWNLOAD_REVOKE_DELAY_MS: 40000 },
   "./worker": { exposeWorker: FUNCTION, createWorkerClient: FUNCTION },
+  "./render": { createRenderSheet: FUNCTION, renderCell: FUNCTION, rangeAsTsv: FUNCTION },
 };
 
 // A string only that subpath's code contains, so the tree-shaking check can
@@ -32,6 +33,7 @@ export const MARKERS = {
   "./csv": "CSV_STRAY_QUOTE",
   "./dom": "[data-export-ignore]",
   "./worker": "javascript-excel/worker",
+  "./render": "Not a RenderSheet",
 };
 
 const missing = SUBPATHS.filter((s) => !(s in expected));
@@ -187,6 +189,22 @@ const asText: Promise<string> = client.toCsv([["a"]]);
 void bytes; void fromWorker; void asText; void exposeWorker;
 `;
 
+const RENDER_FIXTURE = `
+import { createRenderSheet, edge, rangeAsTsv, renderCell, rowAt, sheetSettings, type RenderCell, type RenderFormatter, type RenderOptions, type RenderSheet } from ${JSON.stringify(`${pkg.name}/render`)};
+import { resolveColor, type Cell as RCell, type Workbook as RWorkbook } from ${JSON.stringify(pkg.name)};
+declare const book: RWorkbook<RCell>;
+const renderFmt: RenderFormatter = (cell, o) => ({ text: String(cell.value ?? ""), align: o.locale ? "right" : undefined });
+const renderOpts: RenderOptions = { format: renderFmt, locale: "de-DE", margin: { rows: 10, cols: undefined }, hyperlinkSchemes: ["https"] };
+const rs: RenderSheet = createRenderSheet(book, 0, renderOpts);
+const rc: RenderCell | null = renderCell(rs, 0, 0);
+const bg: string | undefined = rc?.style.background.kind === "solid" ? rc.style.background.color : undefined;
+const where: { row: number; col: number } = edge(rs, { row: 0, col: 0 }, "down");
+const tsv: string = rangeAsTsv(rs, { start: where, end: where }, { values: "raw" });
+const frozen: number = sheetSettings(rs).freeze.rows + rowAt(rs, 100);
+const argb: string = resolveColor({ theme: 4, tint: 0.4 }, { theme: book.theme, indexedColors: book.indexedColors });
+void bg; void tsv; void frozen; void argb;
+`;
+
 const CSV_FIXTURE = `
 import { parseCsv, readCsv, toCsv, toCsvBlob, type CsvParseResult, type CsvWriteOptions } from ${JSON.stringify(`${pkg.name}/csv`)};
 const parsed: CsvParseResult = parseCsv("a,b\\r\\n1,2\\r\\n", { delimiter: "auto", inferTypes: true, mode: undefined });
@@ -214,6 +232,7 @@ export function writeTypeFixture(app) {
     "\n" +
     MODEL_FIXTURE +
     CSV_FIXTURE +
+    RENDER_FIXTURE +
     READ_FIXTURE +
     WORKER_FIXTURE;
   writeFileSync(join(app, "esm.mts"), typed);

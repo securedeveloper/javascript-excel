@@ -4,6 +4,7 @@ import { VERSION } from "../src/index";
 import * as csv from "../src/csv";
 import * as dom from "../src/dom";
 import * as read from "../src/read";
+import * as render from "../src/render";
 import * as worker from "../src/worker";
 
 describe("entries", () => {
@@ -21,6 +22,13 @@ describe("entries", () => {
 
   it("/dom exports the documented API", () => {
     expect(Object.keys(dom).sort()).toEqual(["DOWNLOAD_REVOKE_DELAY_MS", "download", "fromTable"]);
+  });
+
+  it("/render exports the documented API", () => {
+    expect(Object.keys(render).sort()).toEqual([
+      "colAt", "colLeft", "colWidth", "createRenderSheet", "edge", "isColHidden", "isRowHidden", "lastUsedCell", "mergeAt",
+      "rangeAsHtml", "rangeAsTsv", "rangeStats", "renderCell", "rowAt", "rowHeight", "rowTop", "sheetExtent", "sheetSettings", "step",
+    ]);
   });
 
   it("/csv exports the documented API", () => {
