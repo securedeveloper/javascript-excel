@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolveColor, toUint8Array, type CellInput, type Workbook } from "../../src/index";
+import { formatCell } from "../../src/format";
 import { read } from "../../src/read";
 import {
   colAt,
@@ -199,6 +200,13 @@ describe("text, formulas and hyperlinks", () => {
     const t = createRenderSheet(wb({ name: "S", rows: [[5]] }, { date1904: true }), 0, { format, locale: "de-DE" });
     expect(renderCell(t, 0, 0)).toMatchObject({ text: "<5>", color: "#FF0000", align: "center", fill: { char: "-", at: 0 } });
     expect(seen).toEqual([{ locale: "de-DE", date1904: true, indexedColors: undefined }]);
+  });
+
+  it("formatCell from javascript-excel/format is a RenderFormatter", () => {
+    const hook: RenderFormatter = formatCell;
+    const t = createRenderSheet(wb({ name: "S", rows: [[{ value: -1234.5, style: { numFmt: "#,##0.00;[Red](#,##0.00)" } }, { value: 45306, style: { numFmt: 14 } }]] }), 0, { format: hook, locale: "de-DE" });
+    expect(renderCell(t, 0, 0)).toMatchObject({ text: "(1.234,50)", color: "#FF0000", align: "right" });
+    expect(renderCell(t, 0, 1)).toMatchObject({ text: "15.01.2024", align: "right" });
   });
 
   it("formula text: '=', prefixes removed outside strings, array flag, no cached value", () => {
