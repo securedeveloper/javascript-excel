@@ -1,0 +1,11 @@
+{
+  // DOM and browser tests: the only files type-checked with the DOM lib, so
+  // src/ keeps compiling without DOM types (its declarations must not need them).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": ["test/dom", "test/browser", "vitest.browser.config.ts"],
+  "exclude": []
+}

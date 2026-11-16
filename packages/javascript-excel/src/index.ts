@@ -60,6 +60,7 @@ export { dateToSerial, serialToDate } from "./dates";
 export type { DateOptions } from "./dates";
 export { mergeStyles } from "./styles";
 export { cellText } from "./cells";
+export type { AutoWidthOptions } from "./auto-width";
 export type { CellTextOptions } from "./cells";
 export { sanitizeSheetName, validateSheetName } from "./sheet-names";
 export type { SheetNameProblem } from "./sheet-names";

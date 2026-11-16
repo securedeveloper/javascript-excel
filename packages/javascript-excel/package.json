@@ -61,13 +61,17 @@
   "scripts": {
     "build": "tsdown",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.dom.json",
     "lint": "publint --strict",
     "smoke": "node scripts/smoke-pack.mjs",
-    "consumer-ts": "node scripts/consumer-ts.mjs"
+    "consumer-ts": "node scripts/consumer-ts.mjs",
+    "test:browser": "vitest run --config vitest.browser.config.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
+    "@vitest/browser-playwright": "5.1.0",
+    "happy-dom": "21.0.4",
+    "playwright": "1.65.1",
     "publint": "0.3.25",
     "tsdown": "0.23.7",
     "typescript": "7.0.2",

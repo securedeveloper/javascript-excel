@@ -901,8 +901,13 @@ export interface CsvWriteOptions {
 ### 5.4 DOM (`javascript-excel/dom`)
 
 ```ts
-export function fromTable(table: HTMLTableElement, options?: FromTableOptions): Sheet;
-export function download(data: Uint8Array | Blob | string, filename: string, options?: { mimeType?: string }): void;
+export function fromTable(table: TableElement, options?: FromTableOptions): Sheet;
+export function download(data: Uint8Array | BlobType | string, filename: string, options?: DownloadOptions): void;
+export const DOWNLOAD_REVOKE_DELAY_MS: number; // 40 000
+
+/** HTMLTableElement / HTMLTableCellElement when the consumer has DOM types, else `object`. */
+export type TableElement = typeof globalThis extends { HTMLTableElement: { prototype: infer T } } ? T : object;
+export type TableCellElement = typeof globalThis extends { HTMLTableCellElement: { prototype: infer T } } ? T : object;
 
 export interface FromTableOptions {
   name?: string;                       // sheet name, default 'Sheet1'; an invalid name throws (§12 Q19)
@@ -918,22 +923,48 @@ export interface FromTableOptions {
   styles?: 'none' | 'computed';
   /** Infer numbers/booleans from text (default false: text stays text unless a data-type hint says otherwise). */
   inferTypes?: boolean;
-  /** <a href> becomes Cell.hyperlink (default true). Scheme allowlist as in WriteOptions. */
+  /** The first <a href> in a cell becomes Cell.hyperlink (default true). */
   links?: boolean;
+  /** Link schemes kept (default ['http', 'https', 'mailto']); others are dropped with HYPERLINK_DROPPED. */
+  hyperlinkSchemes?: string[];
   freezeHeader?: boolean;
   autoFilter?: boolean;
   autoWidth?: boolean | AutoWidthOptions;
   /** Per-cell hook: return a CellInput to override, or undefined to keep the default mapping. */
-  cell?: (el: HTMLTableCellElement, ctx: { row: number; col: number; header: boolean }) => CellInput | undefined;
+  cell?: (el: TableCellElement, ctx: { row: number; col: number; header: boolean }) => CellInput | undefined;
+  /** Data problems that do not stop the conversion: COERCION_FAILED, HYPERLINK_DROPPED (§7.3). */
+  onWarning?: (w: ExcelWarning) => void;
+}
+
+export interface DownloadOptions {
+  /** Default: a Blob keeps its type; otherwise from the extension (.xlsx, .csv), else text/plain;charset=utf-8 for strings and application/octet-stream for bytes. */
+  mimeType?: string;
 }
 ```
 
-- **Structure.** Rows come from `<thead>`, then each `<tbody>` (and bare `<tr>`), then `<tfoot>`. `colspan`/`rowspan` are laid out on an occupancy grid and become `merges` (issue #28). Nested tables are read as text of their cell, not as rows.
-- **Hints on `<td>`/`<th>`:** `data-type="string|number|boolean|date"`, `data-value="..."` (raw value instead of `textContent`), `data-numfmt="0.00"`. `data-export-ignore` on a row or cell skips it.
-- **Text:** `textContent`, whitespace collapsed; `<br>` becomes a newline and turns on `wrapText`.
-- **`styles: 'computed'`** maps `font-weight >= 600` to bold, `font-style: italic`, `text-decoration` underline and line-through, `color`, a non-transparent `background-color` (solid fill), `text-align`, `vertical-align` and `white-space`. Borders are not mapped in 2.0.
-- **RTL:** `dir="rtl"` on the table (or computed `direction: rtl`) sets `view.rightToLeft`.
-- **`download`** creates an object URL, clicks a temporary `<a download>` and revokes the URL after a delay `[placeholder, set in JSE-7]`. A string `data` is encoded as UTF-8 (`mimeType` default `text/plain;charset=utf-8`). Without a DOM it throws `ENVIRONMENT_UNSUPPORTED`.
+- **No globals at import.** The module is safe to import during SSR. `fromTable` reads styles through the table's own window (`ownerDocument.defaultView`), so tables in iframes work. Calling either function without a DOM throws `ENVIRONMENT_UNSUPPORTED`. A non-`<table>` element throws `TypeError`.
+- **Structure.** Rows come from `<thead>`, then each `<tbody>` (and bare `<tr>`), then `<tfoot>`, whatever their order in the markup. `colspan`/`rowspan` are laid out on an occupancy grid and become `merges` (issue #28). `rowspan="0"` spans to the end of its row group. Spans are clamped to HTML's limits (1000 / 65534) and to the table. Nested tables are read as text of their cell, not as rows. Skipped cells (hidden, ignored) are left out, so the cells after them move left.
+- **Hints on `<td>`/`<th>`:**
+  - `data-value="..."` gives the raw value instead of the text.
+  - `data-type="string|number|boolean|date"` coerces it. `number` takes plain decimals and `1,234.5`-style grouping. `boolean` takes true/false, yes/no and 1/0. `date` takes ISO 8601: date-only and zone-less values are local wall-clock time, and `Z` or `±hh:mm` are honoured. A value that doesn't fit stays text with warning `COERCION_FAILED`.
+  - `data-numfmt="0.00"` sets the number format; all digits means a built-in id (`data-numfmt="14"`).
+  - `data-export-ignore` on a row or cell skips it.
+- **Text:** child text, ignoring `<script>`, `<style>`, `<template>` and `<noscript>`. Whitespace, including `&nbsp;`, is collapsed per line. `<br>` becomes a newline and turns on `wrapText`.
+- **Links:** the first `<a href>` becomes the cell's hyperlink, resolved to an absolute URL (`a.href`). In-page `#anchors` are ignored. Schemes outside `hyperlinkSchemes` are dropped with `HYPERLINK_DROPPED`, so the sheet always passes the writer's allowlist (§3.6).
+- **Header rows** get `headerStyle`. Computed styles are merged over it, field by field. `freezeHeader` freezes the header rows, and `autoFilter` covers the last header row through the last row; both need at least one header row. `autoWidth` sets numeric widths from `cellText` (§4.3 bounds).
+- **`styles: 'computed'`** maps:
+  - `font-weight` ≥ 600 (or `bold`/`bolder`) to bold;
+  - `font-style` italic/oblique;
+  - `text-decoration` underline and line-through;
+  - `color`, except black, which is Excel's automatic colour;
+  - the first non-transparent `background-color` of the cell, its row, its section or the table (what the reader sees), as a solid fill;
+  - explicit `text-align` left/right/center/justify (including the vendor `center` that `<th>` computes to);
+  - `vertical-align` top/bottom;
+  - `white-space` `pre-wrap`/`pre-line`/`break-spaces` to `wrapText`.
+
+  These are not mapped: `text-align: start/end`, the computed default (Excel's general alignment follows the sheet direction); `vertical-align: middle`, the HTML table default; and borders, fonts and sizes, in 2.0. Colours are parsed from `rgb()`/`rgba()` (comma or space syntax), hex and the basic named colours.
+- **RTL:** `dir="rtl"` on the table or an ancestor, or computed `direction: rtl` with `styles: 'computed'`, sets `view.rightToLeft`.
+- **`download`** creates an object URL, clicks a temporary hidden `<a download rel="noopener">` and removes it. It revokes the URL after `DOWNLOAD_REVOKE_DELAY_MS` (40 s, the delay FileSaver.js uses, because Safari needs the URL after the click; not measured here), and also when the click throws. A string `data` is encoded as UTF-8. A Blob is passed through, re-typed only when `mimeType` differs.
 
 ### 5.5 Worker (`javascript-excel/worker`)
 
@@ -1067,6 +1098,7 @@ Aborts are not `ExcelError`s: they reject with `signal.reason`, as `fetch` does.
   | `MISSING_PART` | A relationship points to a missing optional part (styles, theme, shared strings); defaults used |
   | `BROKEN_OPTIONAL_PART` | Malformed XML in an optional part (docProps, theme); part skipped |
   | `HYPERLINK_RANGE_REDUCED`, `SPLIT_PANE_IGNORED` | §3.6 |
+  | `HYPERLINK_DROPPED` | `fromTable`: a link whose scheme is not allowed; the cell keeps its text |
   | `WARNINGS_TRUNCATED` | `maxWarnings` reached; later warnings dropped |
 
 ```ts
