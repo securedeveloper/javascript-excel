@@ -63,6 +63,7 @@ export { cellText } from "./cells";
 export type { CellTextOptions } from "./cells";
 export { sanitizeSheetName, validateSheetName } from "./sheet-names";
 export type { SheetNameProblem } from "./sheet-names";
+export { BUILTIN_NUM_FMTS, isDateFormat } from "./numfmt";
 export { decodeCell, decodeCol, decodeRange, encodeCell, encodeCol, encodeRange, MAX_COLS, MAX_ROWS } from "./address";
 export type { CellAddress, RangeAddress } from "./address";
 

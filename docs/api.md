@@ -299,7 +299,7 @@ Excel stores dates as serial numbers. The writer converts `Date` to a serial and
 
 **Date detection on read.** A numeric cell is returned as `type: 'date'` with a `Date` value when its number format is a date or time format:
 
-- built-in ids 14–22 and 45–47;
+- built-in ids 14–22, 45 and 47 (46 is `[h]:mm:ss`, an elapsed time);
 - built-in ids 27–36 and 50–58 (locale-dependent East Asian date formats) `[to verify in JSE-6]`;
 - custom codes that, after removing quoted literals, backslash escapes and bracketed sections other than the elapsed-time tokens `[h]`, `[m]`, `[s]`, contain a date/time token (`y`, `m`, `d`, `h`, `s`, `AM/PM`, `A/P`, `e`, `g`, `b`) `[to verify against the JSE-9 fixtures]`.
 
@@ -750,13 +750,14 @@ export interface Progress {
 ### 5.2 Read (`javascript-excel/read`)
 
 ```ts
-export type BinaryInput = Uint8Array | ArrayBuffer | BlobType;   // Node Buffer is a Uint8Array; see §5.3
+export type BinaryInput = Uint8Array | ArrayBuffer | BlobType;   // Node Buffer is a Uint8Array; BlobType: §5.3
 
 export function read(input: BinaryInput, options?: ReadOptions): Promise<ReadResult>;
-export function readSheetNames(input: BinaryInput, options?: Pick<ReadOptions, 'limits' | 'signal'>):
-  Promise<Array<{ name: string; index: number; state: 'visible' | 'hidden' | 'veryHidden' }>>;
-export function detectFormat(input: BinaryInput):
-  Promise<'xlsx' | 'xlsm' | 'xlsb' | 'ods' | 'cfb' | 'zip' | 'unknown'>; // 'cfb' = .xls or an encrypted OOXML file
+export function readSheetNames(input: BinaryInput, options?: Pick<ReadOptions, 'limits' | 'signal'>): Promise<SheetInfo[]>;
+export function detectFormat(input: BinaryInput): Promise<DetectedFormat>;   // never throws for unreadable input
+
+export interface SheetInfo { name: string; index: number; state: 'visible' | 'hidden' | 'veryHidden' }
+export type DetectedFormat = 'xlsx' | 'xlsm' | 'xltx' | 'xltm' | 'xlsb' | 'ods' | 'cfb' | 'zip' | 'unknown'; // 'cfb' = .xls or an encrypted OOXML file
 
 export interface ReadResult {
   workbook: Workbook<Cell>;
@@ -776,7 +777,7 @@ export interface ReadOptions {
   /** Rich text as runs (default) or flattened to a plain string. */
   richText?: 'runs' | 'plain';
   limits?: Partial<ReadLimits>;
-  signal?: AbortSignalLike;
+  signal?: AbortSignalLike;            // a DOM or Node AbortSignal (§5.3)
   onProgress?: (p: Progress) => void;
   onWarning?: (w: ExcelWarning) => void; // called as warnings occur, in addition to ReadResult.warnings
 }
@@ -796,19 +797,21 @@ export interface ReadLimits {
 export const DEFAULT_READ_LIMITS: Readonly<ReadLimits>;
 ```
 
-Proposed defaults. None is measured yet; JSE-6 sets the real values against the fixture corpus and the JSE-8 benchmarks.
+Defaults, measured in JSE-6 (method below):
 
-| Limit | Proposed default | Status |
+| Limit | Default | Evidence |
 |---|---|---|
-| `maxInputBytes` | 256 MiB | `[placeholder, set in JSE-6]` |
-| `maxEntries` | 10,000 | `[placeholder, set in JSE-6]` |
-| `maxEntryBytes` | 512 MiB | `[placeholder, set in JSE-6]` |
-| `maxTotalBytes` | 1 GiB | `[placeholder, set in JSE-6]` |
-| `maxRatio` | 100, checked only once an entry has produced more than 1 MiB | `[placeholder, set in JSE-6]` |
-| `maxXmlDepth` | 64 | `[placeholder, set in JSE-6]` |
-| `maxCells` | 20,000,000 | `[placeholder, set in JSE-6]` |
-| `maxSharedStrings` | 5,000,000 | `[placeholder, set in JSE-6]` |
-| `maxWarnings` | 1,000 | `[placeholder, set in JSE-6]` |
+| `maxInputBytes` | 256 MiB | 2,000,000 dense random numbers are a 26 MB file, so 256 MiB is roughly 20M dense cells, beyond `maxCells` |
+| `maxEntries` | 10,000 | 250 sheets are 258 parts; ordinary files have 9–15 |
+| `maxEntryBytes` | 512 MiB | 2M dense cells are a 96 MB sheet part (about 48 bytes per cell), so a sheet at `maxCells` fits |
+| `maxTotalBytes` | 1 GiB | Twice `maxEntryBytes`; the largest corpus file inflates to 96 MB |
+| `maxRatio` | 1,000, per entry, checked once the entry has produced more than 1 MiB | Real files: 4–27 when cells carry `r` references (openpyxl); 412 for `<row><c><v>1</v></c></row>` repeated (JSE-2) and 686 for `<row/>` repeated, from writers that omit `r`. Raw DEFLATE peaks at about 1,028 (20 MB of zeros). So 1,000 accepts every legitimate shape and stops near-maximal bombs. The ratio is inflated bytes over the entry's whole compressed size, so no entry inflates to more than 1,000 times its stored size, whatever `maxEntryBytes` allows |
+| `maxXmlDepth` | 64 | Deepest part in the corpus: 7 |
+| `maxCells` | 10,000,000 | The reader's model costs 94–275 bytes of heap per cell (108 for dense numbers, 275 with unique strings), so 10M cells is about 1–2.7 GB, the most a browser tab or a default Node heap holds |
+| `maxSharedStrings` | 5,000,000 | About 260 bytes of heap per short unique string with its cell (unique-strings file); stops a part of tiny `<si>` items (up to 44M in 512 MiB) before it exhausts memory |
+| `maxWarnings` | 1,000 | Then a single `WARNINGS_TRUNCATED` |
+
+Method: `test/fixtures/read/generate_corpus.py` (openpyxl 3.1.5) writes dense, repetitive-number, repetitive-string, styled-empty, many-sheet, long-text and unique-string workbooks of 0.5–2M cells; `test/fixtures/read/measure_limits.mjs` reports entries, sizes, ratios, XML depth and read time for each, and heap per cell was measured with `--expose-gc` around `read()`. Reading 2M dense cells took 1.8 s on an Apple-silicon laptop (Node 24); performance proper is JSE-8.
 
 Spreadsheet format limits are always enforced and cannot be configured: 1,048,576 rows, 16,384 columns (`XFD`). A cell reference beyond them is skipped with warning `CELL_OUT_OF_BOUNDS`.
 
@@ -817,7 +820,14 @@ How the reader works, as far as the API is concerned:
 - The whole archive is held in memory, because the zip central directory sits at the end of the file. Parts are inflated one at a time and streamed through the XML pull tokenizer, so a sheet's XML is never held whole. The shared strings table is held whole.
 - Parts are found through relationships (`_rels/.rels` → workbook → sheets), never by fixed path, so files from Google Sheets, Numbers and LibreOffice, which use different part names, work. Part names are compared case-insensitively, as OPC requires. Absolute and relative relationship targets are both resolved.
 - Cells and rows without an `r` attribute (allowed by the schema) are placed by position. A missing or wrong `<dimension>` is ignored; `sheet.dimension` is computed from the cells.
-- ISO/IEC 29500 Strict files use different namespaces. JSE-6 reads them by mapping the Strict namespaces to the transitional ones, if that proves cheap. Otherwise the reader throws `UNSUPPORTED_FORMAT` with `details.format: 'strict'` (§12 Q9). The writer writes transitional only.
+- ISO/IEC 29500 Strict files are read like transitional ones (§12 Q9): the tokenizer reports names without namespace prefixes, relationship types are matched by their last path segment (`/worksheet`, `/sharedStrings`, …), which Strict and transitional share, and `t="d"` (ISO 8601 date) cells are read. The writer writes transitional only.
+- **Formats.** Detection is a table: the container signature (CFB, zip), then the content type of the workbook part, each entry naming the decoder that reads it. `.xlsx`, `.xltx`, `.xlsm` and `.xltm` share the SpreadsheetML decoder; for the macro-enabled two, one `UNSUPPORTED_PART` warning says the VBA macros are not read or run. Formats without a decoder in 2.0 throw `UNSUPPORTED_FORMAT` with `details.format`: `'cfb'` (`.xls`, or an encrypted/password-protected `.xlsx`, which is a CFB container), `'xlsb'`, `'ods'`, `'unknown'` (no zip signature). They are a phase boundary, not a design limit: supporting `.xlsb` or `.xls` later is a new decoder plus its table row. A zip without a workbook part is `NOT_XLSX`. A workbook part with a missing or unknown content type is read as SpreadsheetML (`.bin` as `.xlsb`).
+- **Unread parts are not lost at the zip level.** The reader parses only the parts the model represents, but the archive stays addressable by part name until the read ends, and an internal (not yet public) option returns every unparsed part byte for byte. A later release can use it to carry drawings, comments, VBA or custom XML through a read-modify-write.
+- Unsupported content (drawings, charts, comments, pivot tables, tables, OLE objects, form controls, VBA, external links, chart sheets, …) gives one `UNSUPPORTED_PART` warning per kind. Chart, dialog and macro sheets are not worksheets: they are left out of `sheets` and `readSheetNames`, and defined names local to them are dropped.
+- Styles: each `cellXfs` entry is one frozen `Style` (§12 Q8). Pattern fills come back with `type: 'pattern'`, so `fill.type` tells pattern and gradient fills apart. A style records only what differs from the defaults: font 0 (the workbook default font), fills 0 and 1 (the required `none` and `gray125` placeholders) and border 0 are left out, and `numFmtId` 0 (General) gives no `numFmt`. `applyFont` and the other apply flags are ignored, as Excel does for cell formats.
+- Values: `t="s"`, `"inlineStr"` and `"str"` are strings (or rich text), with `_xHHHH_` escapes decoded; `"b"` booleans; `"e"` errors, including codes newer than the seven of ECMA-376 (`#SPILL!`, `#CALC!`, …), returned as written; `"d"` ISO dates; numbers otherwise, converted to `Date` when their number format is a date format (§3.4.1). A formula's cached value sets `value` and `type`; without one the cell is `type: 'empty'` with its `formula`. Shared formulas are expanded (§12 Q6); data-table formulas (`t="dataTable"`) give their cached values only.
+- Column widths: the file stores characters plus padding (ECMA-376 §18.3.1.13); the reader converts back to the characters Excel's UI shows, the unit `ColumnWidth` uses, so a width of 20 written by the writer reads back as 20. Files from tools that store the UI value directly (openpyxl writes `30` for 30) read as Excel shows them (29.29).
+- Print setup: the `_xlnm.Print_Area` and `_xlnm.Print_Titles` defined names become `sheet.print.printArea` and `printTitles` and are not repeated in `definedNames`; `_xlnm._FilterDatabase` is implied by `sheet.autoFilter` and dropped.
 
 ### 5.3 CSV (`javascript-excel/csv`)
 
@@ -1349,13 +1359,13 @@ These were the open questions of the review. Each one is decided, and the sectio
 
 **Q5. Number format strings.** Decided (2026-11-16): strings are never mapped to built-in ids, except `'General'` to id 0 (§3.5.5). A string always renders literally, and a number always means the built-in, locale-aware format.
 
-**Q6. Shared formulas.** Decided (2026-11-16): JSE-6 builds a small A1 reference shifter that handles relative refs, `$` anchors, ranges and sheet-qualified refs, and leaves structured references and R1C1 alone. When a formula cannot be shifted safely, the cell carries the cached value only, with warning `SHARED_FORMULA_UNRESOLVED` (§3.4.2, §7.3).
+**Q6. Shared formulas.** Decided (2026-11-16), implemented in JSE-6: JSE-6 builds a small A1 reference shifter that handles relative refs, `$` anchors, ranges and sheet-qualified refs, and leaves structured references and R1C1 alone. When a formula cannot be shifted safely, the cell carries the cached value only, with warning `SHARED_FORMULA_UNRESOLVED` (§3.4.2, §7.3).
 
 **Q7. `read()` return shape.** Decided (2026-11-16): `read()` returns `{ workbook, warnings }` (§5.2). Warnings stay visible without polluting the model, and `onWarning` is there for streaming UIs.
 
 **Q8. Shared, frozen style objects in reader output.** Decided (2026-11-16): cells with the same `xf` share one `Object.freeze`d `Style` (§3.5.7). That is cheap on memory and fast to compare. The docs say to copy before editing.
 
-**Q9. ISO/IEC 29500 Strict files.** Decided (2026-11-16): the reader reads them by namespace mapping if JSE-6 finds that cheap. Otherwise it throws `UNSUPPORTED_FORMAT` with `details.format: 'strict'` (§5.2). The writer writes transitional only.
+**Q9. ISO/IEC 29500 Strict files.** Decided (2026-11-16): the reader reads them by namespace mapping if JSE-6 finds that cheap. JSE-6 found it free: the tokenizer ignores namespace prefixes and relationship types are matched by their last segment, so Strict files read with no extra code (§5.2). The writer writes transitional only.
 
 **Q10. Public `ZipCodec`.** Decided (2026-11-16): internal in 2.0, so its shape can still change (§6). It is revisited with the first real request, for example a synchronous fflate path.
 
