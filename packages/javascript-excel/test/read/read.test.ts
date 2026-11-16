@@ -148,6 +148,61 @@ describe("openpyxl fixtures", () => {
   });
 });
 
+describe("LibreOffice fixtures (written by LibreOffice 26.2, see libreoffice-version.txt)", () => {
+  it("the openpyxl feature workbook as saved by LibreOffice reads to the same content", async () => {
+    const opts = { dateZone: "utc", richText: "plain" } as const;
+    const lo = await read(fixture("libreoffice-features.xlsx"), opts);
+    const original = await read(fixture("openpyxl-features.xlsx"), opts);
+    expect(lo.workbook.sheets.map((s) => [s.name, s.state])).toEqual([["Values", undefined], ["Styles", undefined], ["Hidden", "hidden"]]);
+    const a = original.workbook.sheets[0]!;
+    const b = lo.workbook.sheets[0]!;
+    for (const [r, row] of a.rows.entries()) {
+      for (const [c, cell] of (row ?? []).entries()) {
+        if (!cell) continue;
+        const got = b.rows[r]?.[c];
+        if (cell.formula !== undefined) expect(got?.formula, `${r},${c}`).toBe(cell.formula);
+        else expect(got?.value, `${r},${c}`).toEqual(cell.value);
+      }
+    }
+    // LibreOffice stores recalculated results, writes TRUE as the formula TRUE(), and escapes '-' in date codes.
+    expect(at(b, "G1")).toMatchObject({ type: "number", value: 84, formula: "B1*2" });
+    expect(at(b, "A4")).toMatchObject({ type: "number", value: 45.5, formula: "SUM(B1:C1)" });
+    expect(at(b, "D1")).toMatchObject({ type: "boolean", value: true, formula: "TRUE()" });
+    expect(at(b, "E1")!.style!.numFmt).toBe("yyyy\\-mm\\-dd");
+    const st = lo.workbook.sheets[1]!;
+    expect(st.merges).toEqual(["C1:D2"]);
+    expect(st.view?.freeze).toEqual({ rows: 1, cols: 1 });
+    expect(st.colProps?.[2]?.hidden).toBe(true);
+    expect(st.rowProps?.[1]?.height).toBe(39.75); // LibreOffice rounds 40 pt to its 1/100 mm grid
+    expect(at(st, "A1")!.style).toMatchObject({
+      font: { name: "Arial", size: 14, bold: true, italic: true, strike: true, color: { rgb: "FF336699" } },
+      fill: { type: "pattern", pattern: "solid", fgColor: { rgb: "FFFFFF00" } },
+      border: { left: { style: "thin" }, bottom: { style: "double" } },
+      alignment: { horizontal: "center", vertical: "top", wrapText: true, rotation: 45 },
+    });
+    expect(at(st, "B1")!.style).toBe(at(st, "A1")!.style);
+    expect(at(st, "A5")!.hyperlink).toEqual({ target: "https://example.com/path?q=1" });
+    expect(lo.workbook.activeSheet).toBe(1);
+    expect(lo.warnings.filter((w) => w.code !== "UNSUPPORTED_PART")).toEqual([]);
+  });
+
+  it("fill-down formulas, running sums and dates as saved by LibreOffice", async () => {
+    const { workbook, warnings } = await read(fixture("libreoffice-filldown.xlsx"), { dateZone: "utc" });
+    const s = workbook.sheets[0]!;
+    expect(s.rows[0]!.map((c) => c!.value)).toEqual(["n", "double", "running", "date"]);
+    for (let i = 1; i <= 50; i++) {
+      const r = i + 1;
+      expect(s.rows[i]![0]).toEqual({ type: "number", value: i });
+      expect(s.rows[i]![1]).toEqual({ type: "number", value: i * 2, formula: `A${r}*2` });
+      expect(s.rows[i]![2]).toEqual({ type: "number", value: (i * (i + 1)) / 2, formula: `SUM($A$2:A${r})` });
+      expect(s.rows[i]![3]!.value).toEqual(new Date(Date.UTC(2024, 0, Math.min(i, 31))));
+    }
+    expect(s.rows[51]![0]).toEqual({ type: "number", value: 1275, formula: "SUM(A2:A51)" });
+    expect(s.view?.freeze).toEqual({ rows: 1 });
+    expect(warnings).toEqual([]);
+  });
+});
+
 describe("cells (hand-built parts)", () => {
   it("shared, inline, rich and formula strings; booleans; errors; ISO dates", async () => {
     const s = await sheet0(

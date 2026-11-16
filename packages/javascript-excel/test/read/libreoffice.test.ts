@@ -66,7 +66,7 @@ describe.skipIf(!hasSoffice)("LibreOffice-written files", () => {
     expect(st.merges).toEqual(["C1:D2"]);
     expect(st.view?.freeze).toEqual({ rows: 1, cols: 1 });
     expect(st.colProps?.[2]?.hidden).toBe(true);
-    expect(st.rowProps?.[1]?.height).toBe(40);
+    expect(st.rowProps?.[1]?.height).toBeCloseTo(40, 0); // LibreOffice rounds to its 1/100 mm grid (39.75)
     expect(st.rows[0]![0]!.style?.font).toMatchObject({ name: "Arial", bold: true, italic: true });
     expect(st.rows[0]![0]!.style?.fill).toMatchObject({ pattern: "solid", fgColor: { rgb: "FFFFFF00" } });
     expect(st.rows[4]![0]!.hyperlink).toEqual({ target: "https://example.com/path?q=1" });
