@@ -7,11 +7,12 @@
  * because the tokenizer ignores namespace prefixes and relationship types
  * are matched by their last path segment, which both variants share.
  * .xlsm, .xltx and .xltm read like .xlsx; macros are never read or run.
+ *
+ * @module javascript-excel/read
  */
 
 import type { BinaryInput } from "./binary";
 import { toBytes } from "./internal/input";
-import type { FormatName } from "./internal/read/formats";
 import { DEFAULT_LIMITS } from "./internal/read/limits";
 import { detectFormatImpl, readImpl, readSheetNamesImpl } from "./internal/read/reader";
 import type { Cell, Workbook } from "./model";
@@ -117,7 +118,7 @@ export interface SheetInfo {
  * What `detectFormat` recognises. `'cfb'` is a legacy `.xls` or an encrypted OOXML file.
  * `read` reads xlsx, xlsm, xltx and xltm; the others are rejected with UNSUPPORTED_FORMAT.
  */
-export type DetectedFormat = FormatName;
+export type DetectedFormat = "xlsx" | "xlsm" | "xltx" | "xltm" | "xlsb" | "ods" | "cfb" | "zip" | "unknown";
 
 /** Detects the file format from the bytes. Never throws for unreadable input; returns `'unknown'` or `'zip'` instead. */
 export async function detectFormat(input: BinaryInput): Promise<DetectedFormat> {
