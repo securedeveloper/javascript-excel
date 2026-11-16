@@ -80,7 +80,7 @@ One npm package, `javascript-excel`, with subpath exports. `package.json` declar
 | `javascript-excel/dom` | `fromTable`, `download` | DOM APIs, called only inside functions | The only module that touches `document`. Safe to import during SSR; calling it without a DOM throws `ENVIRONMENT_UNSUPPORTED`. |
 | `javascript-excel/worker` | `exposeWorker` (worker side), `createWorkerClient` (main-thread side) | Writer and reader, inside the worker only | Moves big jobs off the main thread. Main-thread code that imports only `createWorkerClient` does not ship the engine. |
 | `javascript-excel/import` | `importDataset`, `detectHeader`, `inferColumnTypes`, `coerceColumns`, `parseNumber`, `parseDate`, `mapColumns`, `applyMapping`, option and result types | Reader and CSV reader | Importing user files into `{ columns, data }` (§5.6). Apps that only write never load it. |
-| `javascript-excel/render` (2.x) | `createRenderSheet` and its geometry, cell, navigation and copy functions (§5.8) | Nothing from the reader or writer; number formatting only through the `format` option | Only viewers pay for it. |
+| `javascript-excel/render` | `createRenderSheet` and its geometry, cell, navigation and copy functions (§5.8) | Nothing from the reader or writer; number formatting only through the `format` option | Only viewers pay for it. |
 
 Rules:
 
@@ -1229,7 +1229,7 @@ Validation of rows (functions, Standard Schema, async checks) is react-data-impo
 
 ### 5.8 Render model (`javascript-excel/render`)
 
-What a spreadsheet viewer needs to draw a sheet, computed from a read workbook. It is framework-free and has no DOM access, so it runs in Node, in a worker and behind any UI (react-xlsx-viewer's design, decision Q2, puts it here). Added in a 2.x minor, like `/format` (§5.7, JSE-18); not part of 2.0.0.
+What a spreadsheet viewer needs to draw a sheet, computed from a read workbook. It is framework-free and has no DOM access, so it runs in Node, in a worker and behind any UI (react-xlsx-viewer's design, decision Q2, puts it here). Part of 2.0, like `/format` (§5.7), from the 2.0 prerelease after its merge.
 
 The render model provides:
 - **geometry:** row and column offsets in CSS pixels, plus hit testing;
@@ -1855,7 +1855,7 @@ These were the open questions of the review. Each one is decided, and the sectio
 | Phase | Adds |
 |---|---|
 | 2.0 | xlsx read and write (cells, styles, sheet features), CSV/TSV read and write, HTML table input |
-| 2.x | `.xlsm` / `.xltx` / `.xltm` read and write-back with their extra parts preserved; preservation of unknown parts for lossless round trips; comments and notes; data validation; conditional formatting; images (read and write); the render model `javascript-excel/render` for react-xlsx-viewer (§5.8) |
+| 2.x | `.xlsm` / `.xltx` / `.xltm` read and write-back with their extra parts preserved; preservation of unknown parts for lossless round trips; comments and notes; data validation; conditional formatting; images (read and write) |
 | 3.x | formula parser and evaluator (`javascript-excel/formula`), number-format renderer (`javascript-excel/format`, §12 Q14), charts and drawings (read, plus their part of the render model, §5.8) |
 | 4.x | legacy `.xls` (BIFF8) read, then write; `.xlsb` read; encrypted files (password, ECMA-376 agile encryption) |
 
