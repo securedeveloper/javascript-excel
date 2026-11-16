@@ -11,6 +11,7 @@ const config: UserConfig = defineConfig({
     dom: "src/dom.ts",
     worker: "src/worker.ts",
     render: "src/render.ts",
+    format: "src/format.ts",
     import: "src/import.ts",
   },
   format: ["esm", "cjs"],

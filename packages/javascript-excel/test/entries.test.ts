@@ -3,6 +3,7 @@ import pkg from "../package.json" with { type: "json" };
 import { VERSION } from "../src/index";
 import * as csv from "../src/csv";
 import * as dom from "../src/dom";
+import * as format from "../src/format";
 import * as read from "../src/read";
 import * as render from "../src/render";
 import * as worker from "../src/worker";
@@ -30,6 +31,10 @@ describe("entries", () => {
       "colAt", "colLeft", "colWidth", "createRenderSheet", "edge", "isColHidden", "isRowHidden", "lastUsedCell", "mergeAt",
       "rangeAsHtml", "rangeAsTsv", "rangeStats", "renderCell", "rowAt", "rowHeight", "rowTop", "sheetExtent", "sheetSettings", "step",
     ]);
+  });
+
+  it("/format exports the documented API", () => {
+    expect(Object.keys(format).sort()).toEqual(["formatCell", "formatValue"]);
   });
 
   it("/import exports the documented API", () => {

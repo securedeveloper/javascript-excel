@@ -24,6 +24,7 @@ const expected = {
   "./dom": { fromTable: FUNCTION, download: FUNCTION, DOWNLOAD_REVOKE_DELAY_MS: 40000 },
   "./worker": { exposeWorker: FUNCTION, createWorkerClient: FUNCTION },
   "./render": { createRenderSheet: FUNCTION, renderCell: FUNCTION, rangeAsTsv: FUNCTION },
+  "./format": { formatValue: FUNCTION, formatCell: FUNCTION },
   "./import": { importDataset: FUNCTION, detectHeader: FUNCTION, parseNumber: FUNCTION, mapColumns: FUNCTION },
 };
 
@@ -35,6 +36,7 @@ export const MARKERS = {
   "./dom": "[data-export-ignore]",
   "./worker": "javascript-excel/worker",
   "./render": "Not a RenderSheet",
+  "./format": "x-sysdate",
   "./import": "DATE_ORDER_AMBIGUOUS",
 };
 
@@ -207,6 +209,16 @@ const argb: string = resolveColor({ theme: 4, tint: 0.4 }, { theme: book.theme, 
 void bg; void tsv; void frozen; void argb;
 `;
 
+const FORMAT_FIXTURE = `
+import { formatCell, formatValue, type FormatOptions, type FormattedValue } from ${JSON.stringify(`${pkg.name}/format`)};
+const fopts: FormatOptions = { locale: "de-DE", date1904: undefined, dateZone: "utc", generalWidth: 11, indexedColors: undefined };
+const shown: FormattedValue = formatValue(1234.5, "#,##0.00", fopts);
+const fromCell: string = formatCell({ value: 45306, style: { numFmt: 14 } }).text;
+const red: string | undefined = formatValue(-1, "0;[Red]-0").color;
+const align: "left" | "center" | "right" = shown.align;
+void fromCell; void red; void align;
+`;
+
 const CSV_FIXTURE = `
 import { parseCsv, readCsv, toCsv, toCsvBlob, type CsvParseResult, type CsvWriteOptions } from ${JSON.stringify(`${pkg.name}/csv`)};
 const parsed: CsvParseResult = parseCsv("a,b\\r\\n1,2\\r\\n", { delimiter: "auto", inferTypes: true, mode: undefined });
@@ -235,6 +247,7 @@ export function writeTypeFixture(app) {
     MODEL_FIXTURE +
     CSV_FIXTURE +
     RENDER_FIXTURE +
+    FORMAT_FIXTURE +
     READ_FIXTURE +
     WORKER_FIXTURE;
   writeFileSync(join(app, "esm.mts"), typed);

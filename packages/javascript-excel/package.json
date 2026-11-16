@@ -93,6 +93,16 @@
         "default": "./dist/render.cjs"
       }
     },
+    "./format": {
+      "import": {
+        "types": "./dist/format.d.ts",
+        "default": "./dist/format.js"
+      },
+      "require": {
+        "types": "./dist/format.d.cts",
+        "default": "./dist/format.cjs"
+      }
+    },
     "./import": {
       "import": {
         "types": "./dist/import.d.ts",

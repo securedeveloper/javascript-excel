@@ -130,6 +130,7 @@ Covers every built-in id the spec defines (0–4, 9–22, 37–40, 45–49) and 
 |---|---|---|---|---|---|
 | Built-in!C2:C29 | For each row, open Format Cells > Number > Custom and read the selected code. | The code matches column B (ids 14 and 22 may show your locale's date format). Write down the exact code Excel shows for ids 37, 38, 39, 40 and 47, including spaces. **(open item)** | | | |
 | Custom!B2:B7 | Compare column B with column C. | Everything matches. | | | |
+| Display!B2:B17 | Compare column B with column C. Widen column B if a value shows ####. | Everything matches. Write down every row that differs. **(open item)** | | | |
 
 ### 11-number-formats-locale.xlsx: Locale-dependent built-in number formats
 
@@ -231,6 +232,7 @@ These facts are marked `[to verify]` in `docs/api.md`. Each one is checked by th
 |---|---|---|
 | indent maximum 250 (§3.5.4) | `09-alignment.xlsx` | Alignment!B20 |
 | codes and spacing of built-in formats 37–40 and 47 (§11.2) | `10-number-formats.xlsx` | Built-in!C2:C29 |
+| how Excel displays day 0, rounded times, General, a dangling decimal point, am/pm case, conditional sections, built-in id 32 and bbbb (§5.7.4) | `10-number-formats.xlsx` | Display!B2:B17 |
 | ids 27–36 and 50–58 are date formats (§3.4.1) | `11-number-formats-locale.xlsx` | Locale ids!B2:C32 |
 | theme index order: 0 = lt1, 1 = dk1, 2 = lt2, 3 = dk2 (§3.5.6) | `12-colours.xlsx` | Theme!B2:B13 |
 | indexed 64 = system foreground, 65 = system background (§3.5.6) | `12-colours.xlsx` | Indexed!C66:C67 |
