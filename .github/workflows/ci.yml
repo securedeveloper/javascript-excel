@@ -37,6 +37,11 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run lint
+      # OPS-11: javascript-excel has no runtime dependencies, and only dist/ +
+      # README + LICENSE + package.json are published. A new runtime
+      # dependency means changing this allowlist in the same pull request.
+      - name: Dependency guard (runtime allowlist, tarball contents)
+        run: node scripts/check-deps.mjs --package packages/javascript-excel --allow '' --pack
       - name: Packed-tarball smoke test
         run: npm run smoke
 
