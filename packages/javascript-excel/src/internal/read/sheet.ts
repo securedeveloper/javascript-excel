@@ -13,7 +13,7 @@ import type { Relationship } from "./opc";
 import { serialToDate } from "../../dates";
 import { StringItem, decodeXstring } from "./strings";
 import { bool, color, int, num, type StyleTable } from "./styles";
-import type { XmlAttrs, XmlHandler } from "./xml-reader";
+import type { XmlAttrs, XmlControl, XmlHandler } from "./xml-reader";
 import { parseIsoDate } from "../csv/infer";
 
 export const MAX_ROWS = 1_048_576;
@@ -27,6 +27,8 @@ export interface SheetOptions {
   dateZone: "local" | "utc";
   richText: "runs" | "plain";
   date1904: boolean;
+  /** Rows at or beyond this zero-based index are skipped (ReadOptions.maxRows). */
+  maxRows: number;
 }
 
 interface PendingCell {
@@ -143,6 +145,8 @@ export class SheetParser implements XmlHandler {
   private minCol = Infinity;
   private maxRow = -1;
   private maxCol = -1;
+  private truncated = false;
+  private control: XmlControl | undefined;
 
   constructor(
     name: string,
@@ -157,6 +161,10 @@ export class SheetParser implements XmlHandler {
   }
 
   // ------------------------------------------------------------------ events
+
+  attach(control: XmlControl): void {
+    this.control = control;
+  }
 
   open(name: string, a: XmlAttrs, empty: boolean): void {
     if (this.inline) {
@@ -331,6 +339,10 @@ export class SheetParser implements XmlHandler {
     } else this.curRow++;
     this.nextCol = 0;
     if (this.curRow >= MAX_ROWS) return;
+    if (this.curRow >= this.opts.maxRows) {
+      this.truncate();
+      return;
+    }
     const p: RowProps = {};
     const ht = num(a.get("ht"));
     if (ht !== undefined && bool(a.get("customHeight"), false)) p.height = ht;
@@ -384,6 +396,11 @@ export class SheetParser implements XmlHandler {
     }
     if (row < 0) row = 0;
     this.nextCol = col + 1;
+    if (row >= this.opts.maxRows && row < MAX_ROWS) {
+      this.truncate(); // jumps to </sheetData> when it can
+      if (!this.control) this.skipCell(empty);
+      return;
+    }
     if (row >= MAX_ROWS || col >= MAX_COLS) {
       this.ctx.warn("CELL_OUT_OF_BOUNDS", `Cell ${r ?? `${colLetters(col + 1)}${row + 1}`} is beyond the format limits; it was skipped.`, {
         part: this.part,
@@ -406,6 +423,23 @@ export class SheetParser implements XmlHandler {
       inline: undefined,
     };
     if (empty) this.finishCell();
+  }
+
+  /** maxRows reached: the rest of sheetData is tokenized but no cells are built; later elements (merges, views, …) are still read. */
+  private truncate(): void {
+    if (this.truncated) return;
+    this.truncated = true;
+    this.ctx.warn("ROWS_TRUNCATED", `Sheet "${this.sheet.name}" has rows beyond maxRows (${this.opts.maxRows}); they were not read.`, { part: this.part, sheet: this.sheet.name });
+    // Jump to </sheetData> without tokenizing the remaining rows; the
+    // elements after it (merges, hyperlinks, views, print setup) still parse.
+    const depth = this.path.lastIndexOf("sheetData") + 1;
+    if (this.control && depth > 0) {
+      this.cell = undefined;
+      this.inline = undefined;
+      this.textTarget = undefined;
+      this.path.length = depth;
+      this.control.skipToEndOf(depth);
+    }
   }
 
   private skipCell(empty: boolean): void {

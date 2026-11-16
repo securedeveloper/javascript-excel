@@ -71,6 +71,20 @@ describe("worker client over a MessageChannel", () => {
     expect((await client.parseCsv(new TextEncoder().encode("x;y\n1;2\n"), { inferTypes: true })).rows).toEqual([["x", "y"], [1, 2]]);
   });
 
+  it("importDataset: same result as on the main thread; schema options cross", async () => {
+    const { importDataset } = await import("../../src/import");
+    const { client } = pair();
+    const bytes = await toUint8Array({ sheets: [{ name: "S", rows: [["Title"], [], ["E-mail", "Joined"], ["a@x", new Date(2024, 0, 15)], ["b@x", new Date(2024, 1, 1)]] }] });
+    const options = { schema: { fields: { email: { aliases: ["E-mail"], required: true }, joined: {} } } };
+    const remote = await client.importDataset(bytes, options);
+    const local = await importDataset(bytes, options);
+    expect(remote).toEqual(local);
+    expect(remote.data[0]!["joined"]).toEqual(new Date(2024, 0, 15));
+    expect(remote.data.map((d) => d["email"])).toEqual(["a@x", "b@x"]);
+    expect(remote.meta.header.rows).toEqual([2]);
+    await expect(client.importDataset(bytes, { sheet: "nope" })).rejects.toMatchObject({ code: "SHEET_NOT_FOUND" });
+  });
+
   it("progress crosses the boundary, monotonic and ending at 1", { timeout: 60_000 }, async () => {
     const { client } = pair();
     const ratios: number[] = [];

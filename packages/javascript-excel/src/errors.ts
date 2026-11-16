@@ -28,6 +28,8 @@ export type ExcelErrorCode =
   | "INVALID_PROPERTY"
   | "INVALID_SHEET_PROPERTY"
   | "INVALID_DEFINED_NAME"
+  | "SHEET_NOT_FOUND"
+  | "VALIDATION_FAILED"
   // FormatError
   | "UNSUPPORTED_FORMAT"
   | "NOT_XLSX"

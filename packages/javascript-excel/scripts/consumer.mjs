@@ -23,6 +23,7 @@ const expected = {
   "./csv": { CSV_MIME: "text/csv;charset=utf-8", parseCsv: FUNCTION, readCsv: FUNCTION, toCsv: FUNCTION, toCsvBlob: FUNCTION },
   "./dom": { fromTable: FUNCTION, download: FUNCTION, DOWNLOAD_REVOKE_DELAY_MS: 40000 },
   "./worker": { exposeWorker: FUNCTION, createWorkerClient: FUNCTION },
+  "./import": { importDataset: FUNCTION, detectHeader: FUNCTION, parseNumber: FUNCTION, mapColumns: FUNCTION },
 };
 
 // A string only that subpath's code contains, so the tree-shaking check can
@@ -32,6 +33,7 @@ export const MARKERS = {
   "./csv": "CSV_STRAY_QUOTE",
   "./dom": "[data-export-ignore]",
   "./worker": "javascript-excel/worker",
+  "./import": "DATE_ORDER_AMBIGUOUS",
 };
 
 const missing = SUBPATHS.filter((s) => !(s in expected));

@@ -20,6 +20,7 @@ export type ExcelWarningCode =
   | "BROKEN_OPTIONAL_PART"
   | "HYPERLINK_RANGE_REDUCED"
   | "SPLIT_PANE_IGNORED"
+  | "ROWS_TRUNCATED"
   // builders
   | "COERCION_FAILED"
   | "NON_FINITE_NUMBER"

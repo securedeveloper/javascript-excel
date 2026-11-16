@@ -78,6 +78,13 @@ export interface ReadOptions {
   dateZone?: "local" | "utc" | undefined;
   /** Rich text as runs (default) or flattened to a plain string. */
   richText?: "runs" | "plain" | undefined;
+  /**
+   * Read only the first `maxRows` rows of each parsed sheet (zero-based rows
+   * 0..maxRows-1). Later rows are skipped without building cells, with one
+   * `ROWS_TRUNCATED` warning per sheet; merges, views and the other sheet
+   * features after the cell data are still read. Default: all rows.
+   */
+  maxRows?: number | undefined;
   limits?: Partial<ReadLimits> | undefined;
   /** Rejects with `signal.reason` when aborted. */
   signal?: AbortSignalLike | undefined;
