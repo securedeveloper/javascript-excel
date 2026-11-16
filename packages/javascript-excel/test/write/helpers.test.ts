@@ -59,13 +59,19 @@ describe("dateToSerial / serialToDate", () => {
     expect(serialToDate(0.75, { dateZone: "utc" }).toISOString()).toBe("1899-12-31T18:00:00.000Z");
   });
 
+  it("day 0 round-trips: a time-only value read back as 1899-12-31 can be written again", () => {
+    expect(dateToSerial(new Date(1899, 11, 31))).toBe(0);
+    expect(dateToSerial(new Date(1899, 11, 31, 12))).toBe(0.5);
+    expect(dateToSerial(serialToDate(0.75))).toBe(0.75);
+  });
+
   it("serial 60 (the fictitious 1900-02-29) maps to 1900-03-01", () => {
     expect(serialToDate(60).getTime()).toBe(new Date(1900, 2, 1).getTime());
   });
 
   it("rejects invalid and out-of-range dates and serials", () => {
     expect(code(() => dateToSerial(new Date(Number.NaN)))).toBe("INVALID_DATE");
-    expect(code(() => dateToSerial(new Date(1899, 11, 31)))).toBe("INVALID_DATE");
+    expect(code(() => dateToSerial(new Date(1899, 11, 30, 23, 59)))).toBe("INVALID_DATE");
     expect(code(() => dateToSerial(new Date(1903, 11, 31), { date1904: true }))).toBe("INVALID_DATE");
     expect(code(() => dateToSerial(new Date(10000, 0, 1)))).toBe("INVALID_DATE");
     expect(code(() => serialToDate(-1))).toBe("INVALID_DATE");
