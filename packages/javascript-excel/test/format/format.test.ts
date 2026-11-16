@@ -68,6 +68,10 @@ describe("built-in ids (en-US)", () => {
     expect(formatValue(1234, 38).color).toBeUndefined();
   });
 
+  it("ids 32–35 are times", () => {
+    expect(f(0.6458333, 32)).toBe("15:30:00");
+  });
+
   it("unknown ids fall back to General", () => {
     expect(f(1234.5, 200)).toBe("1234.5");
   });

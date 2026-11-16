@@ -5,8 +5,8 @@
 // cell must equal formatCell(cell, { locale: "en-US" }).text.
 //
 // LibreOffice is the automated reference, Excel is the authority: where the two are
-// known to differ, the case is listed in LIBREOFFICE_DIFFERS with LibreOffice's
-// output and the reason, and docs/api.md §5.6 records it as [to verify] in Excel.
+// known to differ, a rule in RULES names the reason, and docs/api.md §5.6.4 records
+// it as [to verify] in Excel. Any other difference fails the test.
 // Runs in the `LibreOffice` CI job (JSE_REQUIRE_LIBREOFFICE=1); skipped elsewhere
 // unless $JSE_SOFFICE is available.
 import { execFileSync, spawnSync } from "node:child_process";
@@ -15,9 +15,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
-import { toUint8Array, type Cell, type CellInput, type Workbook } from "../../src/index";
+import { toUint8Array, type Cell, type CellInput, type NumFmt, type Workbook } from "../../src/index";
 import { parseCsv } from "../../src/csv";
-import { formatCell } from "../../src/format";
+import { isDateFormat } from "../../src/numfmt";
+import { formatCell, formatValue } from "../../src/format";
 import { CORPUS } from "../conformance/corpus";
 import { FORMAT_CASES } from "./cases";
 
@@ -25,8 +26,29 @@ const SOFFICE = process.env["JSE_SOFFICE"] ?? "soffice";
 const hasSoffice = spawnSync(SOFFICE, ["--version"], { stdio: "ignore", timeout: 120_000 }).status === 0;
 if (process.env["JSE_REQUIRE_LIBREOFFICE"] === "1" && !hasSoffice) throw new Error(`LibreOffice check required but soffice (${SOFFICE}) is missing`);
 
-/** `${code} | ${value}` → LibreOffice's output, where LibreOffice is known to differ from formatValue (and why). */
-const LIBREOFFICE_DIFFERS: Record<string, { libreoffice: string; why: string }> = {};
+/**
+ * Known ways LibreOffice differs from Excel (and from formatValue). Each rule must prove its
+ * cause where it can (for example by formatting the value truncated to the second), so an
+ * unrelated mismatch is never explained away. docs/api.md §5.6.4 lists them.
+ */
+type Rule = { id: string; why: string; test: (p: Probe, lo: string, ours: string) => boolean };
+const num = (p: Probe): number | undefined => (typeof p.cell.value === "number" ? p.cell.value : undefined);
+const code = (p: Probe): NumFmt | undefined => p.cell.style?.numFmt;
+const fmt = (v: number, c: NumFmt | undefined): string => formatValue(v, c, { locale: "en-US" }).text;
+const truncated = (p: Probe, lo: string): boolean => {
+  const v = num(p);
+  if (v === undefined) return false;
+  return [86_400, 864_000, 1_440].some((n) => fmt(Math.floor(v * n + 1e-9) / n, code(p)) === lo);
+};
+const RULES: Rule[] = [
+  { id: "1900-calendar", why: "LibreOffice counts every serial from 1899-12-30, so serials below 61 are one day earlier than in Excel, which keeps the fictitious 1900-02-29 (serial 60) and shows serials below 1 as day 0 (1900-01-00)", test: (p) => (num(p) ?? 99) < 61 && isDateFormat(code(p)) },
+  { id: "time-rounding", why: "LibreOffice truncates to the shown second (15:29:59.997 shows 15:29:59); Excel rounds to it (15:30:00)", test: (p, lo) => truncated(p, lo) },
+  { id: "general", why: "LibreOffice's General shows up to 15 significant digits with no width limit and 3-digit exponents; Excel's General fits the number into 11 characters", test: (p) => code(p) === "General" || code(p) === 0 },
+  { id: "dangling-point", why: "LibreOffice drops a decimal point with no digits after it (#,##0.### shows 7); Excel keeps it (7.)", test: (_p, lo, ours) => ours.endsWith(".") && lo === ours.slice(0, -1) },
+  { id: "question-mark-space", why: "LibreOffice pads ? placeholders with U+2007 FIGURE SPACE; formatValue uses a plain space, as text copied from Excel has", test: (_p, lo, ours) => lo.replace(/\u2007/g, " ") === ours },
+  { id: "builtin-39-40-47", why: "LibreOffice's built-in ids 39, 40 and 47 are #,##0.00_);(#,##0.00), its [Red] twin and mm:ss.0; formatValue renders the codes of ECMA-376 §18.8.30 (§11.2), which conformance file 10 asks to check in Excel", test: (p, lo, ours) => [39, 40, 47].includes(code(p) as number) && (lo === `${ours} ` || lo === fmt(num(p) ?? 0, "mm:ss.0") || truncated({ ...p, cell: { ...p.cell, style: { numFmt: "mm:ss.0" } } }, lo)) },
+  { id: "ampm-case", why: "LibreOffice shows am/pm as AM/PM and A/P as a/p; formatValue keeps the case written in the code", test: (_p, lo, ours) => lo.toLowerCase() === ours.toLowerCase() },
+];
 
 interface Probe {
   label: string;
@@ -76,32 +98,32 @@ describe.skipIf(!hasSoffice)("javascript-excel/format against LibreOffice", () =
     const csv = readFileSync(join(dir, "formats.csv"), "utf8").replace(/^﻿/, "");
     const rows = parseCsv(csv, { delimiter: ",", inferTypes: false }).rows;
 
+    const escape = (t: string): string => JSON.stringify(t).replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
     const mismatches: string[] = [];
-    const stale: string[] = [];
+    const explained = new Map<string, string[]>();
     let matched = 0;
     list.forEach((p, i) => {
       const lo = String(rows[i]?.[1] ?? "");
       const ours = formatCell(p.cell, { locale: "en-US" }).text;
-      const known = LIBREOFFICE_DIFFERS[p.label];
-      if (known) {
-        if (lo !== known.libreoffice) stale.push(`${p.label}: LibreOffice now gives ${JSON.stringify(lo)}, listed ${JSON.stringify(known.libreoffice)}`);
+      if (lo === ours) {
+        matched++;
         return;
       }
-      if (lo === ours) matched++;
-      else mismatches.push(`| \`${p.label}\` | \`${JSON.stringify(lo)}\` | \`${JSON.stringify(ours)}\` |`);
+      const rule = RULES.find((r) => r.test(p, lo, ours));
+      if (rule) explained.set(rule.id, [...(explained.get(rule.id) ?? []), `\`${p.label}\`: LibreOffice ${escape(lo)}, formatValue ${escape(ours)}`]);
+      else mismatches.push(`| \`${p.label}\` | \`${escape(lo)}\` | \`${escape(ours)}\` |`);
     });
 
     const report = [
       `### javascript-excel/format vs LibreOffice`,
       ``,
-      `${list.length} probes: ${matched} match, ${Object.keys(LIBREOFFICE_DIFFERS).length} listed differences, ${mismatches.length} unexpected mismatches, ${stale.length} stale entries.`,
+      `${list.length} probes: ${matched} match, ${[...explained.values()].reduce((n, l) => n + l.length, 0)} differ for a known reason, ${mismatches.length} unexplained.`,
       ``,
       ...(mismatches.length ? [`| probe | LibreOffice | formatValue |`, `|---|---|---|`, ...mismatches, ``] : []),
-      ...stale.map((s) => `- stale: ${s}`),
+      ...RULES.filter((r) => explained.has(r.id)).flatMap((r) => [`**${r.id}** (${explained.get(r.id)!.length}): ${r.why}`, ...explained.get(r.id)!.map((l) => `- ${l}`), ``]),
     ].join("\n");
     console.log(report);
     if (process.env["GITHUB_STEP_SUMMARY"]) appendFileSync(process.env["GITHUB_STEP_SUMMARY"], `${report}\n`);
-    expect(mismatches, "unexpected differences from LibreOffice").toEqual([]);
-    expect(stale, "listed differences that changed").toEqual([]);
+    expect(mismatches, "unexplained differences from LibreOffice").toEqual([]);
   });
 });

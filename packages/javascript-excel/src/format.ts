@@ -64,8 +64,10 @@ const BUILTIN_EXTRA: Readonly<Record<number, string>> = {
   43: '_(* #,##0.00_);_(* \\(#,##0.00\\);_(* "-"??_);_(@_)',
   44: '_("$"* #,##0.00_);_("$"* \\(#,##0.00\\);_("$"* "-"??_);_(@_)',
 };
-/** Ids that show the locale's short date: 14, and the East Asian ids 27–36 and 50–58 `[to verify per locale]`. */
-const SHORT_DATE_IDS = new Set([14, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 50, 51, 52, 53, 54, 55, 56, 57, 58]);
+/** Ids that show the locale's short date: 14, and the East Asian ids 27–31, 36 and 50–58 `[to verify per locale]`. */
+const SHORT_DATE_IDS = new Set([14, 27, 28, 29, 30, 31, 36, 50, 51, 52, 53, 54, 55, 56, 57, 58]);
+/** Ids 32–35 are times in the East Asian locales that define them; shown as h:mm:ss, as LibreOffice does in en-US `[to verify]`. */
+const TIME_IDS = new Set([32, 33, 34, 35]);
 
 const compiled = new Map<string, Compiled>();
 const GENERAL: Compiled = compile("General");
@@ -86,6 +88,7 @@ function resolve(numFmt: NumFmt | undefined, loc: LocaleData): Compiled {
   if (typeof numFmt === "number") {
     if (SHORT_DATE_IDS.has(numFmt)) return { sections: [shortDateSection(loc, false)] };
     if (numFmt === 22) return { sections: [shortDateSection(loc, true)] };
+    if (TIME_IDS.has(numFmt)) return compileCached("h:mm:ss");
     const code = BUILTIN_NUM_FMTS[numFmt] ?? BUILTIN_EXTRA[numFmt];
     return code === undefined ? GENERAL : compileCached(code);
   }
