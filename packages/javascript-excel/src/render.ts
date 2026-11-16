@@ -358,8 +358,9 @@ export function hasStoredRowHeight(s: RenderSheet, row: number): boolean {
  * auto-fit (§5.8.1). Rows with a stored height, hidden rows and rows outside the extent are ignored.
  * Heights are clamped to [default row height, 409 pt], so auto-fit only grows rows. The offset table
  * is rebuilt from the first changed row onwards. Returns true when anything changed.
+ * (An array, not an Iterable, so the declaration works with ES5 lib typings; see Consumer TS.)
  */
-export function setRowHeights(s: RenderSheet, heights: Iterable<readonly [row: number, px: number]>): boolean {
+export function setRowHeights(s: RenderSheet, heights: ReadonlyArray<readonly [row: number, px: number]>): boolean {
   const st = state(s);
   const tops = st.rowTops;
   const updates = new Map<number, number>();

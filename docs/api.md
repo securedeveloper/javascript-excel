@@ -1373,7 +1373,7 @@ export function colAt(s: RenderSheet, x: number): number;
 export function isRowHidden(s: RenderSheet, row: number): boolean;
 export function isColHidden(s: RenderSheet, col: number): boolean;
 export function hasStoredRowHeight(s: RenderSheet, row: number): boolean;  // the file sets this row's height
-export function setRowHeights(s: RenderSheet, heights: Iterable<readonly [row: number, px: number]>): boolean; // auto-fit
+export function setRowHeights(s: RenderSheet, heights: ReadonlyArray<readonly [row: number, px: number]>): boolean; // auto-fit
 
 export interface CellRef { row: number; col: number }
 export interface RangeRef { start: CellRef; end: CellRef }       // inclusive, start <= end
