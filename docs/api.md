@@ -581,7 +581,7 @@ export function fromDataset<T>(dataset: Dataset<T>, options?: DatasetOptions<T>)
 
 /** Several blocks stacked on one sheet (replaces the old xSteps/ySteps). */
 export function fromDatasets(
-  blocks: Array<Dataset<any> & { offset?: { rows?: number; cols?: number } }>,
+  blocks: Array<DatasetBlock<any>>,                // Dataset & { offset?: { rows?: number; cols?: number } }
   options?: DatasetOptions<any> & { gap?: number }, // empty rows between blocks, default 1
 ): Sheet;
 
@@ -621,8 +621,7 @@ export interface LeafColumn<T> {
   width?: ColumnWidth | 'auto';
   hidden?: boolean;
   /** Totals row entry for this column. */
-  total?: 'sum' | 'average' | 'count' | 'min' | 'max' | CellInput
-        | ((ctx: { range: string; values: CellValue[] }) => CellInput);
+  total?: ColumnTotal; // 'sum' | 'average' | 'count' | 'min' | 'max' | CellInput | ((ctx: { range: string; values: CellValue[] }) => CellInput)
 }
 
 export interface DatasetOptions<T> {
@@ -665,20 +664,30 @@ Behaviour:
 - **Auto width** measures `cellText()` of the header and data cells per column. East Asian wide characters count as two, and a 2-character padding is added; the result is clamped to `[min, max]`. It is an estimate without font metrics. Header-group titles do not widen their leaf columns.
 - **Totals.** If any column has `total`, one row follows the data. The built-ins write `SUBTOTAL(109|101|103|105|104, range)` formulas: sum, average, count (`COUNTA`), min, max. Unlike `SUM`, `SUBTOTAL` ignores rows hidden by the autofilter. Each formula gets a **cached value** that the builder computes from the data, so viewers and LibreOffice show the right number without recalculating. The function form receives the column's data range (`'C2:C101'`) and values.
 - **Freeze and filter** refer to the actual header rows, so they work with `origin` and header groups.
+- **Inferred columns.** Without `columns`, object rows give one column per key of the first object (title = key). Array rows give one column per index and **no header row**.
+- **Header styles** layer `options.headerStyle`, then the column's or group's `headerStyle`, then the style of a `Cell` title. A leaf's default title is its `key` or `path`, else `''`.
+- **Totals details.**
+  - Dates count as their serials.
+  - `average` with no numbers caches `#DIV/0!`; `min`/`max` with no numbers cache 0.
+  - `count` is `COUNTA` (every non-empty cell, including `''`), and its cell drops the column's number format.
+  - A totals cell is styled with the column style, then `totals.style`, then its own style.
+  - With no data rows there is no range, so built-ins write their value without a formula.
+  - Any other string, such as `'n/a'`, is a literal cell.
+- **`fromDatasets`.** The first block starts at `origin` (plus `offset.rows`). Each later block starts `gap` empty rows below the previous block's last row (totals included), or `offset.rows` rows when given. `offset.cols` shifts a block right of the origin. Freeze and filter use the first block that has header rows. A column's width is the first explicit width, or the widest auto measurement across blocks. Gap rows are holes in `rows`.
 
 ```ts
 /** Inverse direction, for import: a sheet back to { columns, data }. */
-export function toDataset(
-  sheet: Sheet<Cell>,
-  options?: {
-    headerRow?: number | false;        // zero-based row index, default 0; false = keys are column letters
-    range?: string;                    // default: sheet.dimension
-    values?: 'value' | 'cell';         // 'value' (default): CellValue; 'cell': the full Cell
-  },
-): { columns: Array<{ title: string; key: string }>; data: Array<Record<string, unknown>> };
+export function toDataset(sheet: Sheet<Cell> | Sheet, options?: ToDatasetOptions): DatasetResult;
+
+export interface ToDatasetOptions {
+  headerRow?: number | false;          // zero-based row index, default 0; false = keys are column letters
+  range?: string;                      // default: sheet.dimension, else the used range
+  values?: 'value' | 'cell';           // 'value' (default): CellValue (a formula gives its cached value); 'cell': the full Cell
+}
+export interface DatasetResult { columns: Array<{ title: string; key: string }>; data: Array<Record<string, unknown>> }
 ```
 
-`toDataset` builds keys from header text, deduplicated with `_2`, `_3` suffixes; an empty header gives the column letter. Rows are **null-prototype objects** (`Object.create(null)`), so a header named `__proto__` from an untrusted file is just a key. Header auto-detection, multi-row header flattening and type inference are react-data-import's needs and are deferred (§12 Q13).
+`toDataset` builds keys from header text (trimmed), deduplicated with `_2`, `_3` suffixes; an empty header gives the column letter. Empty cells are `null`, rows with no values are skipped, and with `values: 'cell'` a bare value is returned as `{ value }`. It also accepts a builder-made `Sheet`, so `toDataset(fromDataset(ds))` gives the flat data back. Rows are **null-prototype objects** (`Object.create(null)`), so a header named `__proto__` from an untrusted file is just a key. Header auto-detection, multi-row header flattening and type inference are react-data-import's needs and are deferred (§12 Q13).
 
 ### 4.4 Style and colour helpers
 

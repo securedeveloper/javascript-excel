@@ -60,6 +60,8 @@ export { dateToSerial, serialToDate } from "./dates";
 export type { DateOptions } from "./dates";
 export { mergeStyles } from "./styles";
 export { cellText } from "./cells";
+export { fromDataset, fromDatasets, toDataset } from "./dataset";
+export type { ColumnDef, ColumnTotal, Dataset, DatasetBlock, DatasetOptions, DatasetResult, GroupColumn, LeafColumn, ToDatasetOptions } from "./dataset";
 export type { AutoWidthOptions } from "./auto-width";
 export type { CellTextOptions } from "./cells";
 export { sanitizeSheetName, validateSheetName } from "./sheet-names";

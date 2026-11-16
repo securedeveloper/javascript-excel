@@ -29,6 +29,25 @@ const bytes = await toUint8Array({
 
 Every writable field of the model is written; nothing is dropped silently. (`theme`, `indexedColors` and `dimension` are filled in by the reader and ignored on write.) Input that cannot be written faithfully throws a typed `ValidationError`.
 
+**Datasets** (`{ columns, data }`):
+
+```ts
+import { fromDataset, toBlob } from "javascript-excel";
+
+const sheet = fromDataset(
+  {
+    columns: [
+      { title: "Name", key: "name", width: "auto" },
+      { title: "Sales", children: [{ title: "Q1", path: "sales.q1", numFmt: "#,##0.00", total: "sum" }] },
+    ],
+    data: [{ name: "Ada", sales: { q1: 1200.5 } }],
+  },
+  { freezeHeader: true, autoFilter: true, totals: { label: "Total" } },
+);
+```
+
+`fromDataset` supports `key`, `path` and function accessors, header groups (merged header cells), conditional columns, per-column types, number formats and widths, and a totals row with `SUBTOTAL` formulas and cached values. `fromDatasets` stacks several datasets on one sheet, and `toDataset` reads a sheet back into `{ columns, data }`.
+
 **HTML tables** (`javascript-excel/dom`):
 
 ```ts
