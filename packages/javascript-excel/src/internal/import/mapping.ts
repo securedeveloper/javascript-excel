@@ -118,7 +118,9 @@ export function applyMapping(dataset: MappableDataset, mapping: ColumnMapping, s
   const rowNumbers = dataset.data.map((_, i) => dataset.rowNumbers?.[i] ?? i + 2);
   const issues: ImportIssue[] = [];
   const columns: ImportedColumn[] = [];
-  const plan: Array<{ out: string; from: string }> = [];
+  // from null: a field without a column. It still gets a column and a null in
+  // every row, so rows always have the schema's shape (JSE-21).
+  const plan: Array<{ out: string; from: string | null }> = [];
   // Every field name is reserved, mapped or not, so a kept column never poses as a field.
   const used = new Set<string>(fields.map(([name]) => name));
   for (const [name, spec] of fields) {
@@ -127,6 +129,8 @@ export function applyMapping(dataset: MappableDataset, mapping: ColumnMapping, s
       if (spec.required) {
         issues.push({ row: 0, field: name, code: "MAPPING_MISSING", message: `No column for the required field "${name}".`, severity: "error" });
       }
+      columns.push({ key: name, title: "", letter: "", type: "empty", field: name });
+      plan.push({ out: name, from: null });
       continue;
     }
     const c = byKey.get(from)!;
@@ -134,7 +138,7 @@ export function applyMapping(dataset: MappableDataset, mapping: ColumnMapping, s
     plan.push({ out: name, from });
   }
   if (schema.unmapped === "keep") {
-    const mapped = new Set(plan.map((p) => p.from));
+    const mapped = new Set(plan.map((p) => p.from).filter((f): f is string => f !== null));
     for (const c of dataset.columns) {
       if (mapped.has(c.key)) continue;
       let key = c.key;
@@ -144,14 +148,15 @@ export function applyMapping(dataset: MappableDataset, mapping: ColumnMapping, s
       plan.push({ out: key, from: c.key });
     }
   }
-  const required = fields.filter(([name, spec]) => spec.required && plan.some((p) => p.out === name)).map(([name]) => name);
+  // Only mapped required fields are checked per row; an unmapped one already has MAPPING_MISSING.
+  const required = fields.filter(([name, spec]) => spec.required && plan.some((p) => p.out === name && p.from !== null)).map(([name]) => name);
   const data = dataset.data.map((row, i) => {
     const out = Object.create(null) as Record<string, unknown>;
-    for (const { out: k, from } of plan) out[k] = row[from] ?? null;
+    for (const { out: k, from } of plan) out[k] = from === null ? null : (row[from] ?? null);
     for (const name of required) {
       const v = out[name];
       if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) {
-        const letter = byKey.get(plan.find((p) => p.out === name)!.from)?.letter;
+        const letter = byKey.get(plan.find((p) => p.out === name)!.from!)?.letter;
         issues.push({
           row: rowNumbers[i]!,
           field: name,
