@@ -1,6 +1,6 @@
 /**
  * Locale data for number formats, taken from the platform's Intl API so the
- * module ships no locale tables (docs/api.md §5.6). All date work is done on
+ * module ships no locale tables (docs/api.md §5.7). All date work is done on
  * UTC dates built from Excel serials, so nothing depends on the time zone.
  */
 

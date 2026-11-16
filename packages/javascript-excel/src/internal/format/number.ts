@@ -1,6 +1,6 @@
 /**
  * Number rendering for format sections: plain, percent, scaled, grouped,
- * scientific, fractions and General (docs/api.md §5.6).
+ * scientific, fractions and General (docs/api.md §5.7).
  *
  * Arithmetic is done on decimal strings taken from `toPrecision(15)`, the
  * precision Excel keeps, so 1.005 rounds to 1.01 as Excel shows it rather

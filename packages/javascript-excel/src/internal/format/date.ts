@@ -1,5 +1,5 @@
 /**
- * Date and time rendering from Excel serials (docs/api.md §5.6). Pure
+ * Date and time rendering from Excel serials (docs/api.md §5.7). Pure
  * arithmetic on the serial: no Date in the local zone is ever built, so the
  * output does not depend on the machine's time zone.
  */

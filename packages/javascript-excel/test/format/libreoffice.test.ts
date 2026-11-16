@@ -5,7 +5,7 @@
 // cell must equal formatCell(cell, { locale: "en-US" }).text.
 //
 // LibreOffice is the automated reference, Excel is the authority: where the two are
-// known to differ, a rule in RULES names the reason, and docs/api.md §5.6.4 records
+// known to differ, a rule in RULES names the reason, and docs/api.md §5.7.4 records
 // it as [to verify] in Excel. Any other difference fails the test.
 // Runs in the `LibreOffice` CI job (JSE_REQUIRE_LIBREOFFICE=1); skipped elsewhere
 // unless $JSE_SOFFICE is available.
@@ -30,7 +30,7 @@ if (process.env["JSE_REQUIRE_LIBREOFFICE"] === "1" && !hasSoffice) throw new Err
  * Known ways LibreOffice differs from Excel (and from formatValue). Each rule must prove its
  * cause where it can (for example by formatting the value truncated to the second), so an
  * unrelated mismatch is never explained away. The first rule that holds wins, so the broad
- * calendar rule comes last. docs/api.md §5.6.4 lists them.
+ * calendar rule comes last. docs/api.md §5.7.4 lists them.
  */
 type Rule = { id: string; why: string; test: (p: Probe, lo: string, ours: string) => boolean };
 const num = (p: Probe): number | undefined => (typeof p.cell.value === "number" ? p.cell.value : undefined);

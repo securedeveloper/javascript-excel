@@ -6,7 +6,7 @@
  * on one sheet; `toDataset` goes the other way for import.
  */
 
-import { decodeCell, decodeRange, encodeCell, encodeCol, MAX_COLS, MAX_ROWS } from "./address";
+import { decodeCell, decodeRange, encodeCell, encodeCol, encodeRange, MAX_COLS, MAX_ROWS } from "./address";
 import { type AutoWidthOptions } from "./auto-width";
 import { cellText } from "./cells";
 import { dateToSerial } from "./dates";
@@ -588,6 +588,10 @@ export interface ToDatasetOptions {
    * true: always drop the last row. false: keep it.
    */
   skipTotals?: "auto" | boolean | undefined;
+  /** Header rows from `headerRow` on, flattened into one title per column (merged cells expanded). Default 1. */
+  headerRows?: number | undefined;
+  /** Joins the parts of a multi-row title. Default ' / '. */
+  join?: string | undefined;
 }
 
 /** The result of `toDataset`. Rows are null-prototype objects. */
@@ -617,27 +621,50 @@ function usedRange(sheet: Sheet<CellInput>): { start: { row: number; col: number
  * a header named __proto__ in an untrusted file is just a key.
  */
 export function toDataset(sheet: Sheet<Cell> | Sheet, options: ToDatasetOptions = {}): DatasetResult {
+  const { columns, data } = toDatasetDetailed(sheet, options);
+  return { columns: columns.map(({ title, key }) => ({ title, key })), data };
+}
+
+/** @internal toDataset plus what javascript-excel/import needs: letters, row numbers, whether a totals row was dropped. */
+export interface DetailedDataset {
+  columns: Array<{ title: string; key: string; letter: string }>;
+  data: Array<Record<string, unknown>>;
+  /** 1-based sheet row of each data entry. */
+  rowNumbers: number[];
+  totalsSkipped: boolean;
+  /** The range read, or undefined for an empty sheet. */
+  range: string | undefined;
+}
+
+/** @internal */
+export function toDatasetDetailed(sheet: Sheet<Cell> | Sheet, options: ToDatasetOptions = {}): DetailedDataset {
   const s = sheet as Sheet<CellInput>;
   const rng = options.range ? decodeRange(options.range) : s.dimension ? decodeRange(s.dimension) : usedRange(s);
-  if (!rng) return { columns: [], data: [] };
+  if (!rng) return { columns: [], data: [], rowNumbers: [], totalsSkipped: false, range: undefined };
   const headerRow = options.headerRow ?? 0;
   if (headerRow !== false && (!Number.isInteger(headerRow) || headerRow < 0)) throw columnError(`headerRow must be a non-negative integer or false, got ${String(headerRow)}.`);
+  const headerRows = options.headerRows ?? 1;
+  if (!Number.isInteger(headerRows) || headerRows < 1) throw columnError(`headerRows must be a positive integer, got ${String(headerRows)}.`);
+  const join = options.join ?? " / ";
+  if (typeof join !== "string") throw new TypeError("join must be a string");
   const asCell = options.values === "cell";
 
-  const columns: DatasetResult["columns"] = [];
+  const titleOf = headerRow === false ? undefined : headerRows === 1 ? (c: number) => cellText(s.rows[headerRow]?.[c]).trim() : multiRowTitles(s, headerRow, headerRows, join);
+  const columns: DetailedDataset["columns"] = [];
   const used = new Map<string, number>();
   for (let c = rng.start.col; c <= rng.end.col; c++) {
     const letter = encodeCol(c);
-    const title = headerRow === false ? letter : cellText(s.rows[headerRow]?.[c]).trim();
+    const title = titleOf ? titleOf(c) : letter;
     const base = title === "" ? letter : title;
     const n = (used.get(base) ?? 0) + 1;
     used.set(base, n);
-    columns.push({ title: headerRow === false ? letter : title, key: n === 1 ? base : `${base}_${n}` });
+    columns.push({ title, key: n === 1 ? base : `${base}_${n}`, letter });
   }
 
-  const data: DatasetResult["data"] = [];
+  const data: DetailedDataset["data"] = [];
+  const rowNumbers: number[] = [];
   let lastRaw: ReadonlyArray<CellInput> | undefined;
-  const firstData = headerRow === false ? rng.start.row : Math.max(rng.start.row, headerRow + 1);
+  const firstData = headerRow === false ? rng.start.row : Math.max(rng.start.row, headerRow + headerRows);
   for (let r = firstData; r <= rng.end.row; r++) {
     const row = s.rows[r];
     if (!row) continue;
@@ -651,10 +678,39 @@ export function toDataset(sheet: Sheet<Cell> | Sheet, options: ToDatasetOptions 
     });
     if (any) {
       data.push(obj);
+      rowNumbers.push(r + 1);
       lastRaw = row.slice(rng.start.col, rng.end.col + 1);
     }
   }
   const skipTotals = options.skipTotals ?? "auto";
-  if (data.length && (skipTotals === true || (skipTotals === "auto" && lastRaw && isTotalsRow(lastRaw)))) data.pop();
-  return { columns, data };
+  let totalsSkipped = false;
+  if (data.length && (skipTotals === true || (skipTotals === "auto" && lastRaw && isTotalsRow(lastRaw)))) {
+    data.pop();
+    rowNumbers.pop();
+    totalsSkipped = true;
+  }
+  return { columns, data, rowNumbers, totalsSkipped, range: encodeRange(rng) };
+}
+
+/**
+ * Titles of a header spanning several rows: the text of each row joined,
+ * with merged cells expanded (a group title merged across columns prefixes
+ * each of them) and a cell merged down through the rows counted once.
+ */
+function multiRowTitles(s: Sheet<CellInput>, top: number, count: number, join: string): (c: number) => string {
+  const bottom = top + count - 1;
+  const merges = (s.merges ?? []).map((m) => decodeRange(m)).filter((m) => m.start.row <= bottom && m.end.row >= top);
+  return (c) => {
+    const parts: string[] = [];
+    let last: unknown;
+    for (let r = top; r <= bottom; r++) {
+      const m = merges.find((x) => r >= x.start.row && r <= x.end.row && c >= x.start.col && c <= x.end.col);
+      const id = m ?? `${r}`;
+      if (id === last) continue;
+      last = id;
+      const text = cellText(m ? s.rows[m.start.row]?.[m.start.col] : s.rows[r]?.[c]).trim();
+      if (text !== "") parts.push(text);
+    }
+    return parts.join(join);
+  };
 }

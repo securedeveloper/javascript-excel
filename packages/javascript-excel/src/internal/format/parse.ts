@@ -1,5 +1,5 @@
 /**
- * Number-format code parser (docs/api.md §5.6). Turns a code such as
+ * Number-format code parser (docs/api.md §5.7). Turns a code such as
  * `#,##0.00;[Red](#,##0.00)` into compiled sections. Linear in the code's
  * length, no regular expressions with nested quantifiers, and it never
  * throws: anything it does not recognise is kept as literal text, as Excel

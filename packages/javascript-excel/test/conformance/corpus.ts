@@ -355,7 +355,7 @@ export const CORPUS: CorpusEntry[] = [
           ["Text placeholder", { value: "abc", style: { numFmt: '"<"@">"' } }, "<abc>"],
           ["'General' as a string", { value: 1234.5, style: { numFmt: "General" } }, "1234.5 (built-in General)"],
         ]),
-        // How javascript-excel/format (docs/api.md §5.6.4) expects Excel to display these; LibreOffice differs on most.
+        // How javascript-excel/format (docs/api.md §5.7.4) expects Excel to display these; LibreOffice differs on most.
         labelled("Display", [
           ["Day 0 (serial 0.5)", { value: 0.5, style: { numFmt: "yyyy-mm-dd hh:mm" } }, "1900-01-00 12:00"],
           ["Serial 1 weekday", { value: 1, style: { numFmt: "dddd" } }, "Sunday"],
@@ -379,7 +379,7 @@ export const CORPUS: CorpusEntry[] = [
     checks: [
       { where: "Built-in!C2:C29", look: "For each row, open Format Cells > Number > Custom and read the selected code.", expect: "The code matches column B (ids 14 and 22 may show your locale's date format). Write down the exact code Excel shows for ids 37, 38, 39, 40 and 47, including spaces.", verifies: "codes and spacing of built-in formats 37–40 and 47 (§11.2)" },
       { where: "Custom!B2:B7", look: "Compare column B with column C.", expect: "Everything matches." },
-      { where: "Display!B2:B17", look: "Compare column B with column C. Widen column B if a value shows ####.", expect: "Everything matches. Write down every row that differs.", verifies: "how Excel displays day 0, rounded times, General, a dangling decimal point, am/pm case, conditional sections, built-in id 32 and bbbb (§5.6.4)" },
+      { where: "Display!B2:B17", look: "Compare column B with column C. Widen column B if a value shows ####.", expect: "Everything matches. Write down every row that differs.", verifies: "how Excel displays day 0, rounded times, General, a dangling decimal point, am/pm case, conditional sections, built-in id 32 and bbbb (§5.7.4)" },
     ],
   },
   {

@@ -1,6 +1,6 @@
 /**
  * javascript-excel/format: renders values with Excel number formats
- * (docs/api.md §5.6), for viewers, previews and "as displayed" text.
+ * (docs/api.md §5.7), for viewers, previews and "as displayed" text.
  *
  * Dates are formatted from Excel serials, so the result does not depend on
  * the time zone. Locale data (separators, month and day names, the short
