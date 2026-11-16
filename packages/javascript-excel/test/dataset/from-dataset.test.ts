@@ -309,3 +309,23 @@ describe("toDataset", () => {
     expect(back.data.map((r) => ({ ...r }))).toEqual(data);
   });
 });
+
+describe("toDataset: totals rows (skipTotals)", () => {
+  const ds = { columns: [{ title: "Name", key: "name" }, { title: "Qty", key: "qty", total: "sum" as const }], data: [{ name: "a", qty: 5 }, { name: "b", qty: 10 }] };
+  const plain = (r: Record<string, unknown>): Record<string, unknown> => ({ ...r });
+
+  it("'auto' (default) drops the SUBTOTAL row fromDataset wrote, with or without a label", () => {
+    expect(toDataset(fromDataset(ds)).data.map(plain)).toEqual([{ Name: "a", Qty: 5 }, { Name: "b", Qty: 10 }]);
+    expect(toDataset(fromDataset(ds, { totals: { label: "Total" } })).data.map(plain)).toEqual([{ Name: "a", Qty: 5 }, { Name: "b", Qty: 10 }]);
+  });
+
+  it("false keeps it; true drops whatever the last row is", () => {
+    expect(toDataset(fromDataset(ds), { skipTotals: false }).data.map(plain)).toEqual([{ Name: "a", Qty: 5 }, { Name: "b", Qty: 10 }, { Name: null, Qty: 15 }]);
+    expect(toDataset({ name: "S", rows: [["k"], [1], [2]] }, { skipTotals: true }).data.map(plain)).toEqual([{ k: 1 }]);
+  });
+
+  it("'auto' keeps a last row of plain values or of other formulas", () => {
+    expect(toDataset({ name: "S", rows: [["k"], [1], [2]] }).data).toHaveLength(2);
+    expect(toDataset({ name: "S", rows: [["k", "t"], [1, 2], [{ formula: "SUM(A2)", value: 1 }, { formula: "SUBTOTAL(109,B2)", value: 2 }]] }).data).toHaveLength(2);
+  });
+});

@@ -560,6 +560,19 @@ export function fromDatasets(blocks: Array<DatasetBlock<any>>, options: DatasetO
 
 // --------------------------------------------------------------- toDataset
 
+const SUBTOTAL_FORMULA = /^\s*=?\s*SUBTOTAL\s*\(/i;
+
+/** A row with at least one formula, all of them SUBTOTAL(...): the totals row fromDataset writes. */
+function isTotalsRow(row: ReadonlyArray<CellInput>): boolean {
+  let formulas = 0;
+  for (const c of row) {
+    if (!isCellObject(c) || !c.formula) continue;
+    if (!SUBTOTAL_FORMULA.test(c.formula)) return false;
+    formulas++;
+  }
+  return formulas > 0;
+}
+
 /** Options for `toDataset`. */
 export interface ToDatasetOptions {
   /** Zero-based header row, default 0; false = no header, keys are column letters. */
@@ -568,6 +581,13 @@ export interface ToDatasetOptions {
   range?: string | undefined;
   /** 'value' (default): each field is the cell's value; 'cell': the whole Cell. */
   values?: "value" | "cell" | undefined;
+  /**
+   * Drop a totals row at the end. 'auto' (default): drop the last row when it
+   * has at least one formula and all its formulas are SUBTOTAL(...), as
+   * fromDataset writes them (a label such as "Total" may sit next to them).
+   * true: always drop the last row. false: keep it.
+   */
+  skipTotals?: "auto" | boolean | undefined;
 }
 
 /** The result of `toDataset`. Rows are null-prototype objects. */
@@ -616,6 +636,7 @@ export function toDataset(sheet: Sheet<Cell> | Sheet, options: ToDatasetOptions 
   }
 
   const data: DatasetResult["data"] = [];
+  let lastRaw: ReadonlyArray<CellInput> | undefined;
   const firstData = headerRow === false ? rng.start.row : Math.max(rng.start.row, headerRow + 1);
   for (let r = firstData; r <= rng.end.row; r++) {
     const row = s.rows[r];
@@ -628,7 +649,12 @@ export function toDataset(sheet: Sheet<Cell> | Sheet, options: ToDatasetOptions 
       if (!empty) any = true;
       obj[key] = asCell ? (c === undefined ? null : isCellObject(c) ? c : { value: c }) : c === undefined || c === null ? null : isCellObject(c) ? (c.value ?? null) : c;
     });
-    if (any) data.push(obj);
+    if (any) {
+      data.push(obj);
+      lastRaw = row.slice(rng.start.col, rng.end.col + 1);
+    }
   }
+  const skipTotals = options.skipTotals ?? "auto";
+  if (data.length && (skipTotals === true || (skipTotals === "auto" && lastRaw && isTotalsRow(lastRaw)))) data.pop();
   return { columns, data };
 }

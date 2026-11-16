@@ -684,11 +684,14 @@ export interface ToDatasetOptions {
   headerRow?: number | false;          // zero-based row index, default 0; false = keys are column letters
   range?: string;                      // default: sheet.dimension, else the used range
   values?: 'value' | 'cell';           // 'value' (default): CellValue (a formula gives its cached value); 'cell': the full Cell
+  skipTotals?: 'auto' | boolean;       // drop a trailing totals row; default 'auto' (see below)
 }
 export interface DatasetResult { columns: Array<{ title: string; key: string }>; data: Array<Record<string, unknown>> }
 ```
 
-`toDataset` builds keys from header text (trimmed), deduplicated with `_2`, `_3` suffixes; an empty header gives the column letter. Empty cells are `null`, rows with no values are skipped, and with `values: 'cell'` a bare value is returned as `{ value }`. It also accepts a builder-made `Sheet`, so `toDataset(fromDataset(ds))` gives the flat data back. Rows are **null-prototype objects** (`Object.create(null)`), so a header named `__proto__` from an untrusted file is just a key. Header auto-detection, multi-row header flattening and type inference are react-data-import's needs and are deferred (§12 Q13).
+`toDataset` builds keys from header text (trimmed), deduplicated with `_2`, `_3` suffixes; an empty header gives the column letter. Empty cells are `null`, rows with no values are skipped, and with `values: 'cell'` a bare value is returned as `{ value }`. It also accepts a builder-made `Sheet`, so `toDataset(fromDataset(ds))` gives the flat data back.
+
+**Totals rows.** With `skipTotals: 'auto'` (the default), the last data row is dropped when it contains at least one formula and every formula in it is `SUBTOTAL(…)`. That is the totals row `fromDataset` writes, and a label such as "Total" may sit next to the formulas. So `toDataset(read(write(fromDataset(ds))))` returns the data rows only. `true` always drops the last row, and `false` keeps every row. A sheet whose genuine last data row is all `SUBTOTAL` formulas needs `skipTotals: false`. Rows are **null-prototype objects** (`Object.create(null)`), so a header named `__proto__` from an untrusted file is just a key. Header auto-detection, multi-row header flattening and type inference are react-data-import's needs and are deferred (§12 Q13).
 
 ### 4.4 Style and colour helpers
 
