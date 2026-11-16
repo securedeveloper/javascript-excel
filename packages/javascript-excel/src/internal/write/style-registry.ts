@@ -232,17 +232,28 @@ const LAYER_CACHE_MAX = 10_000;
 const IDENTITY_MAX = 10_000;
 
 /**
- * Content key of a raw (not yet validated) style. Values JSON would drop or
- * merge (functions, symbols, bigints, NaN, ±Infinity) get their own markers,
- * so an invalid style never shares a key with a valid one and is still
- * validated (and rejected) the first time it appears.
+ * Content key for the style cache, or undefined when the style cannot be keyed
+ * by content. JSON sees own enumerable properties (and applies toJSON), while
+ * resolve() reads fields by property access. They agree only for plain objects
+ * and arrays, so a class instance (getters on its prototype), an object with
+ * an inherited field, a toJSON object or a Map is not content-cached: it is
+ * resolved as it is. Non-finite numbers, functions, symbols and bigints are
+ * tagged, so an invalid style never shares a key with a valid one.
  */
-function contentKey(style: Style): string {
-  return JSON.stringify(style, (_k, v: unknown) => {
+function contentKey(style: Style): string | undefined {
+  let plain = true;
+  const key = JSON.stringify(style, function (this: unknown, k: string, v: unknown) {
+    // `this[k]` is the value before toJSON; `v` is what JSON will write.
+    const raw = k === "" ? style : (this as Record<string, unknown>)[k];
+    if (typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
+      const proto = Object.getPrototypeOf(raw);
+      if ((proto !== Object.prototype && proto !== null) || typeof (raw as { toJSON?: unknown }).toJSON === "function") plain = false;
+    }
     if (typeof v === "number") return Number.isFinite(v) ? v : `\u0000num:${String(v)}`;
     if (typeof v === "function" || typeof v === "symbol" || typeof v === "bigint") return `\u0000${typeof v}:${String(v)}`;
     return v;
   });
+  return plain ? key : undefined;
 }
 
 // ----------------------------------------------------------------- registry
@@ -326,11 +337,12 @@ export class StyleRegistry {
     const cached = known ? this.layerCache.get(key) : undefined;
     if (cached !== undefined) return cached;
     const merged = layers.length === 1 && layers[0] ? layers[0] : mergeStyles(...layers);
-    const content = (isDate ? "d" : "") + contentKey(merged);
-    let index = this.contentCache.get(content);
+    const key2 = contentKey(merged);
+    const content = key2 === undefined ? undefined : (isDate ? "d" : "") + key2;
+    let index = content === undefined ? undefined : this.contentCache.get(content);
     if (index === undefined) {
       index = this.resolve(merged, isDate, ctx);
-      this.contentCache.set(content, index);
+      if (content !== undefined) this.contentCache.set(content, index);
     }
     if (known) {
       if (this.layerCache.size >= LAYER_CACHE_MAX) this.layerCache.clear();
