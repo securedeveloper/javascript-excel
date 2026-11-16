@@ -13,7 +13,7 @@ import { ReadContext } from "./context";
 import { ODS_MIME, OTHER_FORMATS, sniffContainer, WORKBOOK_FORMATS, workbookFormat, type FormatName, type WorkbookFormat } from "./formats";
 import { DEFAULT_LIMITS } from "./limits";
 import { Package, type Relationship } from "./opc";
-import { MAX_ROWS, SheetParser } from "./sheet";
+import { DeferredStrings, MAX_ROWS, SheetParser } from "./sheet";
 import { SharedStringsParser } from "./strings";
 import { EMPTY_STYLES, StylesParser, type StyleTable } from "./styles";
 import { CustomPropsParser, PropsParser, ThemeParser, WorkbookParser, type SheetEntry } from "./workbook";
@@ -239,10 +239,15 @@ export async function readImpl(input: BinaryInput, options?: ReadOptions, intern
   }
 
   let sst: Array<string | RichText> = [];
+  // With maxRows, shared strings are decoded after the sheets, and only up to
+  // the highest index the read rows use (JSE-20). Without it, nothing changes.
+  const deferred = o.maxRows !== undefined ? new DeferredStrings() : undefined;
+  let sstEntry: ReturnType<typeof pkg.part>;
   const sstRel = relOf("sharedStrings");
   if (sstRel) {
     const entry = pkg.part(sstRel.target);
     if (!entry) ctx.warn("MISSING_PART", `The shared strings part ${sstRel.target} is missing; cells that use it are empty.`, { part: sstRel.target });
+    else if (deferred) sstEntry = entry;
     else {
       const sp = new SharedStringsParser(o.richText ?? "runs", limits.maxSharedStrings);
       await ctx.parse(entry, sp);
@@ -273,6 +278,7 @@ export async function readImpl(input: BinaryInput, options?: ReadOptions, intern
       maxRows: o.maxRows ?? MAX_ROWS,
     }, rel?.target ?? workbookPart);
     parser.sharedStrings = sst;
+    parser.deferred = deferred;
     const part = rel ? pkg.part(rel.target) : undefined;
     if (!part) {
       ctx.warn("MISSING_PART", `The part for sheet "${entry.name}" is missing; the sheet is empty.`, { sheet: entry.name });
@@ -294,6 +300,18 @@ export async function readImpl(input: BinaryInput, options?: ReadOptions, intern
     });
     doneBytes += part.size;
     sheets.push(parser.finish(sheetRels));
+  }
+  // The table counts as read either way, so it's never listed as an unparsed part.
+  if (sstEntry && deferred && deferred.cells.length === 0) ctx.consumed.add(sstEntry.name);
+  if (deferred && deferred.cells.length > 0) {
+    if (sstEntry) {
+      const sp = new SharedStringsParser(o.richText ?? "runs", limits.maxSharedStrings, deferred.maxIndex + 1);
+      await ctx.parse(sstEntry, sp);
+      sst = sp.strings;
+    }
+    deferred.resolve(sst, (ref, sheet, part, index) =>
+      ctx.warn("INVALID_SHARED_STRING", `Cell ${ref} refers to shared string ${index}, which does not exist; the cell was left empty.`, { part, sheet, ref }),
+    );
   }
 
   // Defined names: print areas and titles go to their sheets; the rest stay workbook names.

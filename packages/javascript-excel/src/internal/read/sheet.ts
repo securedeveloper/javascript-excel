@@ -21,6 +21,42 @@ export const MAX_COLS = 16_384;
 
 const ERROR_CODES = new Set(["#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A", "#GETTING_DATA", "#SPILL!", "#CALC!", "#FIELD!", "#BLOCKED!", "#CONNECT!", "#UNKNOWN!", "#BUSY!", "#PYTHON!", "#EXTERNAL!"]);
 
+/**
+ * Shared-string cells whose text is filled in after the sheets are parsed
+ * (ReadOptions.maxRows): the reader then decodes only the shared strings
+ * up to the highest index the read rows use. Parallel arrays, one entry per
+ * cell, kept small because a capped read can still hold many cells.
+ */
+export class DeferredStrings {
+  readonly cells: Cell[] = [];
+  readonly indexes: number[] = [];
+  readonly rows: Array<Array<Cell | undefined>> = [];
+  readonly cols: number[] = [];
+  readonly refs: string[] = [];
+  readonly sheets: string[] = [];
+  readonly parts: string[] = [];
+  maxIndex = -1;
+
+  /** Fills each cell from `sst`; a missing entry is reported and the cell dropped unless it has a formula or style, as on the full path. */
+  resolve(sst: ReadonlyArray<string | RichText>, warn: (ref: string, sheet: string, part: string, index: number) => void): void {
+    for (let i = 0; i < this.cells.length; i++) {
+      const cell = this.cells[i]!;
+      const str = sst[this.indexes[i]!];
+      if (str === undefined) {
+        warn(this.refs[i]!, this.sheets[i]!, this.parts[i]!, this.indexes[i]!);
+        delete cell.value;
+        cell.type = "empty";
+        const row = this.rows[i]!;
+        // Only if the slot still holds this cell (a later duplicate may have replaced it).
+        if (cell.formula === undefined && cell.style === undefined && row[this.cols[i]!] === cell) row[this.cols[i]!] = undefined;
+        continue;
+      }
+      cell.value = str;
+      cell.type = typeof str === "string" ? "string" : "richText";
+    }
+  }
+}
+
 export interface SheetOptions {
   formulas: boolean;
   dates: "date" | "serial";
@@ -463,6 +499,18 @@ export class SheetParser implements XmlHandler {
       this.ctx.warn("DUPLICATE_CELL", `Cell ${p.ref} appears more than once; the last one was kept.`, { part: this.part, sheet: this.sheet.name, ref: p.ref });
     }
     row[p.col] = cell;
+    if (this.pendingIndex >= 0) {
+      const d = this.deferred!;
+      d.cells.push(cell);
+      d.indexes.push(this.pendingIndex);
+      d.rows.push(row);
+      d.cols.push(p.col);
+      d.refs.push(p.ref);
+      d.sheets.push(this.sheet.name);
+      d.parts.push(this.part);
+      if (this.pendingIndex > d.maxIndex) d.maxIndex = this.pendingIndex;
+      this.pendingIndex = -1;
+    }
     if (p.row < this.minRow) this.minRow = p.row;
     if (p.row > this.maxRow) this.maxRow = p.row;
     if (p.col < this.minCol) this.minCol = p.col;
@@ -473,11 +521,19 @@ export class SheetParser implements XmlHandler {
     const style = this.styles.style(p.s);
     let value: CellValue | undefined;
     let type: Cell["type"] = "empty";
+    let deferredIndex = -1;
     const v = p.v;
     switch (p.t) {
       case "s": {
         if (v === undefined) break;
         const idx = Number(v);
+        if (this.deferred && Number.isInteger(idx) && idx >= 0) {
+          // Filled in by DeferredStrings.resolve once the strings are decoded.
+          value = "";
+          type = "string";
+          deferredIndex = idx;
+          break;
+        }
         const sst = this.sharedStrings;
         const str = Number.isInteger(idx) && idx >= 0 ? sst[idx] : undefined;
         if (str === undefined) {
@@ -574,8 +630,12 @@ export class SheetParser implements XmlHandler {
       if (formula.arrayRef) cell.arrayRef = formula.arrayRef;
     }
     if (style) cell.style = style;
+    if (deferredIndex >= 0) this.pendingIndex = deferredIndex;
     return cell;
   }
+
+  /** Set by convert() for a deferred shared-string cell; consumed by finishCell(). */
+  private pendingIndex = -1;
 
   private formula(p: PendingCell): { text: string; arrayRef?: string } | undefined {
     if (p.f === undefined || !this.opts.formulas) return undefined;
@@ -604,6 +664,8 @@ export class SheetParser implements XmlHandler {
 
   /** Set before parsing; the shared strings table. */
   sharedStrings: ReadonlyArray<string | RichText> = [];
+  /** When set, shared-string cells are collected here and filled in later (ReadOptions.maxRows). */
+  deferred: DeferredStrings | undefined;
 
   // ------------------------------------------------------------- view/print
 

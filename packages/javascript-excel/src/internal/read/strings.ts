@@ -9,7 +9,7 @@
 import { LimitError } from "../../errors";
 import type { RichText, RichTextRun } from "../../model";
 import { FontBuilder } from "./styles";
-import type { XmlAttrs, XmlHandler } from "./xml-reader";
+import type { XmlAttrs, XmlControl, XmlHandler } from "./xml-reader";
 
 /** Decodes ST_Xstring `_xHHHH_` escapes (`_x005F_` is a literal underscore). */
 export function decodeXstring(s: string): string {
@@ -101,13 +101,39 @@ export class SharedStringsParser implements XmlHandler {
   readonly strings: Array<string | RichText> = [];
   private item: StringItem | undefined;
   private depth = 0;
+  private control: XmlControl | undefined;
 
+  /**
+   * `stopAfter`: decode only the first `stopAfter` items, then jump to the
+   * end of the part without tokenizing the rest (previews, ReadOptions.maxRows).
+   */
   constructor(
     private readonly mode: "runs" | "plain",
     private readonly max: number,
+    private readonly stopAfter: number = Infinity,
   ) {}
 
+  attach(control: XmlControl): void {
+    this.control = control;
+    if (this.stopAfter <= 0) this.stopped = true;
+  }
+
+  /** True once stopAfter items were decoded and the rest of the part is skipped. */
+  stopped = false;
+
+  private pushed(): void {
+    if (this.strings.length >= this.stopAfter && !this.stopped && this.control) {
+      this.stopped = true;
+      this.control.skipToEndOf(1);
+    }
+  }
+
   open(name: string, a: XmlAttrs, empty: boolean): void {
+    if (this.stopped && !this.item && name === "si") {
+      // stopAfter 0: nothing is needed; skip the whole table.
+      if (!empty) this.control?.skipToEndOf(1);
+      return;
+    }
     if (this.item) {
       if (!empty) this.depth++;
       this.item.open(name, a);
@@ -120,8 +146,10 @@ export class SharedStringsParser implements XmlHandler {
           details: { limit: "maxSharedStrings", value: this.strings.length + 1, max: this.max },
         });
       }
-      if (empty) this.strings.push("");
-      else {
+      if (empty) {
+        this.strings.push("");
+        this.pushed();
+      } else {
         this.item = new StringItem();
         this.depth = 0;
       }
@@ -133,6 +161,7 @@ export class SharedStringsParser implements XmlHandler {
     if (this.depth === 0 && name === "si") {
       this.strings.push(this.item.value(this.mode));
       this.item = undefined;
+      this.pushed();
       return;
     }
     this.depth--;
