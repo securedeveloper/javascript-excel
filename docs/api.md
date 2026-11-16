@@ -1103,6 +1103,7 @@ Result in CI (LibreOffice 26.2, en-US): RESULT_COUNTS. Every difference has one 
 | `?` padding | U+2007 FIGURE SPACE | A plain space, as text copied from Excel has |
 | Built-in ids 39, 40, 47 | Excel's actual codes, `#,##0.00_);(#,##0.00)` and `mm:ss.0` | The ECMA-376 codes in §11.2 (`#,##0.00;(#,##0.00)`, `mmss.0`); conformance file 10 asks for the codes Excel shows |
 | `am/pm` and `A/P` case | `AM/PM` upper-cased, `A/P` lower-cased | As written in the code |
+| `b`, `bb`, `bbbb` | Not known; printed as text | The Buddhist-era year (Gregorian + 543) |
 
 Built-in ids 32–35 are rendered as `h:mm:ss`, which matches LibreOffice in en-US: they are times in the East Asian locales that define them `[to verify]`.
 
