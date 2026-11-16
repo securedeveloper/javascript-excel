@@ -1372,6 +1372,8 @@ export function rowAt(s: RenderSheet, y: number): number;        // the visible 
 export function colAt(s: RenderSheet, x: number): number;
 export function isRowHidden(s: RenderSheet, row: number): boolean;
 export function isColHidden(s: RenderSheet, col: number): boolean;
+export function hasStoredRowHeight(s: RenderSheet, row: number): boolean;  // the file sets this row's height
+export function setRowHeights(s: RenderSheet, heights: Iterable<readonly [row: number, px: number]>): boolean; // auto-fit
 
 export interface CellRef { row: number; col: number }
 export interface RangeRef { start: CellRef; end: CellRef }       // inclusive, start <= end
@@ -1382,6 +1384,11 @@ export interface RangeRef { start: CellRef; end: CellRef }       // inclusive, s
 - **Column widths.** A width in characters becomes pixels with the file-width formula and `maxDigitWidth` (§3.3). Missing widths use `sheet.defaultColWidth`, else 8.43 characters (64 px at the default 7).
 - **Hidden rows and columns.** Hidden, or width/height 0, means size 0. `rowAt`/`colAt` never return a hidden index.
 - **Cost.** Offsets are prefix sums, built once in O(rows + columns) (`Float64Array`). `rowTop`/`colLeft` are O(1), and `rowAt`/`colAt` are O(log n).
+- **Auto-fit** (react-xlsx-viewer decision Q11). Excel fits rows without a stored height to their content (wrapped, rotated or larger text) when it opens a file. The render model can't measure text, so the viewer measures and calls `setRowHeights` with CSS px at zoom 100 %.
+  - It only applies to rows without a stored height (`hasStoredRowHeight` is false) that aren't hidden.
+  - Heights are clamped to [the default row height, 409 pt], so auto-fit only grows rows.
+  - The offsets are rebuilt from the first changed row onwards, so a batch costs O(rows after it). `rowTop`, `rowHeight` and `rowAt` reflect the new heights at once.
+  - The model isn't changed, only the handle's geometry. Cells don't depend on row heights, so their cache is kept.
 - **Settings.** They come from `sheet.view` and `sheet.tabColor`:
   - zoom defaults to 100, the active cell to A1;
   - grid lines and headers are shown unless the file turns them off;

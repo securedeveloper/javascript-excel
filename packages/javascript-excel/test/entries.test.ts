@@ -28,8 +28,8 @@ describe("entries", () => {
 
   it("/render exports the documented API", () => {
     expect(Object.keys(render).sort()).toEqual([
-      "colAt", "colLeft", "colWidth", "createRenderSheet", "edge", "isColHidden", "isRowHidden", "lastUsedCell", "mergeAt",
-      "rangeAsHtml", "rangeAsTsv", "rangeStats", "renderCell", "rowAt", "rowHeight", "rowTop", "sheetExtent", "sheetSettings", "step",
+      "colAt", "colLeft", "colWidth", "createRenderSheet", "edge", "hasStoredRowHeight", "isColHidden", "isRowHidden", "lastUsedCell", "mergeAt",
+      "rangeAsHtml", "rangeAsTsv", "rangeStats", "renderCell", "rowAt", "rowHeight", "rowTop", "setRowHeights", "sheetExtent", "sheetSettings", "step",
     ]);
   });
 

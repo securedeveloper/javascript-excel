@@ -160,6 +160,8 @@ interface State {
   usedRows: number;
   usedCols: number;
   rowTops: Float64Array;
+  /** Default row height in px at zoom 100 %, the floor for auto-fitted rows. */
+  defaultRowPx: number;
   colLefts: Float64Array;
   merges: Merge[];
   buckets: Map<number, number[]>;
@@ -270,6 +272,7 @@ export function createRenderSheet(workbook: Workbook<CellInput>, sheet: number, 
     usedRows,
     usedCols,
     rowTops,
+    defaultRowPx,
     colLefts,
     merges,
     buckets,
@@ -342,6 +345,48 @@ export function colWidth(s: RenderSheet, col: number): number {
 export function isRowHidden(s: RenderSheet, row: number): boolean {
   return rowHeight(s, row) === 0;
 }
+/** Excel's largest row height, 409 pt, in CSS px. */
+const MAX_ROW_PX = (409 * 96) / 72;
+
+/** True when the row's height comes from the file (`rowProps[row].height`); only other rows may be auto-fitted (§5.8.1). */
+export function hasStoredRowHeight(s: RenderSheet, row: number): boolean {
+  return state(s).sh.rowProps?.[row]?.height !== undefined;
+}
+
+/**
+ * Sets measured heights, in CSS px at zoom 100 %, for rows without a stored height: the viewer's
+ * auto-fit (§5.8.1). Rows with a stored height, hidden rows and rows outside the extent are ignored.
+ * Heights are clamped to [default row height, 409 pt], so auto-fit only grows rows. The offset table
+ * is rebuilt from the first changed row onwards. Returns true when anything changed.
+ */
+export function setRowHeights(s: RenderSheet, heights: Iterable<readonly [row: number, px: number]>): boolean {
+  const st = state(s);
+  const tops = st.rowTops;
+  const updates = new Map<number, number>();
+  let first = Number.POSITIVE_INFINITY;
+  for (const [row, px] of heights) {
+    if (!(Number.isInteger(row) && row >= 0 && row < st.rows) || !Number.isFinite(px)) continue;
+    const props = st.sh.rowProps?.[row];
+    if (props?.hidden || props?.height !== undefined) continue;
+    const current = tops[row + 1]! - tops[row]!;
+    if (current === 0) continue;
+    const next = Math.min(MAX_ROW_PX, Math.max(st.defaultRowPx, px));
+    if (next !== current) {
+      updates.set(row, next);
+      if (row < first) first = row;
+    }
+  }
+  if (updates.size === 0) return false;
+  // Rebuild the prefix sums from the first changed row, reading each old height before it is overwritten.
+  let oldTop = tops[first]!;
+  for (let r = first; r < st.rows; r++) {
+    const oldNext = tops[r + 1]!;
+    tops[r + 1] = tops[r]! + (updates.get(r) ?? oldNext - oldTop);
+    oldTop = oldNext;
+  }
+  return true;
+}
+
 export function isColHidden(s: RenderSheet, col: number): boolean {
   return colWidth(s, col) === 0;
 }

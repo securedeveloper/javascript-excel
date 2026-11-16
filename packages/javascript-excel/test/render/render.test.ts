@@ -19,6 +19,8 @@ import {
   rowAt,
   rowHeight,
   rowTop,
+  hasStoredRowHeight,
+  setRowHeights,
   sheetExtent,
   sheetSettings,
   step,
@@ -80,6 +82,36 @@ describe("geometry", () => {
       freeze: { rows: 1, cols: 0 }, rightToLeft: true, showGridLines: false, showHeaders: true, zoom: 85,
       activeCell: { row: 2, col: 1 }, selection: { start: { row: 2, col: 1 }, end: { row: 3, col: 2 } }, tabColor: "#FF0000",
     });
+  });
+});
+
+describe("row-height overrides (auto-fit)", () => {
+  const sheet = () =>
+    rs({ name: "S", rows: [[1], [2], [3], [4], [5]], rowProps: [undefined, { height: 30 }, { hidden: true }] }, {}, { margin: { rows: 0, cols: 0 } });
+
+  it("knows which rows have a stored height", () => {
+    const s = sheet();
+    expect(hasStoredRowHeight(s, 0)).toBe(false);
+    expect(hasStoredRowHeight(s, 1)).toBe(true);
+  });
+
+  it("grows rows without a stored height and rebuilds the offsets after them", () => {
+    const s = sheet();
+    expect(rowTop(s, 5)).toBe(20 + 40 + 0 + 20 + 20);
+    expect(setRowHeights(s, [[0, 50], [3, 35]])).toBe(true);
+    expect([0, 1, 2, 3, 4].map((r) => rowHeight(s, r))).toEqual([50, 40, 0, 35, 20]);
+    expect([0, 1, 2, 3, 4, 5].map((r) => rowTop(s, r))).toEqual([0, 50, 90, 90, 125, 145]);
+    expect(rowAt(s, 100)).toBe(3);
+    // Unchanged heights report no change.
+    expect(setRowHeights(s, [[0, 50]])).toBe(false);
+  });
+
+  it("ignores stored-height, hidden and out-of-range rows; clamps to [default, 409 pt]", () => {
+    const s = sheet();
+    expect(setRowHeights(s, [[1, 99], [2, 99], [9, 99], [-1, 99], [0, Number.NaN]])).toBe(false);
+    expect(setRowHeights(s, [[0, 5], [3, 10_000]])).toBe(true);
+    expect(rowHeight(s, 0)).toBe(20); // never below the default
+    expect(rowHeight(s, 3)).toBeCloseTo((409 * 96) / 72, 6);
   });
 });
 
