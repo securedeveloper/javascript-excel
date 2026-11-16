@@ -1,6 +1,6 @@
 {
   "name": "javascript-excel",
-  "version": "2.0.0-alpha.3",
+  "version": "2.0.0-alpha.4",
   "private": false,
   "description": "Read and write .xlsx and .csv files in browsers, Web Workers and Node. 2.0 is a from-scratch rewrite in progress.",
   "keywords": [

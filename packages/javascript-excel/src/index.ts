@@ -75,4 +75,4 @@ export { decodeCell, decodeCol, decodeRange, encodeCell, encodeCol, encodeRange,
 export type { CellAddress, RangeAddress } from "./address";
 
 /** Package version. Set from package.json by `npm run version-packages` (scripts/sync-version.mjs); a unit test checks it. */
-export const VERSION = "2.0.0-alpha.3";
+export const VERSION = "2.0.0-alpha.4";
