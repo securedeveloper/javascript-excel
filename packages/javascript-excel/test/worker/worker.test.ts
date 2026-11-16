@@ -99,7 +99,7 @@ describe("worker client over a MessageChannel", () => {
     const { client, sent } = pair();
     const ac = new AbortController();
     const reason = new Error("stop");
-    const p = client.write(wb(200_000), { signal: ac.signal });
+    const p = client.write(wb(50_000), { signal: ac.signal });
     setTimeout(() => ac.abort(reason), 5);
     await expect(p).rejects.toBe(reason);
     expect(sent.some((m) => (m as { cancel?: boolean }).cancel === true)).toBe(true);

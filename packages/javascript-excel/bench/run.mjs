@@ -10,7 +10,8 @@
 //   plain   numbers only (10 columns)
 //   strings repeated text: 100 distinct strings, so the shared strings table stays small
 //   unique  unique text in every cell (shared strings table as large as the sheet)
-//   styled  numbers with 8 rotating cell styles (font, fill, border, number format)
+//   styled  numbers with 8 rotating cell styles (font, fill, border, number format), shared objects
+//   fresh   numbers with a new style object literal per cell (8 distinct contents), as apps often write them
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import os from "node:os";
@@ -27,13 +28,13 @@ if (args[0] === "--case") {
   await runCase(JSON.parse(args[1]));
 } else {
   const sizes = opt("--sizes", "10000,100000,1000000").split(",").map(Number);
-  const shapes = opt("--shapes", "plain,strings,unique,styled").split(",");
+  const shapes = opt("--shapes", "plain,strings,unique,styled,fresh").split(",");
   const ops = opt("--ops", "write,read,csv-write,csv-read").split(",");
   const results = [];
   for (const cells of sizes) {
     for (const shape of shapes) {
       for (const op of ops) {
-        if (op.startsWith("csv") && shape === "styled") continue;
+        if (op.startsWith("csv") && (shape === "styled" || shape === "fresh")) continue;
         const runs = cells >= 1_000_000 ? 3 : 5;
         const out = execFileSync(process.execPath, ["--expose-gc", fileURLToPath(import.meta.url), "--case", JSON.stringify({ cells, shape, op, runs })], {
           encoding: "utf8",
@@ -76,7 +77,8 @@ function rows(cells, shape) {
       if (shape === "plain") row[c] = k * 1.5;
       else if (shape === "strings") row[c] = `label ${k % 100}`;
       else if (shape === "unique") row[c] = `value ${k}`;
-      else row[c] = { value: k, style: styles[k % 8] };
+      else if (shape === "styled") row[c] = { value: k, style: styles[k % 8] };
+      else row[c] = { value: k, style: { font: { bold: k % 2 === 0, color: ["FF0000", "00AA00", "0000FF", "333333"][k % 4] }, numFmt: ["0.00", "#,##0", "0%", "yyyy-mm-dd"][k % 4] } };
     }
     out[r] = row;
   }
