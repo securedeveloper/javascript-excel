@@ -15,7 +15,7 @@ Conventions in this document:
 2. [Entry points](#2-entry-points)
 3. [Data model](#3-data-model)
 4. [Builders and helpers](#4-builders-and-helpers)
-5. [Write, read, CSV, DOM and worker APIs](#5-write-read-csv-dom-and-worker-apis)
+5. [Write, read, CSV, DOM, worker, import and format APIs](#5-write-read-csv-dom-worker-import-and-format-apis)
 6. [Zip codec](#6-zip-codec)
 7. [Errors and warnings](#7-errors-and-warnings)
 8. [Security model](#8-security-model)
@@ -80,6 +80,7 @@ One npm package, `javascript-excel`, with subpath exports. `package.json` declar
 | `javascript-excel/dom` | `fromTable`, `download` | DOM APIs, called only inside functions | The only module that touches `document`. Safe to import during SSR; calling it without a DOM throws `ENVIRONMENT_UNSUPPORTED`. |
 | `javascript-excel/worker` | `exposeWorker` (worker side), `createWorkerClient` (main-thread side) | Writer and reader, inside the worker only | Moves big jobs off the main thread. Main-thread code that imports only `createWorkerClient` does not ship the engine. |
 | `javascript-excel/import` | `importDataset`, `detectHeader`, `inferColumnTypes`, `coerceColumns`, `parseNumber`, `parseDate`, `mapColumns`, `applyMapping`, option and result types | Reader and CSV reader | Importing user files into `{ columns, data }` (§5.6). Apps that only write never load it. |
+| `javascript-excel/format` (2.x) | `formatValue`, `formatCell`, `FormatOptions`, `FormattedValue` | Format-code parser and renderer; locale data from `Intl` | Only apps that show formatted values (viewers, previews) pay for it. |
 
 Rules:
 
@@ -450,7 +451,7 @@ export type NumFmt = number | string;
 - **Strings are custom codes**, written as `<numFmt>` with ids allocated from 164 upward, one per distinct code. The one exception is `'General'`, which maps to id 0. The writer does not map other strings to built-in ids, because a built-in id such as 14 renders in the user's locale while the string `'mm-dd-yy'` should render literally (§12 Q5).
 - The reader returns built-in ids as numbers and custom codes as strings, so `read` then `write` keeps formats unchanged.
 - `BUILTIN_NUM_FMTS` exports the spec table (§11.2), `isDateFormat(fmt)` the detection rule from §3.4.1.
-- Number formats are not rendered (no "format 1234.5 as `#,##0.00`") in 2.0 (§12 Q14).
+- Number formats are not rendered in 2.0.0 itself. `javascript-excel/format` (§5.7) renders them, in a 2.x minor (§12 Q14).
 
 #### 3.5.6 Colour
 
@@ -726,7 +727,7 @@ export function validateSheetName(name: string): null | 'empty' | 'too-long' | '
 
 ---
 
-## 5. Write, read, CSV, DOM and worker APIs
+## 5. Write, read, CSV, DOM, worker, import and format APIs
 
 ### 5.1 Write (`javascript-excel`)
 
@@ -1225,6 +1226,97 @@ export interface MappedDataset { columns: ImportedColumn[]; data: Array<Record<s
 - A required field that is empty in a row gives a `REQUIRED` issue (severity `error`) with the row and cell.
 
 Validation of rows (functions, Standard Schema, async checks) is react-data-import's. javascript-excel reserves its error code, `VALIDATION_FAILED`.
+### 5.7 Format (`javascript-excel/format`)
+
+Renders a value with an Excel number format, as Excel shows it in a cell: `1234.5` with `#,##0.00` is `1,234.50`, serial `45306` with `dddd, mmmm d, yyyy` is `Monday, January 15, 2024`. It is used by viewers, previews and anything that needs a cell's displayed text. Added in a 2.x minor (§12 Q14); not part of 2.0.0.
+
+```ts
+export function formatValue(value: FormatInput, numFmt?: NumFmt, options?: FormatOptions): FormattedValue;
+export function formatCell(cell: CellInput, options?: FormatOptions): FormattedValue;   // value + cell.style.numFmt
+
+export type FormatInput = number | string | boolean | Date | CellErrorValue | RichText | null | undefined;
+
+export interface FormatOptions {
+  locale?: string;                 // BCP 47; default 'en-US'
+  date1904?: boolean;              // workbook.date1904
+  dateZone?: 'local' | 'utc';      // only for Date inputs; default 'local', as the writer
+  generalWidth?: number;           // characters for General; default 11
+  indexedColors?: readonly string[]; // workbook.indexedColors, for [ColorN]
+}
+
+export interface FormattedValue {
+  text: string;                    // without the repeat characters of a *x fill
+  color?: string;                  // ARGB from [Red], [Color10], ...; overrides the font colour
+  fill?: { char: string; at: number }; // *x: repeat char at index `at` until the cell is full
+  align: 'left' | 'center' | 'right';  // Excel's 'general' alignment for the value type
+}
+```
+
+**Inputs.**
+- **Numbers are serials for date formats.** Formatting is pure arithmetic on the serial, never a `Date` in the local zone, so the output is the same in every time zone. For exact results, a viewer reads with `dates: 'serial'` (§5.2). A `Date` input is first converted with `dateToSerial`, using `dateZone` and `date1904`, which is what the writer stores for it.
+- **Text** uses the format's text section: the fourth section, or a section with `@`. Without one, text is shown as is.
+- **Booleans** show `TRUE`/`FALSE`, errors as written, rich text as its plain text, whatever the format.
+- **`formatCell`** formats a cell's value with its own `numFmt`. A formula cell shows its cached value; without one the text is empty.
+
+**Never throws.** Format codes come from files. Characters the parser does not recognise are shown as literal text, unbalanced quotes and brackets end at the end of the section, and at most four sections are used. Parsing is linear in the code's length. Compiled codes are cached (up to 1,000).
+
+#### 5.7.1 What is rendered
+
+| Feature | Codes | Notes |
+|---|---|---|
+| Sections | `pos;neg;zero;text` | One section: all numbers, with a minus sign for negatives. Two: non-negative; negative without its sign. Three: positive; negative; zero. The fourth is for text |
+| Conditions | `[>100]`, `[<=-5]`, `[=0]`, `[<>1]` | The first section whose condition holds wins, and the next section without a condition takes the rest. A section whose condition only admits negatives (`[<0]`) drops the minus sign, like the implicit negative section; other conditional sections keep it `[to verify]` |
+| Colours | `[Black] [Blue] [Cyan] [Green] [Magenta] [Red] [White] [Yellow]`, `[Color1]`–`[Color56]` | Returned as `color` (ARGB). `[ColorN]` is indexed colour N + 7, from `indexedColors` or the default palette (§3.5.6) |
+| Digit placeholders | `0 # ?` | `0` pads with zeros, `?` with spaces, `#` with nothing; extra integer digits go to the leftmost placeholder; literals between placeholders stay in place (`000-00-0000`) |
+| Decimal point, grouping, scaling | `.` `,` | A comma between integer placeholders groups thousands; commas after the last placeholder divide by 1,000 each (`0.0,,` shows millions) |
+| Percent | `%` | Multiplies by 100 per `%` |
+| Scientific | `E+ E- e+ e-` | `0.00E+00`; with `#` in a multi-digit integer part, the exponent is a multiple of its length (`##0.0E+0`, engineering) |
+| Fractions | `# ?/?`, `# ??/??`, `?/8`, `# ??/16` | Best approximation with at most as many denominator digits as placeholders, or a fixed denominator; a whole number blanks the fraction |
+| Text | `@`, `"…"`, `\x`, and characters Excel shows unquoted | |
+| Spacing and fill | `_x`, `*x` | `_x` gives one space; `*x` is returned as `fill`, not repeated in `text` |
+| General | `General`, also inside a section (`"Total: "General`) | Up to `generalWidth` (11) characters: rounded to fit, scientific from 1E+11 and below 1E-04 |
+| Dates | `d dd ddd dddd`, `m mm mmm mmmm mmmmm`, `yy yyyy` | `m`/`mm` are minutes right after an hour or right before seconds. Day 0 of the 1900 system shows as `1900-01-00`, serial 60 as `1900-02-29`, and weekdays follow Excel (serial 1 is a Sunday) |
+| Times | `h hh m mm s ss`, `AM/PM am/pm A/P a/p`, `.0`–`.000` | Times are rounded to the shown precision before splitting, so `0.99999999` days is the next day `00:00` |
+| Elapsed time | `[h] [hh] [m] [mm] [s] [ss]` | Totals beyond 24 hours / 60 minutes; negative values get a minus sign |
+| Dates Excel can't show | negative serials, past 9999-12-31 | `text: ''` with `fill: { char: '#' }`: the cell fills with `#`, as in Excel |
+| Locale tags | `[$€-407]`, `[$-409]`, `[$-F800]`, `[$-F400]`, `[$-x-sysdate]`, `[$-x-systime]` | The symbol is printed. The locale id switches month and day names for that section (common ids only, `[to verify]` per id). `F800`/`x-sysdate` is the locale's long date and `F400`/`x-systime` its time, from Intl `[to verify against Windows settings]` |
+| Era and calendar tokens | `e`, `b`, `bb`, `g` | `e` is the year; `b`/`bb` the Buddhist-era year (+543); `g` era names are not rendered `[to verify]` |
+| Not rendered | `[DBNum1]`, `[NatNum1]` and other bracket codes, `B1`/`B2` calendar prefixes | Ignored |
+
+#### 5.7.2 Built-in ids
+
+- **Fixed ids:** 1–4, 9–13, 15–21, 37–40 and 45–49 render the codes of §11.2.
+- **Short-date ids:** 14 is the locale's short date, numeric with a four-digit year (`1/15/2024` in en-US, `15.01.2024` in de-DE). 22 is that plus ` h:mm`. The East Asian ids 27–31, 36 and 50–58 show the short date too, and 32–35 show `h:mm:ss` `[to verify per locale]`.
+- **Currency and accounting:** ids 5–8 and 41–44 use their en-US codes (`"$"#,##0_);\("$"#,##0\)` and so on) `[to verify for other locales]`.
+- **Other ids** render as General.
+
+#### 5.7.3 Locale
+
+- **Platform data.** Separators, month and day names and the short-date pattern come from `Intl.NumberFormat` and `Intl.DateTimeFormat` for `locale`, so the module ships no locale tables.
+- **Separators.** The `.` and `,` of a format code are replaced by the locale's decimal and group separators, as Excel does with the system settings `[to verify]`. The group separator is the locale's own character; for fr-FR it is a narrow no-break space.
+- **Unchanged parts.** Booleans stay `TRUE`/`FALSE`, `AM`/`PM` is shown as written in the code, and grouping is always by three digits `[to verify for locales such as en-IN]`.
+- **Invalid locales.** A locale tag Intl rejects falls back to en-US.
+
+#### 5.7.4 Reference results
+
+Excel is the authority; LibreOffice is the automated reference.
+- **The check.** The `LibreOffice` CI job writes every case of `test/format/cases.ts`, plus every number-formatted cell of the conformance files `10-number-formats` and `11-number-formats-locale`, to one workbook. It has LibreOffice export the workbook to CSV with "save cell contents as shown" in en-US, and compares each cell with `formatCell(cell, { locale: 'en-US' })` (`test/format/libreoffice.test.ts`).
+- **Where LibreOffice differs.** Every case where LibreOffice is known to differ is listed in that test with LibreOffice's output. The table below records it, with what this module does and why. Each is `[to verify]` against Excel in the conformance checklist.
+
+Result in CI (LibreOffice 26.2, en-US): 439 probes, 344 identical, 95 different for a known reason (1900 calendar 27, time rounding 27, General 12, dangling point 7, built-in ids 39/40/47 7, `?` padding 9, am/pm case 5, Buddhist year 1), 0 unexplained. Every difference has one of the known causes below. Any other difference fails the job.
+
+| Difference | LibreOffice | `formatValue` (Excel's behaviour, `[to verify]`) |
+|---|---|---|
+| Serials below 61 (the 1900 calendar) | Counts from 1899-12-30: serial 1 is 1899-12-31, no 1900-02-29, no day 0 | Serial 1 is 1900-01-01, 60 is 1900-02-29, below 1 is day 0 (`1900-01-00`), as Excel |
+| Time rounding | Truncates to the shown unit: 0.6458333 is `15:29:59`, `3:29 PM` | Rounds to the shown second first: `15:30:00`, `3:30 PM`; 45306.99999999 with `yyyy-mm-dd` is the next day |
+| General | Up to 15 significant digits, no width limit, 3-digit exponents (`0.333333333333333`, `1E+021`) | Fits 11 characters (`0.333333333`, `1E+21`, `1.23457E+11`) |
+| A decimal point with no digits after it | Dropped: `#,##0.###` shows `7` | Kept: `7.` |
+| `?` padding | U+2007 FIGURE SPACE | A plain space, as text copied from Excel has |
+| Built-in ids 39, 40, 47 | Excel's actual codes, `#,##0.00_);(#,##0.00)` and `mm:ss.0` | The ECMA-376 codes in §11.2 (`#,##0.00;(#,##0.00)`, `mmss.0`); conformance file 10 asks for the codes Excel shows |
+| `am/pm` and `A/P` case | `AM/PM` upper-cased, `A/P` lower-cased | As written in the code |
+| `b`, `bb`, `bbbb` | Not known; printed as text | The Buddhist-era year (Gregorian + 543) |
+
+Built-in ids 32–35 are rendered as `h:mm:ss`, which matches LibreOffice in en-US: they are times in the East Asian locales that define them `[to verify]`.
 
 ---
 
@@ -1644,7 +1736,7 @@ These were the open questions of the review. Each one is decided, and the sectio
 
 **Q13. `toDataset` in 2.0.** Decided (2026-11-16): 2.0 ships the minimal version in §4.3: a fixed header row, deduplicated keys and null-prototype rows. Header auto-detection, multi-row header flattening, column mapping and type inference follow with react-data-import, and live in the engine. They shipped in JSE-19 as `javascript-excel/import` (§5.6), as decided in react-data-import's API design (2026-11-16).
 
-**Q14. Number-format rendering.** Decided (2026-11-16): not in 2.0 (§3.5.5). It is planned as `javascript-excel/format` in a 2.x minor. 2.0's `autoWidth` uses `cellText()`.
+**Q14. Number-format rendering.** Decided (2026-11-16): not in 2.0 (§3.5.5). It is planned as `javascript-excel/format` in a 2.x minor. 2.0's `autoWidth` uses `cellText()`. Moved ahead of the other 2.x work (2026-11-16, react-xlsx-viewer's design): the viewer's 1.0 needs it. Designed in §5.7 (JSE-18), independent of the 2.1–2.5 phases because it touches no file parts.
 
 **Q15. Worker packaging.** Decided (2026-11-16): the app writes a two-line worker file (§5.5). Every major bundler handles `new Worker(new URL(...))` in app code. Node `worker_threads` support may come later.
 
@@ -1665,8 +1757,8 @@ These were the open questions of the review. Each one is decided, and the sectio
 | Phase | Adds |
 |---|---|
 | 2.0 | xlsx read and write (cells, styles, sheet features), CSV/TSV read and write, HTML table input |
-| 2.x | `.xlsm` / `.xltx` / `.xltm` read and write-back with their extra parts preserved; preservation of unknown parts for lossless round trips; comments and notes; data validation; conditional formatting; images (read and write) |
-| 3.x | formula parser and evaluator (`javascript-excel/formula`), number-format renderer (`javascript-excel/format`, §12 Q14), charts and drawings (read, plus a render model for the viewer) |
+| 2.x | `.xlsm` / `.xltx` / `.xltm` read and write-back with their extra parts preserved; preservation of unknown parts for lossless round trips; comments and notes; data validation; conditional formatting; images (read and write); the number-format renderer `javascript-excel/format` (§5.7, §12 Q14), as its own minor ahead of the others |
+| 3.x | formula parser and evaluator (`javascript-excel/formula`), charts and drawings (read, plus a render model for the viewer) |
 | 4.x | legacy `.xls` (BIFF8) read, then write; `.xlsb` read; encrypted files (password, ECMA-376 agile encryption) |
 
 The 2.x row is designed in [design/2x.md](design/2x.md) (decided 2026-11-16: phases 2.1–2.5, dependency order, and what each phase will not do).

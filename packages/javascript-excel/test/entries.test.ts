@@ -3,6 +3,7 @@ import pkg from "../package.json" with { type: "json" };
 import { VERSION } from "../src/index";
 import * as csv from "../src/csv";
 import * as dom from "../src/dom";
+import * as format from "../src/format";
 import * as read from "../src/read";
 import * as worker from "../src/worker";
 import * as importEntry from "../src/import";
@@ -22,6 +23,10 @@ describe("entries", () => {
 
   it("/dom exports the documented API", () => {
     expect(Object.keys(dom).sort()).toEqual(["DOWNLOAD_REVOKE_DELAY_MS", "download", "fromTable"]);
+  });
+
+  it("/format exports the documented API", () => {
+    expect(Object.keys(format).sort()).toEqual(["formatCell", "formatValue"]);
   });
 
   it("/import exports the documented API", () => {

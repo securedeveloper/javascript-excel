@@ -67,7 +67,7 @@ jobs:
         env:
           JSE_REQUIRE_LIBREOFFICE: "1"
         # One file at a time: headless LibreOffice instances sharing a profile block each other.
-        run: npm -w packages/javascript-excel exec -- vitest run --no-file-parallelism test/write/libreoffice.test.ts test/read/libreoffice.test.ts test/conformance/libreoffice.test.ts
+        run: npm -w packages/javascript-excel exec -- vitest run --no-file-parallelism test/write/libreoffice.test.ts test/read/libreoffice.test.ts test/conformance/libreoffice.test.ts test/format/libreoffice.test.ts
       # The conformance corpus (docs/conformance.md) as a downloadable artifact,
       # for the manual check in Excel and Numbers.
       - name: Build the conformance corpus
