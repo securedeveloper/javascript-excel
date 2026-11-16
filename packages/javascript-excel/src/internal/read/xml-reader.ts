@@ -62,6 +62,22 @@ export interface XmlHandler {
   close(name: string): void;
   /** Character data (entities decoded, newlines normalised). May arrive in several pieces. */
   text(text: string): void;
+  /** Called once before the first token, with controls for handlers that skip content. */
+  attach?(control: XmlControl): void;
+}
+
+/** What a handler may ask of the tokenizer while it runs. */
+export interface XmlControl {
+  /** Current element depth (the number of open elements). */
+  depth(): number;
+  /**
+   * Skip everything up to the end tag of the open element at `depth` (1 = the
+   * root). The skipped text is found with a plain search for that end tag, so
+   * it is not tokenized or checked; the elements inside it get no events. The
+   * end tag itself is then processed normally (close() is called for it).
+   * Used by the sheet reader to stop at ReadOptions.maxRows.
+   */
+  skipToEndOf(depth: number): void;
 }
 
 export function malformed(message: string): FormatError {
@@ -70,9 +86,12 @@ export function malformed(message: string): FormatError {
 
 const EMPTY_ATTRS = new XmlAttrs([]);
 
-export class XmlTokenizer {
+export class XmlTokenizer implements XmlControl {
   private buf = "";
   private readonly stack: string[] = [];
+  /** While skipping: the end tag being searched for ("</qname"), and the depth to keep. */
+  private skipTag: string | undefined;
+  private skipDepth = 0;
   private rootSeen = false;
   private rootClosed = false;
   private pendingCR = false;
@@ -80,7 +99,19 @@ export class XmlTokenizer {
   constructor(
     private readonly handler: XmlHandler,
     private readonly maxDepth: number,
-  ) {}
+  ) {
+    handler.attach?.(this);
+  }
+
+  depth(): number {
+    return this.stack.length;
+  }
+
+  skipToEndOf(depth: number): void {
+    if (depth < 1 || depth > this.stack.length) throw new RangeError(`skipToEndOf: no open element at depth ${depth}`);
+    this.skipTag = `</${this.stack[depth - 1]!}`;
+    this.skipDepth = depth;
+  }
 
   feed(chunk: string): void {
     this.buf = this.buf.length === 0 ? chunk : this.buf + chunk;
@@ -99,6 +130,22 @@ export class XmlTokenizer {
     const len = buf.length;
     let i = 0;
     while (i < len) {
+      if (this.skipTag !== undefined) {
+        const tag = this.skipTag;
+        let at = buf.indexOf(tag, i);
+        // The name must end there: "</sheetData>" or "</sheetData >", not "</sheetDataX>".
+        while (at !== -1 && at + tag.length < len && !isNameEnd(buf.charCodeAt(at + tag.length))) at = buf.indexOf(tag, at + 1);
+        if (at === -1 || at + tag.length >= len) {
+          if (final) throw malformed(`Element <${tag.slice(2)}> is not closed.`);
+          // Keep a tail that may hold the start of the end tag.
+          i = Math.max(i, len - tag.length);
+          break;
+        }
+        this.stack.length = this.skipDepth;
+        this.skipTag = undefined;
+        i = at;
+        continue;
+      }
       if (buf.charCodeAt(i) !== 60 /* < */) {
         let j = buf.indexOf("<", i);
         if (j === -1) {
@@ -248,6 +295,10 @@ export class XmlTokenizer {
     }
     this.handler.open(localName(qname), attrs, selfClosing);
   }
+}
+
+function isNameEnd(c: number): boolean {
+  return c === 62 /* > */ || isSpace(c);
 }
 
 function isSpace(c: number): boolean {

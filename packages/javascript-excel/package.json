@@ -93,6 +93,16 @@
         "default": "./dist/render.cjs"
       }
     },
+    "./import": {
+      "import": {
+        "types": "./dist/import.d.ts",
+        "default": "./dist/import.js"
+      },
+      "require": {
+        "types": "./dist/import.d.cts",
+        "default": "./dist/import.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "engines": {

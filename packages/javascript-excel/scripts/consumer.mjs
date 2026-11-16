@@ -24,6 +24,7 @@ const expected = {
   "./dom": { fromTable: FUNCTION, download: FUNCTION, DOWNLOAD_REVOKE_DELAY_MS: 40000 },
   "./worker": { exposeWorker: FUNCTION, createWorkerClient: FUNCTION },
   "./render": { createRenderSheet: FUNCTION, renderCell: FUNCTION, rangeAsTsv: FUNCTION },
+  "./import": { importDataset: FUNCTION, detectHeader: FUNCTION, parseNumber: FUNCTION, mapColumns: FUNCTION },
 };
 
 // A string only that subpath's code contains, so the tree-shaking check can
@@ -34,6 +35,7 @@ export const MARKERS = {
   "./dom": "[data-export-ignore]",
   "./worker": "javascript-excel/worker",
   "./render": "Not a RenderSheet",
+  "./import": "DATE_ORDER_AMBIGUOUS",
 };
 
 const missing = SUBPATHS.filter((s) => !(s in expected));

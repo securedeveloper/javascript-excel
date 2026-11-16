@@ -1,4 +1,4 @@
-// Benchmarks for javascript-excel/render (docs/api.md §5.7.5), the metrics
+// Benchmarks for javascript-excel/render (docs/api.md §5.8.5), the metrics
 // react-xlsx-viewer's design names: what the render model costs on top of
 // the read workbook, and how long the per-window work takes.
 //

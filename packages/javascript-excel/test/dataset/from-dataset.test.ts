@@ -274,6 +274,28 @@ describe("fromDatasets", () => {
 });
 
 describe("toDataset", () => {
+  it("headerRows flattens header groups written by fromDataset", () => {
+    const sheet = fromDataset({
+      columns: [
+        { title: "Name", key: "name" },
+        { title: "Q1", children: [{ title: "Jan", key: "jan" }, { title: "Feb", key: "feb" }] },
+      ],
+      data: [{ name: "Ada", jan: 1, feb: 2 }],
+    });
+    expect(toDataset(sheet, { headerRows: 2 })).toEqual({
+      columns: [{ title: "Name", key: "Name" }, { title: "Q1 / Jan", key: "Q1 / Jan" }, { title: "Q1 / Feb", key: "Q1 / Feb" }],
+      data: [Object.assign(Object.create(null), { Name: "Ada", "Q1 / Jan": 1, "Q1 / Feb": 2 })],
+    });
+    expect(toDataset(sheet, { headerRows: 2, join: "_" }).columns.map((c) => c.key)).toEqual(["Name", "Q1_Jan", "Q1_Feb"]);
+  });
+
+  it("headerRows without merges joins non-empty parts; one header row ignores merges as before", () => {
+    const sheet = { name: "S", rows: [["A", "B", null], ["x", null, "z"], [1, 2, 3]], merges: ["A1:B1"] };
+    expect(toDataset(sheet, { headerRows: 2 }).columns.map((c) => c.title)).toEqual(["A / x", "A", "z"]);
+    expect(toDataset(sheet).columns.map((c) => c.title)).toEqual(["A", "B", ""]);
+    expect(() => toDataset(sheet, { headerRows: 0 })).toThrow();
+  });
+
   it("builds keys from header text: deduplicated, letters for empty headers", () => {
     const sheet: Sheet = { name: "S", rows: [["Name", "Name", "", "  Qty "], ["Ada", "x", true, 2], [], ["Grace", "y", false, { formula: "1+1", value: 2 }]] };
     const { columns, data } = toDataset(sheet);

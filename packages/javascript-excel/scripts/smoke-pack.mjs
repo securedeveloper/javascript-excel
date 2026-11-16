@@ -121,10 +121,10 @@ try {
     build: { write: false, minify: false, lib: { entry: join(app, "client.js"), formats: ["es"], fileName: "client" } },
   });
   const clientCode = [clientBuild].flat().flatMap((r) => r.output).filter((o) => o.type === "chunk").map((o) => o.code).join("\n");
-  for (const [what, marker] of [["reader", MARKERS["./read"]], ["CSV", MARKERS["./csv"]], ["writer", "is not a sheet index"]]) {
+  for (const [what, marker] of [["reader", MARKERS["./read"]], ["CSV", MARKERS["./csv"]], ["import", MARKERS["./import"]], ["writer", "is not a sheet index"]]) {
     if (clientCode.includes(marker)) throw new Error(`a createWorkerClient-only bundle contains the ${what}`);
   }
-  console.log(`ok createWorkerClient-only bundle: ${(clientCode.length / 1024).toFixed(1)} KiB, no writer, reader or CSV code`);
+  console.log(`ok createWorkerClient-only bundle: ${(clientCode.length / 1024).toFixed(1)} KiB, no writer, reader, CSV or import code`);
   writeFileSync(
     join(app, "excel.worker.mjs"),
     `import { parentPort } from "node:worker_threads";\nimport { exposeWorker } from "javascript-excel/worker";\nexposeWorker({ postMessage: (m, t) => parentPort.postMessage(m, t), addEventListener: (type, l) => parentPort.on(type, (data) => l({ data })) });\n`,

@@ -1,6 +1,6 @@
 /**
  * javascript-excel/render: the render model a spreadsheet viewer draws from
- * (docs/api.md §5.7). Geometry, merges, concrete styles, border edges,
+ * (docs/api.md §5.8). Geometry, merges, concrete styles, border edges,
  * display text, formula text, hyperlinks, keyboard movement and copy, all
  * computed from a read workbook. Framework-free, no DOM. Per-cell work is
  * lazy: creating a RenderSheet costs O(rows + columns + merges).
@@ -618,7 +618,7 @@ function computeCell(st: State, r: number, c: number): RenderCell | null {
   return out;
 }
 
-/** What to draw at (row, col), or null when there is nothing (§5.7.2). Covered merge cells are null. */
+/** What to draw at (row, col), or null when there is nothing (§5.8.2). Covered merge cells are null. */
 export function renderCell(s: RenderSheet, row: number, col: number): RenderCell | null {
   const st = state(s);
   if (!(row >= 0 && row < st.rows && col >= 0 && col < st.cols)) return null;
@@ -673,7 +673,7 @@ export function step(s: RenderSheet, from: CellRef, dir: Dir): CellRef {
   return anchorOf(st, to.row, to.col);
 }
 
-/** Ctrl+arrow: Excel's data-region edge (§5.7.3). */
+/** Ctrl+arrow: Excel's data-region edge (§5.8.3). */
 export function edge(s: RenderSheet, from: CellRef, dir: Dir): CellRef {
   const st = state(s);
   let cur = { row: clampTo(from.row, st.rows - 1), col: clampTo(from.col, st.cols - 1) };
@@ -719,7 +719,7 @@ function clampRange(st: State, range: RangeRef): RangeRef {
 
 const tsvField = (t: string): string => (/[\t\r\n"]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t);
 
-/** text/plain for the clipboard: TAB between cells, CRLF between rows (§5.7.4). */
+/** text/plain for the clipboard: TAB between cells, CRLF between rows (§5.8.4). */
 export function rangeAsTsv(s: RenderSheet, range: RangeRef, options?: { values?: "displayed" | "raw" | undefined }): string {
   const st = state(s);
   const { start, end } = clampRange(st, range);
@@ -741,7 +741,7 @@ const esc = (t: string): string => t.replace(/&/g, "&amp;").replace(/</g, "&lt;"
 const cssFamily = (f: string): string => `"${f.replace(/["\\]/g, "")}"`;
 const borderCss = (b: RenderBorder): string => `${b.style === "thick" ? 3 : b.style === "medium" || b.style.startsWith("medium") ? 2 : 1}px ${b.style === "double" ? "double" : b.style === "dotted" || b.style === "hair" ? "dotted" : /dash/i.test(b.style) ? "dashed" : "solid"} ${b.color}`;
 
-/** text/html for the clipboard: an escaped <table> with inline styles (§5.7.4). */
+/** text/html for the clipboard: an escaped <table> with inline styles (§5.8.4). */
 export function rangeAsHtml(s: RenderSheet, range: RangeRef): string {
   const st = state(s);
   const { start, end } = clampRange(st, range);
@@ -784,7 +784,7 @@ export function rangeAsHtml(s: RenderSheet, range: RangeRef): string {
   return `${html}</table>`;
 }
 
-/** A status-bar summary of the cached values in a range (§5.7.4). */
+/** A status-bar summary of the cached values in a range (§5.8.4). */
 export function rangeStats(s: RenderSheet, range: RangeRef, limit = 1_000_000): RangeStats {
   const st = state(s);
   const { start, end } = clampRange(st, range);

@@ -6,6 +6,7 @@ import * as dom from "../src/dom";
 import * as read from "../src/read";
 import * as render from "../src/render";
 import * as worker from "../src/worker";
+import * as importEntry from "../src/import";
 
 describe("entries", () => {
   it("VERSION matches package.json", () => {
@@ -29,6 +30,10 @@ describe("entries", () => {
       "colAt", "colLeft", "colWidth", "createRenderSheet", "edge", "isColHidden", "isRowHidden", "lastUsedCell", "mergeAt",
       "rangeAsHtml", "rangeAsTsv", "rangeStats", "renderCell", "rowAt", "rowHeight", "rowTop", "sheetExtent", "sheetSettings", "step",
     ]);
+  });
+
+  it("/import exports the documented API", () => {
+    expect(Object.keys(importEntry).sort()).toEqual(["applyMapping", "coerceColumns", "detectHeader", "importDataset", "inferColumnTypes", "mapColumns", "parseDate", "parseNumber"]);
   });
 
   it("/csv exports the documented API", () => {

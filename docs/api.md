@@ -79,7 +79,8 @@ One npm package, `javascript-excel`, with subpath exports. `package.json` declar
 | `javascript-excel/csv` | `parseCsv`, `readCsv`, `toCsv`, `toCsvBlob`, option types | Nothing from the xlsx code | CSV-only apps ship a few kB of CSV code and the model types. |
 | `javascript-excel/dom` | `fromTable`, `download` | DOM APIs, called only inside functions | The only module that touches `document`. Safe to import during SSR; calling it without a DOM throws `ENVIRONMENT_UNSUPPORTED`. |
 | `javascript-excel/worker` | `exposeWorker` (worker side), `createWorkerClient` (main-thread side) | Writer and reader, inside the worker only | Moves big jobs off the main thread. Main-thread code that imports only `createWorkerClient` does not ship the engine. |
-| `javascript-excel/render` (2.x) | `createRenderSheet` and its geometry, cell, navigation and copy functions (§5.7) | Nothing from the reader or writer; number formatting only through the `format` option | Only viewers pay for it. |
+| `javascript-excel/import` | `importDataset`, `detectHeader`, `inferColumnTypes`, `coerceColumns`, `parseNumber`, `parseDate`, `mapColumns`, `applyMapping`, option and result types | Reader and CSV reader | Importing user files into `{ columns, data }` (§5.6). Apps that only write never load it. |
+| `javascript-excel/render` (2.x) | `createRenderSheet` and its geometry, cell, navigation and copy functions (§5.8) | Nothing from the reader or writer; number formatting only through the `format` option | Only viewers pay for it. |
 
 Rules:
 
@@ -686,13 +687,17 @@ export interface ToDatasetOptions {
   range?: string;                      // default: sheet.dimension, else the used range
   values?: 'value' | 'cell';           // 'value' (default): CellValue (a formula gives its cached value); 'cell': the full Cell
   skipTotals?: 'auto' | boolean;       // drop a trailing totals row; default 'auto' (see below)
+  headerRows?: number;                 // header rows from headerRow on, flattened into one title; default 1
+  join?: string;                       // joins the parts of a multi-row title; default ' / '
 }
 export interface DatasetResult { columns: Array<{ title: string; key: string }>; data: Array<Record<string, unknown>> }
 ```
 
 `toDataset` builds keys from header text (trimmed), deduplicated with `_2`, `_3` suffixes; an empty header gives the column letter. Empty cells are `null`, rows with no values are skipped, and with `values: 'cell'` a bare value is returned as `{ value }`. It also accepts a builder-made `Sheet`, so `toDataset(fromDataset(ds))` gives the flat data back.
 
-**Totals rows.** With `skipTotals: 'auto'` (the default), the last data row is dropped when it contains at least one formula and every formula in it is `SUBTOTAL(…)`. That is the totals row `fromDataset` writes, and a label such as "Total" may sit next to the formulas. So `toDataset(read(write(fromDataset(ds))))` returns the data rows only. `true` always drops the last row, and `false` keeps every row. A sheet whose genuine last data row is all `SUBTOTAL` formulas needs `skipTotals: false`. Rows are **null-prototype objects** (`Object.create(null)`), so a header named `__proto__` from an untrusted file is just a key. Header auto-detection, multi-row header flattening and type inference are react-data-import's needs and are deferred (§12 Q13).
+**Totals rows.** With `skipTotals: 'auto'` (the default), the last data row is dropped when it contains at least one formula and every formula in it is `SUBTOTAL(…)`. That is the totals row `fromDataset` writes, and a label such as "Total" may sit next to the formulas. So `toDataset(read(write(fromDataset(ds))))` returns the data rows only. `true` always drops the last row, and `false` keeps every row. A sheet whose genuine last data row is all `SUBTOTAL` formulas needs `skipTotals: false`. Rows are **null-prototype objects** (`Object.create(null)`), so a header named `__proto__` from an untrusted file is just a key.
+
+**Multi-row headers.** With `headerRows: n`, the title of each column joins the text of rows `headerRow` to `headerRow + n - 1` with `join`, skipping empty parts. Merged cells are expanded first, so a group title merged over three columns prefixes all three ("Q1 / Jan", "Q1 / Feb", "Q1 / Mar"), and a title merged down through the header rows appears once ("Name"). That reads back the header groups `fromDataset` writes. Data starts after the last header row. Header detection, type inference and column mapping are in `javascript-excel/import` (§5.6).
 
 ### 4.4 Style and colour helpers
 
@@ -790,6 +795,8 @@ export interface ReadOptions {
   dateZone?: 'local' | 'utc';          // default 'local'
   /** Rich text as runs (default) or flattened to a plain string. */
   richText?: 'runs' | 'plain';
+  /** Read only rows 0..maxRows-1 of each parsed sheet; later rows are skipped (ROWS_TRUNCATED). Default: all. */
+  maxRows?: number;
   limits?: Partial<ReadLimits>;
   signal?: AbortSignalLike;            // a DOM or Node AbortSignal (§5.3)
   onProgress?: (p: Progress) => void;
@@ -840,6 +847,17 @@ How the reader works, as far as the API is concerned:
 - Unsupported content (drawings, charts, comments, pivot tables, tables, OLE objects, form controls, VBA, external links, chart sheets, …) gives one `UNSUPPORTED_PART` warning per kind. Chart, dialog and macro sheets are not worksheets: they are left out of `sheets` and `readSheetNames`, and defined names local to them are dropped.
 - Styles: each `cellXfs` entry is one frozen `Style` (§12 Q8). Pattern fills come back with `type: 'pattern'`, so `fill.type` tells pattern and gradient fills apart. A style records only what differs from the defaults: font 0 (the workbook default font), fills 0 and 1 (the required `none` and `gray125` placeholders) and border 0 are left out, and `numFmtId` 0 (General) gives no `numFmt`. `applyFont` and the other apply flags are ignored, as Excel does for cell formats.
 - Values: `t="s"`, `"inlineStr"` and `"str"` are strings (or rich text), with `_xHHHH_` escapes decoded; `"b"` booleans; `"e"` errors, including codes newer than the seven of ECMA-376 (`#SPILL!`, `#CALC!`, …), returned as written; `"d"` ISO dates; numbers otherwise, converted to `Date` when their number format is a date format (§3.4.1). A formula's cached value sets `value` and `type`; without one the cell is `type: 'empty'` with its `formula`. Shared formulas are expanded (§12 Q6); data-table formulas (`t="dataTable"`) give their cached values only.
+- **`maxRows`** (for previews and import limits, §5.6):
+  - **Rows:** on the first row at or beyond `maxRows`, the sheet parser jumps to the end of `<sheetData>` with a plain text search, without tokenizing the skipped rows. The elements after it (merges, hyperlinks, views, autofilter, print setup) are still read, and one `ROWS_TRUNCATED` warning is reported per sheet. Rows are stored in ascending order (ECMA-376 §18.3.1.73 `[to verify]`), so nothing below the limit is lost.
+  - **Shared strings:** the table is decoded after the sheets, and only up to the highest index the rows read use; the rest of the part is skipped the same way. So `maxSharedStrings` only applies to the entries decoded. A string index past the table gives `INVALID_SHARED_STRING`, as on the full path; the sheet's `dimension` was already computed by then and may still include that dropped cell.
+  - **Still read in full:** the sheet and shared-string parts are still inflated to the end.
+  - **Without `maxRows`,** shared strings are parsed before the sheets, as always.
+  - **Measured** on a 100,000 × 10 sheet (`styles: false`, median of 7 reads, Node 26 on an Apple M2 under light load):
+
+    | sheet | full read | `maxRows: 25` |
+    |---|---|---|
+    | numbers only | 517 ms | 77 ms |
+    | 1M unique strings | 941 ms | 166 ms (412 ms before the shared strings were decoded lazily) |
 - Column widths: the file stores characters plus padding (ECMA-376 §18.3.1.13); the reader converts back to the characters Excel's UI shows, the unit `ColumnWidth` uses, so a width of 20 written by the writer reads back as 20. Files from tools that store the UI value directly (openpyxl writes `30` for 30) read as Excel shows them (29.29).
 - Print setup: the `_xlnm.Print_Area` and `_xlnm.Print_Titles` defined names become `sheet.print.printArea` and `printTitles` and are not repeated in `definedNames`; `_xlnm._FilterDatabase` is implied by `sheet.autoFilter` and dropped.
 
@@ -995,6 +1013,7 @@ export interface WorkerClient {
   read(input: BinaryInput, options?: ReadOptions & TransferOption): Promise<ReadResult>;
   toCsv(source: Sheet | CellInput[][], options?: CsvWriteOptions): Promise<string>;
   parseCsv(input: string | BinaryInput, options?: CsvParseOptions & { encoding?: string; signal?: AbortSignalLike } & TransferOption): Promise<CsvParseResult>;
+  importDataset(input: string | BinaryInput, options?: ImportDatasetOptions & TransferOption): Promise<ImportDatasetResult>;  // §5.6
   terminate(): void;
 }
 export interface TransferOption { transfer?: boolean }
@@ -1012,12 +1031,205 @@ export interface WorkerLike extends MessageEndpoint { terminate(): void }
 - The model crosses the boundary through structured clone, which is why it is plain data (§3.1). Functions cannot cross: an option holding a function (other than `onProgress`/`onWarning`), for example `toCsv`'s `dates` formatter, is rejected with a `TypeError` before anything is sent. `fromDataset` and `fromTable` run on the main thread and the resulting `Sheet` is sent to the worker.
 - **Sending cost** (JSE-15). `postMessage` serializes the model on the calling thread, and the worker deserializes it on its own thread. For 600k cells in Chromium 150 (Apple-silicon laptop, `bench/browser/worker-send.bench.test.ts`), the calling thread is busy for 6 ms with numbers only, 13 ms with unique strings, 64–78 ms with `{ value, style }` cells sharing style objects, and 193–254 ms with a new style literal per cell. Node worker threads measure the same (`bench/worker.mjs`). A compact transfer encoding was tried: typed arrays transferred, plus a string list and a deduplicated style table. It cut the end-to-end time for styled sheets (1,340 → 749 ms), but it **raised** the calling thread's cost where it matters most: 193 → 320 ms for a new style per cell, and 54 → 105 ms for a mix of numbers, strings and styled cells. Encoding in JavaScript is slower than the browser's native serializer. It only won with shared style objects (64 → 20 ms). Since the point of the worker is a free main thread, it was not shipped. The code and measurements are on the `jse-15-compact-experiment` branch. To keep the send cheap, share style objects between cells (`const bold = { font: { bold: true } }`) rather than writing a new literal per cell.
 - Several calls may be in flight on one client; they run one after another in the worker. The library's messages carry a tag, so the app can use the same worker for its own messages.
-- Code that imports only `createWorkerClient` does not ship the engine: the smoke test bundles it alone and finds no writer, reader or CSV code (5.2 KiB unminified).
+- Code that imports only `createWorkerClient` does not ship the engine: the smoke test bundles it alone and finds no writer, reader, CSV or import code (5.3 KiB unminified).
 - Node `worker_threads` is not supported by `/worker` in 2.0 out of the box (its `Worker` is an `EventEmitter`, not an `EventTarget`). A three-line adapter works, and the tests use one. Node users usually call `read`/`toUint8Array` directly.
 
-### 5.7 Render model (`javascript-excel/render`)
+### 5.6 Import (`javascript-excel/import`)
 
-What a spreadsheet viewer needs to draw a sheet, computed from a read workbook. It is framework-free and has no DOM access, so it runs in Node, in a worker and behind any UI (react-xlsx-viewer's design, decision Q2, puts it here). Added in a 2.x minor, like `/format` (§5.6); not part of 2.0.0.
+Turns a user's `.xlsx` or `.csv` file into a dataset, `{ columns, data }`, the shape `fromDataset` writes. This is the framework-free part of react-data-import (its docs/api.md, decided 2026-11-16), so a Vue or vanilla app gets the same import. Everything here is built on `read`, `readCsv` and `toDataset`.
+
+```ts
+export function importDataset(input: string | BinaryInput, options?: ImportDatasetOptions): Promise<ImportDatasetResult>;
+
+// building blocks, usable on their own
+export function detectHeader(sheet: Sheet<CellInput>, options?: DetectHeaderOptions): HeaderDetection;
+export function inferColumnTypes(dataset: DatasetLike, options?: TypeOptions): InferredColumn[];
+export function coerceColumns(dataset: DatasetLike, types: Record<string, ColumnType | InferredColumn>, options?: TypeOptions): CoerceResult;
+export function parseNumber(text: string, options?: { decimal?: '.' | ','; group?: NumberGroup }): number | undefined;
+export function parseDate(text: string, options?: { order?: 'YMD' | 'DMY' | 'MDY'; zone?: 'local' | 'utc' }): Date | undefined;
+export function mapColumns(columns: ReadonlyArray<{ key: string; title: string }>, schema: ImportSchema, mapping?: ColumnMapping): MappingResult;
+export function applyMapping(dataset: DatasetLike, mapping: ColumnMapping, schema: ImportSchema): MappedDataset;
+
+export interface ImportDatasetOptions {
+  format?: 'auto' | 'xlsx' | 'csv';            // default 'auto' (below)
+  fileName?: string;                           // for bytes without a name: CSV detection and meta.fileName
+  mimeType?: string;
+  sheet?: number | string | 'first-visible';   // default 'first-visible'
+  header?: 'auto' | number | { row?: number; rows: number; join?: string } | false;  // default 'auto'
+  range?: string;                              // e.g. 'B3:H200'; default: the used range
+  types?: 'infer' | 'none' | Record<string, ColumnType>;  // by key or title; default 'infer'
+  locale?: ImportLocale;
+  delimiter?: string | 'auto';                 // CSV; default 'auto'
+  encoding?: string;                           // CSV without a BOM; default 'utf-8'
+  skipTotals?: 'auto' | boolean;               // default 'auto' (toDataset)
+  errorCells?: 'null' | 'keep';                // default 'null'
+  dates?: 'date' | 'serial';                   // xlsx; default 'date'
+  dateZone?: 'local' | 'utc';                  // default 'local'
+  schema?: ImportSchema;
+  mapping?: ColumnMapping;                     // overrides the automatic mapping, field by field
+  maxRows?: number;                            // data rows; more is LIMIT_EXCEEDED
+  preview?: number;                            // read only the first N data rows; no mapping
+  limits?: Partial<ReadLimits>;
+  signal?: AbortSignalLike;
+  onProgress?: (p: ImportProgress) => void;
+  onWarning?: (w: ExcelWarning) => void;
+}
+
+export interface ImportDatasetResult {
+  columns: ImportedColumn[];                   // with a schema: one per mapped field, in schema order
+  data: Array<Record<string, unknown>>;        // null-prototype objects
+  rowNumbers: number[];                        // spreadsheet row (1-based) of each data entry
+  issues: ImportIssue[];
+  warnings: ExcelWarning[];                    // from the reader or CSV parser
+  meta: ImportMeta;
+}
+
+export type ColumnType = 'string' | 'number' | 'boolean' | 'date' | 'datetime' | 'mixed' | 'empty';
+export interface ImportedColumn { key: string; title: string; letter: string; type: ColumnType; field?: string }
+
+export interface ImportMeta {
+  format: 'xlsx' | 'xlsm' | 'xltx' | 'xltm' | 'csv';
+  fileName?: string;
+  sheet?: { name: string; index: number };
+  sheets?: SheetInfo[];                        // every worksheet, for a sheet picker (xlsx)
+  header: { rows: number[]; detected: boolean; confidence?: 'high' | 'low' };  // zero-based sheet rows
+  range: string;                               // what became the dataset, e.g. 'A3:H120'
+  delimiter?: string;                          // CSV
+  encoding?: string;                           // CSV: from the BOM, else the encoding option
+  bom?: boolean;                               // CSV
+  totalsRowSkipped: boolean;
+  truncated: boolean;                          // preview: more rows exist
+  mapping?: ColumnMapping;                     // the mapping applied
+  unmappedColumns?: string[];                  // file column keys no field took
+}
+
+export interface ImportIssue {
+  row: number;                                 // spreadsheet row (1-based); 0 for column- or file-level issues
+  field?: string;                              // field name, or column key without a schema
+  ref?: string;                                // 'C17'
+  code: ImportIssueCode;
+  message: string;
+  severity: 'error' | 'warning';
+}
+export type ImportIssueCode = 'TYPE' | 'REQUIRED' | 'MAPPING_MISSING' | 'ERROR_CELL' | 'EMPTY' | 'DATE_ORDER_AMBIGUOUS';
+
+export interface ImportLocale {
+  decimal?: '.' | ',';                         // default '.'
+  group?: NumberGroup;                         // default '': no group separators
+  dateOrder?: 'auto' | 'YMD' | 'DMY' | 'MDY';  // numeric dates such as 15/01/2024; default 'auto'
+}
+export type NumberGroup = ',' | '.' | ' ' | "'" | '';
+
+export interface ImportSchema {
+  fields: Record<string, FieldSpec>;
+  unmapped?: 'drop' | 'keep';                  // default 'drop'
+}
+export interface FieldSpec { aliases?: string[]; required?: boolean; type?: ColumnType }
+export type ColumnMapping = Record<string, string | null>;   // field -> column key, or null
+
+export interface ImportProgress { phase: 'unzip' | 'parse' | 'dataset'; ratio: number }
+
+export interface DatasetLike {
+  columns: ReadonlyArray<{ key: string; title: string; letter?: string }>;
+  data: ReadonlyArray<Record<string, unknown>>;
+  rowNumbers?: readonly number[];              // for issue rows; default: index + 2
+}
+export interface TypeOptions { locale?: ImportLocale; dateZone?: 'local' | 'utc' }
+export interface InferredColumn { key: string; type: ColumnType; dateOrder?: 'YMD' | 'DMY' | 'MDY' }
+export interface CoerceResult { data: Array<Record<string, unknown>>; issues: ImportIssue[] }
+export interface DetectHeaderOptions { range?: string; maxScan?: number; locale?: ImportLocale }
+export interface HeaderDetection { rows: number[]; confidence: 'high' | 'low' }
+export interface MappingResult { mapping: ColumnMapping; missing: string[]; unmapped: string[] }
+export interface MappedDataset { columns: ImportedColumn[]; data: Array<Record<string, unknown>>; rowNumbers: number[]; issues: ImportIssue[] }
+```
+
+**The pipeline.** `importDataset` runs these steps, each one a function above or an existing API:
+
+1. **Format.** A string is CSV text. Bytes are checked with `detectFormat`. A zip goes to `read`, and `read` rejects what it can't read (`NOT_XLSX`, `UNSUPPORTED_FORMAT` for `.xls`/encrypted (`'cfb'`), `.xlsb`, `.ods`). Bytes with no signature are CSV only when the file name (`.csv`, `.tsv`, `.txt`), the MIME type (`text/csv`, `text/plain`, `text/tab-separated-values`) or `format: 'csv'` says so. Otherwise they are rejected with `UNSUPPORTED_FORMAT`, `details.format: 'unknown'`. A `File`'s own `name` and `type` are used when `fileName` and `mimeType` are not given.
+2. **Read.**
+   - xlsx: `readSheetNames` lists the sheets, then `read` parses only the chosen one. It uses `styles: false` and `richText: 'plain'`, and keeps formulas only so that `skipTotals: 'auto'` can see the totals row.
+   - CSV: `readCsv` with `inferTypes: false`, so step 5 applies the same rules to both formats.
+   - With `maxRows` or `preview`, the reader stops early: `ReadOptions.maxRows` (§5.2) for xlsx, `maxRows` for `readCsv`.
+3. **Sheet.** `'first-visible'` takes the first sheet whose state is `visible`. Hidden sheets are only read when named or indexed. A name or index that doesn't exist throws `SHEET_NOT_FOUND`.
+4. **Header.** `'auto'` runs `detectHeader`. A number is the header row. `{ row, rows, join }` is a multi-row header, flattened by `toDataset`'s `headerRows` (§4.3), with `row` defaulting to the detected row. `false` means no header (keys are column letters). Then `toDataset` builds the rows.
+5. **Types** ([below](#type-rules)): `inferColumnTypes` + `coerceColumns`. Explicit `types` and schema field `type`s force a conversion.
+6. **Mapping**, with a schema: `mapColumns`, then `applyMapping`. It is skipped in preview.
+
+**Behaviour.**
+
+- **Empty input** resolves with no columns and one `EMPTY` issue (severity `warning`), not an error.
+- **Error cells** (`#N/A`, `#REF!`, …) become `null` with an `ERROR_CELL` warning per cell (`errorCells: 'null'`), or stay `{ error }` (`'keep'`). Formulas are never evaluated: a formula cell gives its cached value.
+- **`maxRows`** counts data rows. A bigger sheet or file is rejected with `LIMIT_EXCEEDED` (`details.limit: 'maxRows'`), found while reading, so the rest of the file isn't parsed. The reader stops after the header area (the 25 rows `detectHeader` scans with `header: 'auto'`, or the given header rows) plus `maxRows` rows. A sheet that runs past that point is rejected even if some of its rows turn out empty.
+- **`preview: n`** reads the header area plus `n` data rows, returns at most `n` rows, sets `meta.truncated` when more exist, and doesn't map.
+- **Progress** comes from the reader (`unzip`, `parse`), then `dataset` while rows are converted. CSV reports `dataset` only, because `readCsv` has no progress events.
+- **Abort** works as everywhere: `signal` reaches `read`/`readCsv` and is checked between steps. An abort rejects with `signal.reason`.
+- **Worker.** `WorkerClient.importDataset(input, options)` runs the same function in the worker (§5.5). The options hold no functions apart from `onProgress`/`onWarning`, so they all cross.
+
+#### Header detection
+
+`detectHeader(sheet, { range, maxScan = 25, locale })` returns `{ rows, confidence }`. `rows` holds zero-based sheet rows, one entry for a single header row and several for a multi-row one. It is deterministic and has no weights to tune:
+
+- It scans the first `maxScan` rows of the range (default 25, a choice, not a measurement; react-data-import's fixtures (RDI-6) check it).
+- Each cell counts as **text**, **other** (numbers, booleans, dates, errors) or empty. Text that parses as a number, `TRUE`/`FALSE` or a date under `locale` counts as other, so an all-text CSV row of numbers isn't taken for a header.
+- The **table width** is the most common count of filled cells among the scanned rows that have more than one. A cell counts as filled when it has a value or is covered by a horizontal merge.
+- **Title rows** are skipped: rows with at most one filled cell when the table is wider than one column, and rows whose one merge spans the table's full width.
+- The **header row** is the first remaining row whose cells are all text and which fills at least the table width, provided some column has an "other" value in one of the next five non-empty rows. That gives `confidence: 'high'`. When no row qualifies (an all-text table), it's the first row that is all text and fills the width, with `confidence: 'low'`. If there is none, the first row of the range is used, also `'low'`.
+- **Multi-row headers:** rows directly above the header row join it while they are all text and either start a merge that reaches down into the next row (a vertically merged "Name") or hold a horizontal merge narrower than the table (a group title such as "Q1"). That is the header react-data-export's header groups write.
+
+#### Type rules
+
+`inferColumnTypes(dataset, { locale, dateZone })` returns one `InferredColumn` per column, `{ key, type, dateOrder? }`. **All-or-nothing**: a column gets a type only if **every** non-empty value is of that type or is text that converts to it.
+
+- **Typed values come first.** Numbers, booleans and `Date`s from the reader keep their type. Dates are `'datetime'` if any has a time part in `dateZone`, else `'date'`.
+- **Text conversion,** tried in order on all text values:
+  1. `parseNumber` with the locale
+  2. `TRUE`/`FALSE` (any case)
+  3. `parseDate`: ISO 8601 always, and numeric dates in the column's date order
+- **Result:** if every value converts, the column takes that type. Otherwise it is `'string'` when all values are text, `'mixed'` when typed values of different kinds meet, and `'empty'` when it has no values. Text is trimmed for the test, and strings that stay strings are never trimmed.
+- **Date order** with `dateOrder: 'auto'` is decided per column, from the data only:
+  - A 4-digit first part means YMD.
+  - A first part above 12 means DMY; a second part above 12 means MDY.
+  - With no evidence, or evidence both ways, the column stays text with one `DATE_ORDER_AMBIGUOUS` issue (row 0, severity `warning`) naming the column. The browser's locale is never consulted.
+
+`coerceColumns(dataset, types, options)` converts the values and returns `{ data, issues }`. With an inferred type every value converts by construction. With a forced type (`types`, or a schema field's `type`), a value that doesn't convert becomes `null` with a `TYPE` issue (severity `error`). `'string'` writes `String(v)`, with dates as ISO 8601. `'mixed'` and `'empty'` leave values alone.
+
+**`parseNumber(text, { decimal, group })`**
+
+- Accepts an optional sign, digits with the group separator in groups of three after the first group, an optional decimal part, and an exponent (`1e3`, only when `decimal` is `'.'`). Surrounding whitespace is trimmed.
+- With `group: ' '`, the no-break spaces U+00A0 and U+202F (French style) also count as group separators.
+- Plain digits without separators are always accepted.
+- Rejected, giving `undefined`:
+  - leading zeros (`007`, but `0.5` is fine)
+  - integers beyond 2^53
+  - percent signs, currency symbols, parentheses for negatives
+  - a decimal separator equal to `group`, and misplaced groups (`1,23,456` with `group: ','`)
+- The defaults (`decimal: '.'`, `group: ''`) accept exactly what `readCsv`'s `inferTypes` accepts (§5.3).
+
+**`parseDate(text, { order, zone })`**
+
+- ISO 8601 as in §5.3.
+- With `order`, numeric dates `d/m/yyyy`, `d.m.yyyy` and `d-m-yyyy` (one separator throughout), optionally followed by ` HH:mm[:ss]`.
+- Two-digit years are not accepted: the century would be a guess.
+- Calendar-checked (no 31/04), in `zone` (default `'local'`).
+
+#### Column mapping
+
+`mapColumns(columns, schema, mapping?)` matches file columns to schema fields and returns `{ mapping, missing, unmapped }`:
+- Titles, keys, field names and aliases are compared after normalisation: Unicode NFKD, combining marks removed, lower case, and whitespace, `_`, `-` and `.` removed. So `E-mail`, `email` and `E MAIL` match.
+- Fields are matched in schema order. Each takes the first matching column in file order, and a column goes to one field at most. There is no fuzzy matching.
+- `mapping` entries override the automatic result, field by field. An entry naming a column that doesn't exist is a `TypeError`.
+- `missing` lists required fields without a column.
+
+`applyMapping(dataset, mapping, schema)` returns `{ columns, data, rowNumbers, issues }`:
+- Rows are keyed by field names, in schema order. With `unmapped: 'keep'`, other columns follow under their own keys, suffixed `_2`, `_3` if a key equals a field name.
+- A required field without a column gives one `MAPPING_MISSING` issue (row 0, severity `error`). The rows are still returned, so a UI can fix the mapping and apply it again without reading the file.
+- A required field that is empty in a row gives a `REQUIRED` issue (severity `error`) with the row and cell.
+
+Validation of rows (functions, Standard Schema, async checks) is react-data-import's. javascript-excel reserves its error code, `VALIDATION_FAILED`.
+
+### 5.8 Render model (`javascript-excel/render`)
+
+What a spreadsheet viewer needs to draw a sheet, computed from a read workbook. It is framework-free and has no DOM access, so it runs in Node, in a worker and behind any UI (react-xlsx-viewer's design, decision Q2, puts it here). Added in a 2.x minor, like `/format` (§5.7, JSE-18); not part of 2.0.0.
 
 The render model provides:
 - **geometry:** row and column offsets in CSS pixels, plus hit testing;
@@ -1051,7 +1263,7 @@ export type RenderFormatter = (cell: Cell, options: { locale?: string; date1904?
 export interface RenderSheet { readonly sheet: number; readonly name: string }
 ```
 
-#### 5.7.1 Extent, settings and geometry
+#### 5.8.1 Extent, settings and geometry
 
 ```ts
 export function sheetExtent(s: RenderSheet): { rows: number; cols: number };   // used range + margin, capped at 1,048,576 x 16,384
@@ -1082,7 +1294,7 @@ export interface RangeRef { start: CellRef; end: CellRef }       // inclusive, s
   - grid lines and headers are shown unless the file turns them off;
   - the tab colour is resolved to `#RRGGBB`.
 
-#### 5.7.2 Cells
+#### 5.8.2 Cells
 
 ```ts
 export function renderCell(s: RenderSheet, row: number, col: number): RenderCell | null;
@@ -1149,7 +1361,7 @@ export type RenderHyperlink =
   - **Internal locations:** a defined name, or a reference such as `'Sheet 2'!B4`, is resolved to a sheet index and an A1 reference. `sheet: null` when the sheet or name doesn't exist.
 - **Display text.** With a `format` hook, it is the hook's text, colour (ARGB → `#RRGGBB`), fill and alignment. The hook gets `locale`, `date1904` and the workbook's `indexedColors`. Without one, the text is `cellText(cell)` and the alignment follows the value type. For exact dates, read with `dates: 'serial'` (§5.2).
 
-#### 5.7.3 Navigation
+#### 5.8.3 Navigation
 
 ```ts
 export type RenderDirection = 'up' | 'down' | 'left' | 'right';
@@ -1167,7 +1379,7 @@ export function lastUsedCell(s: RenderSheet): CellRef;                          
   - The scan is linear in the rows or columns crossed.
 - **`lastUsedCell`** is the last row and column of the used range, as Excel's Ctrl+End.
 
-#### 5.7.4 Copy and selection summary
+#### 5.8.4 Copy and selection summary
 
 ```ts
 export function rangeAsTsv(s: RenderSheet, range: RangeRef, options?: { values?: 'displayed' | 'raw' }): string;
@@ -1191,7 +1403,7 @@ export function rangeStats(s: RenderSheet, range: RangeRef, limit?: number): { c
   - it scans at most `limit` cells (default 1,000,000) and sets `truncated` past that.
   - This is arithmetic on cached values, not formula evaluation.
 
-#### 5.7.5 Measured cost
+#### 5.8.5 Measured cost
 
 `bench/render.mjs` (`npm run bench:render`; the CI job `Benchmarks` runs it and reports to its summary) measures the costs react-xlsx-viewer's design names (its §9). The workload is 10 columns of numbers with 8 shared styles, written and read back with `dates: 'serial'`. Measured on an Apple M2 laptop, Node 26.13.1:
 
@@ -1288,7 +1500,9 @@ Aborts are not `ExcelError`s: they reject with `signal.reason`, as `fetch` does.
 | `ZIP_INVALID` / `ZIP_UNSUPPORTED_METHOD` / `ZIP_ENCRYPTED` / `ZIP_CRC_MISMATCH` | Format | §6 |
 | `XML_MALFORMED` | Format | Not well-formed XML in a required part |
 | `XML_DTD_FORBIDDEN` | Format | Any `<!DOCTYPE` (§8) |
-| `LIMIT_EXCEEDED` | Limit | Any `ReadLimits` value; `details: { limit, value, max }` |
+| `SHEET_NOT_FOUND` | Validation | `importDataset`: the `sheet` name or index doesn't exist (§5.6) |
+| `VALIDATION_FAILED` | Validation | Reserved for react-data-import: row validation stopped at an invalid row; `details.issues` |
+| `LIMIT_EXCEEDED` | Limit | Any `ReadLimits` value, or `importDataset`'s `maxRows`; `details: { limit, value, max }` |
 | `CSV_MALFORMED` | Csv | Strict mode only |
 | `ENVIRONMENT_UNSUPPORTED` | Environment | No `CompressionStream`, no DOM for `/dom` |
 
@@ -1310,6 +1524,7 @@ Aborts are not `ExcelError`s: they reject with `signal.reason`, as `fetch` does.
   | `MISSING_PART` | A relationship points to a missing optional part (styles, theme, shared strings); defaults used |
   | `BROKEN_OPTIONAL_PART` | Malformed XML in an optional part (docProps, theme); part skipped |
   | `HYPERLINK_RANGE_REDUCED`, `SPLIT_PANE_IGNORED` | §3.6 |
+  | `ROWS_TRUNCATED` | `ReadOptions.maxRows` reached; later rows of that sheet not read (§5.2) |
   | `HYPERLINK_DROPPED` | `fromTable`: a link whose scheme is not allowed; the cell keeps its text |
   | `WARNINGS_TRUNCATED` | `maxWarnings` reached; later warnings dropped |
 
@@ -1617,7 +1832,7 @@ These were the open questions of the review. Each one is decided, and the sectio
 
 **Q12. CSV BOM default.** Decided (2026-11-16): `bom: true` for `toCsvBlob`, because that file goes to Excel, which needs the BOM to detect UTF-8. `bom: false` for `toCsv`, which returns a string for the program to use (§5.3).
 
-**Q13. `toDataset` in 2.0.** Decided (2026-11-16): 2.0 ships the minimal version in §4.3: a fixed header row, deduplicated keys and null-prototype rows. Header auto-detection, multi-row header flattening, column mapping and type inference follow with react-data-import, and live in the engine.
+**Q13. `toDataset` in 2.0.** Decided (2026-11-16): 2.0 ships the minimal version in §4.3: a fixed header row, deduplicated keys and null-prototype rows. Header auto-detection, multi-row header flattening, column mapping and type inference follow with react-data-import, and live in the engine. They shipped in JSE-19 as `javascript-excel/import` (§5.6), as decided in react-data-import's API design (2026-11-16).
 
 **Q14. Number-format rendering.** Decided (2026-11-16): not in 2.0 (§3.5.5). It is planned as `javascript-excel/format` in a 2.x minor. 2.0's `autoWidth` uses `cellText()`.
 
@@ -1640,8 +1855,8 @@ These were the open questions of the review. Each one is decided, and the sectio
 | Phase | Adds |
 |---|---|
 | 2.0 | xlsx read and write (cells, styles, sheet features), CSV/TSV read and write, HTML table input |
-| 2.x | `.xlsm` / `.xltx` / `.xltm` read and write-back with their extra parts preserved; preservation of unknown parts for lossless round trips; comments and notes; data validation; conditional formatting; images (read and write); the render model `javascript-excel/render` for react-xlsx-viewer (§5.7) |
-| 3.x | formula parser and evaluator (`javascript-excel/formula`), number-format renderer (`javascript-excel/format`, §12 Q14), charts and drawings (read, plus their part of the render model, §5.7) |
+| 2.x | `.xlsm` / `.xltx` / `.xltm` read and write-back with their extra parts preserved; preservation of unknown parts for lossless round trips; comments and notes; data validation; conditional formatting; images (read and write); the render model `javascript-excel/render` for react-xlsx-viewer (§5.8) |
+| 3.x | formula parser and evaluator (`javascript-excel/formula`), number-format renderer (`javascript-excel/format`, §12 Q14), charts and drawings (read, plus their part of the render model, §5.8) |
 | 4.x | legacy `.xls` (BIFF8) read, then write; `.xlsb` read; encrypted files (password, ECMA-376 agile encryption) |
 
 The 2.x row is designed in [design/2x.md](design/2x.md) (decided 2026-11-16: phases 2.1–2.5, dependency order, and what each phase will not do).

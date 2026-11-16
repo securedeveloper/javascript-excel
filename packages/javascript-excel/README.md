@@ -16,6 +16,7 @@ npm install javascript-excel@next
 | `javascript-excel/dom` | HTML `<table>` to sheet, `download()` |
 | `javascript-excel/worker` | run big jobs in a Web Worker |
 | `javascript-excel/render` | the render model for a sheet viewer: geometry, styles, merges, navigation, copy (2.x) |
+| `javascript-excel/import` | a user's `.xlsx` or `.csv` to `{ columns, data }`: header detection, types, locales, column mapping |
 
 Each entry pulls in only what it needs: a writer-only app never ships the reader, the CSV code or the DOM code.
 
@@ -108,6 +109,23 @@ const sheet = fromTable(table, { styles: "computed", freezeHeader: true, autoWid
 download(await toBlob({ sheets: [sheet] }), "report.xlsx");
 ```
 
+## Importing a user's file
+
+`importDataset` finds the sheet and header row, flattens header groups, infers column types (with an explicit number and date locale), maps columns to your fields, and reports problems per row. Formulas are never evaluated, and the read limits stay on.
+
+<!-- example: examples/snippets/src/import.ts -->
+```ts
+import { importDataset } from "javascript-excel/import";
+
+declare const file: File; // from <input type="file"> or a drop
+const { columns, data, issues, meta } = await importDataset(file, {
+  locale: { decimal: ",", group: "." }, // 1.234,56
+  schema: { fields: { email: { aliases: ["E-mail"], required: true }, joined: { type: "date" } } },
+  maxRows: 100_000,
+});
+console.log(meta.header, columns.map((c) => `${c.key}: ${c.type}`), data.length, issues);
+```
+
 ## In a Web Worker
 
 <!-- example: examples/snippets/src/worker.ts -->
@@ -140,6 +158,7 @@ const bytes = await excel.write(workbook, { signal: controller.signal, onProgres
 - **Datasets:** `fromDataset` and `fromDatasets` support `key`, `path` and function accessors, grouped headers, number formats, widths and a totals row. `toDataset` reads a sheet back into `{ columns, data }`.
 - **DOM:** `fromTable` handles `colspan`/`rowspan` merges, `data-*` type hints and computed styles. `download()` needs no dependency, and the module is safe to import during SSR.
 - **Worker:** progress, warnings and `AbortSignal` work across the boundary, and results are transferred, not copied.
+- **Import:** `importDataset` turns a user's `.xlsx` or `.csv` into `{ columns, data }`. It detects title and header rows, including multi-row headers. It infers column types all-or-nothing, parses numbers and dates in an explicit locale (`1.234,56`, `15/01/2024`) and maps columns to your fields by name or alias. Problems are reported per row with their cell. Preview reads (`preview`) and `maxRows` stop reading early, and it also runs in the worker.
 - **Not in 2.0:** `.xls`/`.xlsb`/`.ods`, charts, images, comments, pivot tables, conditional formatting and formula evaluation. These are planned for later releases, not ruled out.
 
 ## Runtime support
