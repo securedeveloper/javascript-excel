@@ -91,3 +91,12 @@ describe("fromDataset golden round trip", () => {
     expect(back.data.map((r) => r["Q1"])).toEqual([1200.5, 860, 0]);
   });
 });
+
+describe("toDataset after a write and read", () => {
+  it("drops the totals row written by fromDataset (the alpha.2 smoke-test case)", async () => {
+    const sheet = fromDataset({ columns: [{ title: "Name", key: "name" }, { title: "Qty", key: "qty", total: "sum" }], data: [{ name: "a", qty: 5 }, { name: "b", qty: 10 }] });
+    const { workbook } = await read(await toUint8Array({ sheets: [sheet] }));
+    expect(toDataset(workbook.sheets[0]!).data.map((r) => ({ ...r }))).toEqual([{ Name: "a", Qty: 5 }, { Name: "b", Qty: 10 }]);
+    expect(toDataset(workbook.sheets[0]!, { skipTotals: false }).data.at(-1)?.["Qty"]).toBe(15);
+  });
+});
