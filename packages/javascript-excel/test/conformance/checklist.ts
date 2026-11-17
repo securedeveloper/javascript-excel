@@ -53,6 +53,16 @@ export function renderChecklist(): string {
     "",
     "Not covered by a manual check: date detection for custom formats (§3.4.1) is checked automatically by the reader tests, and the maximum digit width for default fonts other than Calibri 11 stays open.",
     "",
+    "## Automated cross-checks",
+    "",
+    "Every pull request checks the writer and reader against independent implementations:",
+    "",
+    "- **openpyxl** (`packages/javascript-excel/test/interop/xlsx_dump.py`) reads the corpus files and the writer's golden files back: values, formulas with their cached results, number formats and full styles, sheet features and document properties. openpyxl also writes the reader fixtures in `packages/javascript-excel/test/fixtures/read/`.",
+    "- **LibreOffice** (headless) opens every corpus file except the large `18-limits.xlsx` and re-saves it as `.xlsx`; javascript-excel's reader then checks that every sheet and text cell survived. Files written by LibreOffice are reader fixtures too.",
+    "- **Python's standard library** cross-checks the zip layer (`zipfile`, `packages/javascript-excel/test/interop/zip_interop.py`) and CSV (`csv`, `packages/javascript-excel/test/interop/csv_interop.py`) in both directions.",
+    "",
+    "The original plan (JSE-9) also called for a cross-check against SheetJS as a devDependency. It was replaced by the openpyxl tests above. openpyxl is a separate implementation in another language and exposes the whole style model, so a test can compare fonts, fills, borders, alignment and number formats cell by cell; SheetJS's community edition reads little of the styling. The SheetJS package on the npm registry is also no longer its current release (newer versions are distributed from the SheetJS CDN), and javascript-excel replaces a SheetJS fork, so a SheetJS comparison would check against the predecessor's lineage rather than an independent reading of the format. Python and openpyxl are CI tools only: the package keeps zero dependencies and no new devDependency was added. Files from Excel, Numbers and Google Sheets come from the manual check above.",
+    "",
   );
   return out.join("\n");
 }

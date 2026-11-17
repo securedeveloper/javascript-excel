@@ -8,6 +8,8 @@ Read and write `.xlsx` and `.csv` files in browsers, Web Workers and Node.js. Ty
 npm install javascript-excel@next
 ```
 
+**Try it in the browser:** the [playground](https://javascript-excel-playground.vercel.app/) writes, reads and previews workbooks with the published package, and shows the code for what you build.
+
 | entry | for |
 |---|---|
 | `javascript-excel` | the workbook model, the `.xlsx` writer, dataset builders, dates, addresses, errors |
