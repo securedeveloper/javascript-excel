@@ -4,7 +4,7 @@ Status: **approved** (2026-11-16). This is the design that implementation follow
 
 Conventions in this document:
 
-- `[to verify]` marks an OOXML or platform fact that must be checked against ECMA-376 or a real file before the code relies on it. Most are resolved by the one-time manual check in [conformance.md](conformance.md), which names the corpus file that checks each one.
+- `[to verify]` marks an OOXML or platform fact that must be checked against ECMA-376 or a real file before the code relies on it. Most were resolved by the manual check in [conformance.md](conformance.md), which names the corpus file that checks each one and records the result. That check was done in Excel for Mac on 2026-11-17; Excel for Windows and Apple Numbers were not checked by hand. Facts it confirmed say *(confirmed in Excel for Mac, 2026-11-17)*.
 - `[placeholder, set in JSE-n]` marks a number that has not been measured. The task named sets it.
 - `JSE-n` names the implementation task of this rewrite that owns a decision (JSE-2 zip and model, JSE-3 writer, JSE-4 sheet features, JSE-5 CSV, JSE-6 reader, JSE-7 DOM, JSE-8 performance and worker, JSE-9 conformance).
 - ECMA-376 references are to Part 1 (Fundamentals and Markup Language Reference), 5th edition, transitional schema, unless stated otherwise.
@@ -218,7 +218,7 @@ export type ColumnWidth = number | { wch: number } | { wpx: number } | 'auto';
 - pixels to file width: `width = Truncate(((wpx - 5) / MDW) * 100 + 0.5) / 100`, then the formula above
 - file width to pixels (reader): `wpx = Truncate(((256 * width + Truncate(128 / MDW)) / 256) * MDW)`
 
-`MDW = 7` px for Calibri 11, the default font. With it, the formula turns Excel's default 8.43 characters into `width="9.140625"`, the value Excel files carry for default-width columns (unit-tested). The manual check in [conformance.md](conformance.md) (`13-columns-rows`) confirms it in Excel itself. The writer uses `MDW = 7` whatever the default font is `[to verify for other default fonts]`. The model's character unit is the one Excel's UI shows. The maximum width is 255 characters.
+`MDW = 7` px for Calibri 11, the default font. With it, the formula turns Excel's default 8.43 characters into `width="9.140625"`, the value Excel files carry for default-width columns (unit-tested). Excel shows the widths the model asks for, in characters *(confirmed in Excel for Mac, 2026-11-17; conformance.md, `13-columns-rows`)*. Pixel widths depend on the platform and were not checked. The writer uses `MDW = 7` whatever the default font is `[to verify for other default fonts]`. The model's character unit is the one Excel's UI shows. The maximum width is 255 characters.
 
 - **`'auto'`** measures `cellText()` of every cell in the column (the widest line; East Asian wide characters and emoji count two), adds 2 characters of padding and clamps the result to 8.43..60 characters. 60 is a readability choice made in JSE-4, not a measurement. It writes `bestFit="1"`. Number formats and fonts are not taken into account.
 - **Width 0** also writes `hidden="1"`, as Excel does for a zero-width column. A row `height` of 0 likewise hides the row.
@@ -282,7 +282,7 @@ How each value is written:
 | `number` | `t="n"` | Must be finite (`INVALID_NUMBER` for `NaN`, `±Infinity`). |
 | `boolean` | `t="b"` | |
 | `Date` | `t="n"` + date `numFmt` | Converted to a serial (§3.4.1). If the cell has no `numFmt`, built-in id 14 is used. |
-| `{ error }` | `t="e"` | Only the seven codes above. Other `#...` strings are not accepted in 2.0 `[to verify: how newer Excel errors such as #SPILL! are stored in files; conformance.md, open items]`. |
+| `{ error }` | `t="e"` | Only the seven codes above. Other `#...` strings are not accepted in 2.0 `[to verify: how newer Excel errors such as #SPILL! are stored in files; no file saved by Excel 365 has been checked yet]`. |
 | `{ richText }` | shared string with `<r>` runs | |
 | `Cell` with `formula` | `<f>` + cached `<v>` when `value` is set | §3.4.2 |
 | `null` / `undefined` / hole | no `<c>`, or a styled empty `<c>` if the `Cell` has a `style` | |
@@ -424,7 +424,7 @@ export interface Alignment {
   wrapText?: boolean;
   shrinkToFit?: boolean;
   /** Indent level, in steps of about three character widths. Excel shows it for left, right and distributed. */
-  indent?: number;                     // Excel UI caps at 250 [to verify: conformance.md, 09-alignment]
+  indent?: number;                     // Excel UI caps at 250 (confirmed in Excel for Mac, 2026-11-17)
   /** Degrees, -90..90, positive = counter-clockwise; or 'vertical' for stacked text. */
   rotation?: number | 'vertical';
   readingOrder?: 'context' | 'ltr' | 'rtl';
@@ -465,14 +465,14 @@ export type Color =
   | string
   | { rgb: string }                    // ARGB 'FF336699'
   | { theme: number; tint?: number }   // theme colour index 0..11, tint -1..1
-  | { indexed: number }                // legacy palette 0..63, 64 = system foreground, 65 = system background [to verify 64/65: conformance.md, 12-colours]
+  | { indexed: number }                // legacy palette 0..63, 64 = system foreground, 65 = system background (confirmed in Excel for Mac, 2026-11-17)
   | { auto: true };                    // automatic colour
 ```
 
 All four forms map one to one to `CT_Color` attributes (`rgb`, `theme` + `tint`, `indexed`, `auto`), and the reader returns the same form the file used. The reader returns object forms only, never the string shorthand. Notes:
 
 - **Alpha.** Excel ignores the alpha byte of `rgb`; the writer still writes it.
-- **Theme index order.** The index refers to the theme's `clrScheme` with the first two pairs swapped: 0 = `lt1` (Background 1), 1 = `dk1` (Text 1), 2 = `lt2`, 3 = `dk2`, 4–9 = `accent1`–`accent6`, 10 = `hlink`, 11 = `folHlink` `[to verify: conformance.md, 12-colours]`.
+- **Theme index order.** The index refers to the theme's `clrScheme` with the first two pairs swapped: 0 = `lt1` (Background 1), 1 = `dk1` (Text 1), 2 = `lt2`, 3 = `dk2`, 4–9 = `accent1`–`accent6`, 10 = `hlink`, 11 = `folHlink` *(confirmed in Excel for Mac, 2026-11-17; conformance.md, `12-colours`)*.
 - **Tint** is applied to the HSL luminance as in ECMA-376 §18.8.19 (`CT_Color/@tint`).
 - **Resolving.** `resolveColor(color, { theme, indexedColors })` (§4.4) returns a concrete ARGB string. It uses the file's theme and palette, or the defaults (the Office theme and the standard 64-colour palette) when the file has none. The viewer and `fromTable` need it.
 - On write, theme colours refer to the default Office theme that the writer embeds as `xl/theme/theme1.xml`. Custom themes are not written in 2.0.
@@ -1606,7 +1606,7 @@ Aborts are not `ExcelError`s: they reject with `signal.reason`, as `fetch` does.
 | `INVALID_HYPERLINK` | Validation | Scheme not in `hyperlinkSchemes` (e.g. `javascript:`), no scheme (a relative path), control characters, an empty target or location, or an invalid `hyperlinkSchemes` option |
 | `OVERLAPPING_MERGE` | Validation | Two merges overlap |
 | `INVALID_COLUMN` | Validation | `fromDataset`: no usable accessor, or a forbidden path segment |
-| `TOO_MANY_STYLES` | Validation | More than 64,000 distinct cell formats, Excel's limit `[to verify: conformance.md, 18-limits]` |
+| `TOO_MANY_STYLES` | Validation | More than 64,000 distinct cell formats, Excel's limit. A file with exactly 64,000 opens without repair *(confirmed in Excel for Mac, 2026-11-17)* |
 | `INVALID_PROPERTY` | Validation | A document property is invalid: not a string, an invalid `Date`, a duplicate or empty custom property name, a non-finite number |
 | `ZIP64_REQUIRED` | Validation | §6 |
 | `UNSUPPORTED_FORMAT` | Format | `.xls`/encrypted (CFB), `.xlsb`, `.ods`, and Strict OOXML if not mapped (§5.2); `details.format` says which |
@@ -1695,8 +1695,8 @@ The limits are on by default. Raising them is an explicit `limits` option, and t
 
 ### 9.2 Compatibility of files
 
-- Writes ECMA-376 transitional SpreadsheetML that opens without repair in Excel (Windows and Mac, current), LibreOffice Calc, Apple Numbers and Google Sheets. The conformance suite (JSE-9) checks it.
-- Reads files produced by those four plus common generators. Tested today: files written by openpyxl and LibreOffice (reader fixtures) and the corpus re-saved by LibreOffice; files from Excel, Numbers and Google Sheets come from the manual check. Other generators (SheetJS, ExcelJS, Apache POI) `[to verify with fixtures]`. The cross-checks, and why openpyxl replaced the planned SheetJS comparison, are in [conformance.md](conformance.md#automated-cross-checks).
+- Writes ECMA-376 transitional SpreadsheetML meant to open without repair in Excel (Windows and Mac, current), LibreOffice Calc, Apple Numbers and Google Sheets. Checked so far: every conformance file in Excel for Mac (by hand, 2026-11-17) and in LibreOffice Calc (in CI). Excel for Windows, Numbers and Google Sheets `[to verify: not checked by hand yet]`.
+- Reads files produced by those four plus common generators. Tested today: files written by openpyxl and LibreOffice (reader fixtures) and the corpus re-saved by LibreOffice. Files saved by Excel, Numbers and Google Sheets `[to verify: no reader fixtures from those apps yet]`. Other generators (SheetJS, ExcelJS, Apache POI) `[to verify with fixtures]`. The cross-checks, and why openpyxl replaced the planned SheetJS comparison, are in [conformance.md](conformance.md#automated-cross-checks).
 
 ### 9.3 Runtime support matrix
 
@@ -1874,7 +1874,7 @@ const bytes = await client.write(workbook, {
 | Sheet name length | 31 | Excel UI; §3.3 |
 | Column width | 255 characters | Excel specifications and limits |
 | Row height | 409 points | Excel specifications and limits |
-| Unique cell formats | 64,000 | Excel specifications and limits `[to verify: conformance.md, 18-limits]` |
+| Unique cell formats | 64,000 | Excel specifications and limits; a file with 64,000 opens without repair *(confirmed in Excel for Mac, 2026-11-17)* |
 | Formula length | 8,192 characters | Excel specifications and limits |
 | Zoom | 10–400 % | `CT_SheetView/@zoomScale` |
 
@@ -1899,7 +1899,7 @@ Ids defined by the spec. Ids 14–17 and 22 render according to the user's local
 | 16 | `d-mmm` | 48 | `##0.0E+0` |
 | 17 | `mmm-yy` | 49 | `@` |
 
-Ids 5–8, 23–36, 41–44 and 50–163 are not in this table: they are reserved or locale-specific (currency, accounting, East Asian dates). The writer accepts them as numbers, but their rendering depends on the user's Excel locale. Prefer custom codes. `[to verify: the exact codes and spacing for 37–40 and 47; conformance.md, 10-number-formats]`
+Ids 5–8, 23–36, 41–44 and 50–163 are not in this table: they are reserved or locale-specific (currency, accounting, East Asian dates). The writer accepts them as numbers, but their rendering depends on the user's Excel locale. Prefer custom codes. `[to verify: the exact codes and spacing for 37–40 and 47; not recorded in the Excel for Mac check of 2026-11-17. Open question: LibreOffice gives Excel's codes for 39, 40 and 47 as #,##0.00_);(#,##0.00), #,##0.00_);[Red](#,##0.00) and mm:ss.0, not the ECMA-376 codes above; conformance.md, 10-number-formats]`
 
 ### 11.3 Mapping from xlsx-style keys
 
