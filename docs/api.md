@@ -1695,7 +1695,7 @@ The limits are on by default. Raising them is an explicit `limits` option, and t
 ### 9.2 Compatibility of files
 
 - Writes ECMA-376 transitional SpreadsheetML that opens without repair in Excel (Windows and Mac, current), LibreOffice Calc, Apple Numbers and Google Sheets. The conformance suite (JSE-9) checks it.
-- Reads files produced by those four plus common generators (SheetJS, ExcelJS, openpyxl, Apache POI).
+- Reads files produced by those four plus common generators. Tested today: files written by openpyxl and LibreOffice (reader fixtures) and the corpus re-saved by LibreOffice; files from Excel, Numbers and Google Sheets come from the manual check. Other generators (SheetJS, ExcelJS, Apache POI) `[to verify with fixtures]`. The cross-checks, and why openpyxl replaced the planned SheetJS comparison, are in [conformance.md](conformance.md#automated-cross-checks).
 
 ### 9.3 Runtime support matrix
 

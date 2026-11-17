@@ -2,7 +2,7 @@
 
 **Pull request → merge to `main` → publish to npm.** Merging is the approval. A release is just a pull request that changes the package version. When it merges, `.github/workflows/release.yml` publishes that version to npm with trusted publishing (OIDC, no npm token, provenance attached automatically). Then it creates the `v<version>` tag and a GitHub Release.
 
-The published package is `packages/javascript-excel`. The playground (`apps/playground`) and the workspace root are private and never published.
+The published package is `packages/javascript-excel`. The dev sandbox (`apps/playground`), the examples and the workspace root are private and never published. The public playground is a separate repository that installs the published package.
 
 ## 1. Add a changeset to your pull request
 
@@ -12,7 +12,7 @@ Every pull request that changes the published package adds a changeset:
 npx changeset
 ```
 
-Pick `javascript-excel`, choose the bump (patch, minor, major) and write one line for the changelog. This creates a small Markdown file in `.changeset/`; commit it with your change. Pull requests that only touch docs, CI or the playground need no changeset.
+Pick `javascript-excel`, choose the bump (patch, minor, major) and write one line for the changelog. This creates a small Markdown file in `.changeset/`; commit it with your change. Pull requests that only touch docs, CI or the playground need no changeset. A change to the package README does, because the README ships in the package.
 
 Merging a pull request with only a changeset publishes nothing. The version doesn't change until a release pull request.
 
@@ -30,7 +30,7 @@ git diff                     # review the version bump and CHANGELOG.md
 - consumes the pending changesets,
 - bumps `packages/javascript-excel/package.json`,
 - writes `packages/javascript-excel/CHANGELOG.md`,
-- updates the playground's dependency on the package.
+- updates the dev sandbox's and the examples' dependency on the package.
 
 It then runs `scripts/reset-pre-counter.mjs`, which restarts the prerelease number at 0 when the prerelease tag changed (see [§3](#3-prereleases-pre-mode)), and `scripts/sync-version.mjs`, which sets the `VERSION` constant in `packages/javascript-excel/src/index.ts` to the new version (`changeset version` never edits source files). It fails if it can't find exactly one such constant, so renaming the constant can't silently break the sync.
 
