@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "javascript-excel": "2.0.0-alpha.7"
+    "javascript-excel": "2.0.0-beta.0"
   },
   "devDependencies": {
     "happy-dom": "21.0.4",

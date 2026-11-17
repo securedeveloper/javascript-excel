@@ -2,7 +2,7 @@
 
 Read and write `.xlsx` and `.csv` files in browsers, Web Workers and Node.js. TypeScript, no runtime dependencies, tree-shakable entry points.
 
-> **Prerelease.** `2.0.0-alpha.x` is a from-scratch rewrite. Everything listed below ships today, and the API may still change before 2.0.0. The last 1.x release is `javascript-excel@1.0.3`.
+> **Beta.** `2.0.0-beta.x` is a from-scratch rewrite. Everything listed below ships today. The 2.0.0 feature set is complete; changes before 2.0.0 should be limited to fixes found in testing. The last 1.x release is `javascript-excel@1.0.3`.
 
 ```sh
 npm install javascript-excel@next
