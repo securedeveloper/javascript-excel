@@ -584,8 +584,8 @@ export function fromDataset<T>(dataset: Dataset<T>, options?: DatasetOptions<T>)
 
 /** Several blocks stacked on one sheet (replaces the old xSteps/ySteps). */
 export function fromDatasets(
-  blocks: Array<DatasetBlock<any>>,                // Dataset & { offset?: { rows?: number; cols?: number } }
-  options?: DatasetOptions<any> & { gap?: number }, // empty rows between blocks, default 1
+  blocks: Array<DatasetBlock<any>>,                // Dataset & { placement?: 'below' | 'right'; offset?: { rows?: number; cols?: number } }
+  options?: DatasetOptions<any> & { gap?: number }, // empty rows (or columns, for 'right') between blocks, default 1
 ): Sheet;
 
 export interface Dataset<T> {
@@ -677,7 +677,11 @@ Behaviour:
   - A totals cell is styled with the column style, then `totals.style`, then its own style.
   - With no data rows there is no range, so built-ins write their value without a formula.
   - Any other string, such as `'n/a'`, is a literal cell.
-- **`fromDatasets`.** The first block starts at `origin` (plus `offset.rows`). Each later block starts `gap` empty rows below the previous block's last row (totals included), or `offset.rows` rows when given. `offset.cols` shifts a block right of the origin. Freeze and filter use the first block that has header rows. A column's width is the first explicit width, or the widest auto measurement across blocks. Gap rows are holes in `rows`.
+- **`fromDatasets`.** The first block starts at `origin` (plus `offset.rows`). Each later block is placed by its `placement`. A *row of blocks* is a `'below'` block (or the first block) and the `'right'` blocks that follow it.
+  - **`'below'`** (the default): the block starts `gap` empty rows below the lowest row used by the previous row of blocks (totals included), or `offset.rows` rows when given. `offset.cols` shifts it right of the origin. Without `'right'` blocks, this is the previous block's last row, as before.
+  - **`'right'`**: the block starts on the previous block's top row, `gap` empty columns after the previous block's last used column (its widest row, header groups and totals included). `offset.cols` adds to that, and `offset.rows` moves the block down from that top row. A first block with `'right'` starts at the origin.
+  - So a `'below'` block after `'right'` blocks starts below the lowest block of that row, and blocks never overlap. Negative offsets can still make them overlap, as before.
+  - Freeze and filter use the first block that has header rows. A column's width is the first explicit width, or the widest auto measurement across blocks. Gap rows are holes in `rows`.
 
 ```ts
 /** Inverse direction, for import: a sheet back to { columns, data }. */

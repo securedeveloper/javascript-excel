@@ -90,8 +90,16 @@ export interface DatasetOptions<T> {
   onWarning?: ((w: ExcelWarning) => void) | undefined;
 }
 
-/** A block for `fromDatasets`, optionally offset from the previous one. */
-export type DatasetBlock<T> = Dataset<T> & { offset?: { rows?: number | undefined; cols?: number | undefined } | undefined };
+/** A block for `fromDatasets`: placed below or to the right of the previous one, optionally offset. */
+export type DatasetBlock<T> = Dataset<T> & {
+  /**
+   * 'below' (default): `gap` empty rows below the lowest row used so far by the previous
+   * row of blocks, at the origin column. 'right': on the previous block's top row, `gap`
+   * empty columns after its last column.
+   */
+  placement?: "below" | "right" | undefined;
+  offset?: { rows?: number | undefined; cols?: number | undefined } | undefined;
+};
 
 // ------------------------------------------------------------- accessors
 
@@ -533,10 +541,14 @@ export function fromDataset<T>(dataset: Dataset<T>, options: DatasetOptions<T> =
 }
 
 /**
- * Stacks several datasets on one sheet (replaces the old xSteps/ySteps).
- * Each block starts `gap` empty rows (default 1) below the previous one, or
+ * Places several datasets on one sheet (replaces the old xSteps/ySteps).
+ * A block with placement 'below' (the default) starts `gap` empty rows
+ * (default 1) below the lowest row used by the previous row of blocks, or
  * `offset.rows` rows when given, and `offset.cols` columns right of the
- * origin. Freeze and filter apply to the first block with header rows.
+ * origin. A block with placement 'right' starts on the previous block's top
+ * row (moved down by `offset.rows`), `gap` empty columns plus `offset.cols`
+ * after the previous block's last column. Freeze and filter apply to the
+ * first block with header rows.
  */
 export function fromDatasets(blocks: Array<DatasetBlock<any>>, options: DatasetOptions<any> & { gap?: number | undefined } = {}): Sheet {
   if (!Array.isArray(blocks)) throw columnError("fromDatasets needs an array of datasets.");
@@ -546,14 +558,30 @@ export function fromDatasets(blocks: Array<DatasetBlock<any>>, options: DatasetO
   if (!Number.isInteger(gap) || gap < 0) throw columnError(`gap must be a non-negative integer, got ${String(gap)}.`);
   const g = newGrid();
   let first: BlockResult | undefined;
-  let nextRow = origin.row;
+  let prev: { top: number; lastCol: number } | undefined;
+  // Lowest row used by the current row of blocks (a 'below' block and the 'right' blocks after it).
+  let bottom = origin.row - 1;
   blocks.forEach((block, i) => {
+    const placement = block?.placement ?? "below";
+    if (placement !== "below" && placement !== "right") {
+      throw columnError(`placement must be 'below' or 'right', got ${JSON.stringify(placement)}.`, { block: i, placement });
+    }
     const offRows = block.offset?.rows;
     const offCols = block.offset?.cols ?? 0;
-    const top = i === 0 ? origin.row + (offRows ?? 0) : nextRow + (offRows ?? gap);
-    const result = layoutBlock(g, block, options, top, origin.col + offCols, name);
+    let top: number;
+    let left: number;
+    if (prev && placement === "right") {
+      top = prev.top + (offRows ?? 0);
+      left = prev.lastCol + 1 + gap + offCols;
+    } else {
+      top = i === 0 ? origin.row + (offRows ?? 0) : bottom + 1 + (offRows ?? gap);
+      left = origin.col + offCols;
+      bottom = top - 1;
+    }
+    const result = layoutBlock(g, block, options, top, left, name);
     if (!first && result.headerRows > 0) first = result;
-    nextRow = result.lastRow + 1;
+    prev = { top, lastCol: result.lastCol };
+    bottom = Math.max(bottom, result.lastRow);
   });
   return finish(g, options, first, name);
 }
