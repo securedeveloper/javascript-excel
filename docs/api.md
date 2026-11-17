@@ -1319,7 +1319,7 @@ Excel is the authority; LibreOffice is the automated reference.
 - **The check.** The `LibreOffice` CI job writes every case of `test/format/cases.ts`, plus every number-formatted cell of the conformance files `10-number-formats` and `11-number-formats-locale`, to one workbook. It has LibreOffice export the workbook to CSV with "save cell contents as shown" in en-US, and compares each cell with `formatCell(cell, { locale: 'en-US' })` (`test/format/libreoffice.test.ts`).
 - **Where LibreOffice differs.** Every case where LibreOffice is known to differ is listed in that test with LibreOffice's output. The table below records it, with what this module does and why. Each is `[to verify]` against Excel in the conformance checklist.
 
-Result in CI (LibreOffice 26.2, en-US): 439 probes, 344 identical, 95 different for a known reason (1900 calendar 27, time rounding 27, General 12, dangling point 7, built-in ids 39/40/47 7, `?` padding 9, am/pm case 5, Buddhist year 1), 0 unexplained. Every difference has one of the known causes below. Any other difference fails the job.
+Result in CI (LibreOffice 26.2, en-US): 439 probes, 350 identical, 89 different for a known reason (1900 calendar 27, time rounding 28, General 12, dangling point 7, `?` padding 9, am/pm case 5, Buddhist year 1), 0 unexplained. Built-in ids 39, 40 and 47 no longer differ: both use Excel's codes (§11.2). One `mm:ss.0` probe now counts under time rounding. Every difference has one of the known causes below. Any other difference fails the job.
 
 | Difference | LibreOffice | `formatValue` (Excel's behaviour, `[to verify]`) |
 |---|---|---|
