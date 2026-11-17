@@ -1,5 +1,13 @@
 # javascript-excel
 
+## 2.0.0-beta.0
+
+First beta of 2.0.0, on the `next` dist-tag. The 2.0.0 feature set is complete: everything in the 2.0.0-alpha releases below. Changes before 2.0.0 should be limited to fixes found in testing, including the manual conformance check in Excel and Numbers.
+
+### Patch Changes
+
+- 244577a: README: link the live playground (https://javascript-excel-playground.vercel.app/).
+
 ## 2.0.0-alpha.7
 
 ### Minor Changes
