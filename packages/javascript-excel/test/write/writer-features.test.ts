@@ -280,6 +280,11 @@ describe("sheet names (§4.6)", () => {
       null,
     ]);
   });
+
+  it("rejects History in any case: Excel for Mac refuses it as a reserved word", () => {
+    expect(["History", "history", "HISTORY", "hIsToRy"].map(validateSheetName)).toEqual(["reserved", "reserved", "reserved", "reserved"]);
+    expect(["Histories", "History 2", " History"].map(validateSheetName)).toEqual([null, null, null]);
+  });
   it("sanitizeSheetName always returns a valid name", () => {
     const cases = ["Q1/Q2 [draft]: *final?*", "'quoted'", "", "history", "x".repeat(40), `${"x".repeat(30)}😀`, "'''"];
     const out = cases.map(sanitizeSheetName);

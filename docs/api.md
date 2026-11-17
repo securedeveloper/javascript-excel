@@ -230,7 +230,7 @@ export type ColumnWidth = number | { wch: number } | { wpx: number } | 'auto';
 - is 1 to 31 characters long. Excel counts code points: it accepts 30 x's and 😀, which is 31 code points and 32 UTF-16 units *(confirmed in Excel for Mac, 2026-11-17; conformance.md, 17-workbook)*. The writer still counts UTF-16 units (`name.length`), so it rejects such a name although Excel accepts it;
 - contains none of `\ / ? * [ ] :`;
 - does not start or end with an apostrophe `'`;
-- is not `History`, which Excel reserves `[to verify: not tried in the Excel for Mac check; conformance.md, 17-workbook]`.
+- is not `History`, which Excel reserves: renaming a tab to it gives "History is a reserve word" *(confirmed in Excel for Mac, 2026-11-17; conformance.md, 17-workbook)*. The check ignores case (`history`, `HISTORY`); only `History` itself was tried in Excel.
 
 Names must be unique, compared case-insensitively (`DUPLICATE_SHEET_NAME`). `sanitizeSheetName()` (§4.6) makes any string valid.
 
