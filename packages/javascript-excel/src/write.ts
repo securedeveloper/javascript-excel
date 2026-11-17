@@ -13,6 +13,7 @@ import type { AbortSignalLike } from "./signal";
 import type { Sheet, Workbook } from "./model";
 import { throwIfAborted } from "./internal/zip/bytes";
 import { throttleProgress } from "./internal/progress";
+import { createYielder } from "./internal/yield";
 import { writeZip, type ZipWriteEntry } from "./internal/zip/write";
 import { encodeUtf8 } from "./internal/platform";
 import {
@@ -174,6 +175,9 @@ export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Pr
     formulaWithoutValue: false,
   };
 
+  // Between chunks the writer returns to the event loop every YIELD_BUDGET_MS, so a large
+  // export on the main thread does not freeze the page (the browser paints and handles input).
+  const yieldNow = createYielder();
   let rowsDone = 0;
   let lastReported = 0;
   // Sheets take 90% of the estimate; the remaining parts and the zip directory the rest.
@@ -202,6 +206,11 @@ export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Pr
         data: (async function* () {
           for await (const chunk of chunks) {
             throwIfAborted(signal);
+            const pause = yieldNow();
+            if (pause) {
+              await pause;
+              throwIfAborted(signal);
+            }
             yield chunk;
           }
         })(),
@@ -219,6 +228,11 @@ export async function toUint8Array(wb: Workbook, options: WriteOptions = {}): Pr
         data: (async function* () {
           for (const chunk of strings.chunks()) {
             throwIfAborted(signal);
+            const pause = yieldNow();
+            if (pause) {
+              await pause;
+              throwIfAborted(signal);
+            }
             yield chunk;
           }
         })(),
