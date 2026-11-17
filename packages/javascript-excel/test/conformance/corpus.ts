@@ -657,7 +657,7 @@ export const CORPUS: CorpusEntry[] = [
         look: "Rename a sheet to History. Then rename one to 31 characters made of 30 x's and one emoji (😀).",
         expect: "Record whether Excel refuses 'History' and whether it accepts the 31-character emoji name (if it does, Excel counts characters, not UTF-16 code units).",
         verifies: "'History' is reserved; how the 31-character limit counts astral characters (§3.3)",
-        result: "Confirmed: Excel accepts a name of 30 x's and 😀, 31 code points (32 UTF-16 units), so the limit counts code points. Not verified: renaming a sheet to History was not tried.",
+        result: "Confirmed: Excel accepts a name of 30 x's and 😀, 31 code points (32 UTF-16 units), so the limit counts code points. Excel refuses to rename a sheet to History (\"History is a reserve word\").",
       },
     ],
   },

@@ -3,7 +3,8 @@
  *
  * Excel rejects names that are empty, longer than 31 characters, contain any
  * of \ / ? * [ ] :, or start or end with an apostrophe. It reserves 'History'
- * [to verify]. Names are unique case-insensitively (checked by the writer).
+ * (Excel for Mac: "History is a reserve word"); the check here ignores case.
+ * Names are unique case-insensitively (checked by the writer).
  */
 
 /** Why a sheet name is invalid. */

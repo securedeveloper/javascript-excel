@@ -6,7 +6,7 @@ This checklist is for a one-time manual check of the conformance corpus in **Mic
 
 ## Results
 
-Checked on 2026-11-17 in **Excel for Mac**: every file below opens with no repair prompt and was reported as passing. Eight of the open items were confirmed, two of them only in part. One (the Display sheet) was not reported. What was not checked is marked **Not verified** below.
+Checked on 2026-11-17 in **Excel for Mac**: every file below opens with no repair prompt and was reported as passing. Eight of the open items were confirmed, one of them only in part. One (the Display sheet) was not reported. What was not checked is marked **Not verified** below.
 
 **Not checked by hand: Excel for Windows and Apple Numbers.** For those apps, only the automated checks apply: CI opens the corpus files in LibreOffice and reads them back with openpyxl and with javascript-excel's own reader ([Automated cross-checks](#automated-cross-checks)). Files saved by Excel, Numbers and Google Sheets (reader fixtures) and a file with a `#SPILL!` error were not made, so those items stay open.
 
@@ -243,7 +243,7 @@ These facts were marked `[to verify]` in `docs/api.md`. Each one is checked by t
 | theme index order: 0 = lt1, 1 = dk1, 2 = lt2, 3 = dk2 (§3.5.6) | `12-colours.xlsx` | Theme!B2:B13 | Confirmed: 0 Background 1, 1 Text 1, 2 Background 2, 3 Text 2, 4–9 Accent 1–6, 10 Hyperlink, 11 Followed Hyperlink. |
 | indexed 64 = system foreground, 65 = system background (§3.5.6) | `12-colours.xlsx` | Indexed!C66:C67 | Confirmed: 64 is black, 65 is white. |
 | maximum digit width 7 px for Calibri 11 (§3.3) | `13-columns-rows.xlsx` | Widths!A:F | Confirmed in characters: A 8.43, B 10, C 20, D 12, E 8.43, F 13.57. Pixel widths are Windows values and were not checked. |
-| 'History' is reserved; how the 31-character limit counts astral characters (§3.3) | `17-workbook.xlsx` | Any sheet tab | Confirmed: Excel accepts a name of 30 x's and 😀, 31 code points (32 UTF-16 units), so the limit counts code points. **Not verified:** renaming a sheet to History was not tried. |
+| 'History' is reserved; how the 31-character limit counts astral characters (§3.3) | `17-workbook.xlsx` | Any sheet tab | Confirmed: Excel accepts a name of 30 x's and 😀, 31 code points (32 UTF-16 units), so the limit counts code points. Excel refuses to rename a sheet to History ("History is a reserve word"). |
 | 64,000 unique cell formats (§7.2, §11.1) | `18-limits.xlsx` | Opening the file | Confirmed: the file with 64,000 cell formats opens with no repair prompt, and Cmd+End goes to XFD1048576. A file over the limit was not tried. |
 | how newer Excel errors such as `#SPILL!` are stored (§3.4) | *(make one)* | In Excel 365, enter `=SEQUENCE(3)` in A2 and any value in A3 so it spills into a blocked cell, save as `.xlsx`, and attach the file to the report. The XML is inspected from it. | **Open**: no file was made |
 
