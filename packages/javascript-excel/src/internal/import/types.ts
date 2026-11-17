@@ -39,7 +39,10 @@ export type ImportIssueCode = "TYPE" | "REQUIRED" | "MAPPING_MISSING" | "ERROR_C
 export interface ImportIssue {
   /** Spreadsheet row (1-based); 0 for column- or file-level issues. */
   row: number;
+  /** The key the value has in `data` rows: the schema field with a schema, the column key without one. */
   field?: string | undefined;
+  /** The source column's key, for cell- and column-level issues. */
+  column?: string | undefined;
   ref?: string | undefined;
   code: ImportIssueCode;
   message: string;
@@ -226,6 +229,7 @@ export function coerceColumns(dataset: DatasetLike, types: Record<string, Column
         issues.push({
           row: rowNumber,
           field: column.key,
+          column: column.key,
           ...(column.letter ? { ref: `${column.letter}${rowNumber}` } : {}),
           code: "TYPE",
           message: `${column.letter ? `${column.letter}${rowNumber}` : `Row ${rowNumber}`}: ${JSON.stringify(String(textOf(row[column.key]) ?? row[column.key]))} is not a ${spec.type}.`,

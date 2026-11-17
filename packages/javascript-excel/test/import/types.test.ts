@@ -66,7 +66,7 @@ describe("coerceColumns", () => {
     const d = { ...ds({ amount: ["1", "x", null] }), rowNumbers: [5, 6, 7] };
     const out = coerceColumns(d, { amount: "number" });
     expect(out.data.map((r) => r["amount"])).toEqual([1, null, null]);
-    expect(out.issues).toEqual([{ row: 6, field: "amount", ref: "A6", code: "TYPE", message: 'A6: "x" is not a number.', severity: "error" }]);
+    expect(out.issues).toEqual([{ row: 6, field: "amount", column: "amount", ref: "A6", code: "TYPE", message: 'A6: "x" is not a number.', severity: "error" }]);
   });
 
   it("string, boolean and date targets", () => {

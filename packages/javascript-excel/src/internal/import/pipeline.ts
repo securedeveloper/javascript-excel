@@ -13,7 +13,7 @@ import type { AbortSignalLike } from "../../signal";
 import type { ExcelWarning } from "../../warnings";
 import { toBytes } from "../input";
 import { DEFAULT_MAX_SCAN, detectHeader, type ImportLocale } from "./header";
-import { applyMapping, mapColumns, type ColumnMapping, type ImportedColumn, type ImportSchema } from "./mapping";
+import { applyMappingDetailed, mapColumns, type ColumnMapping, type ImportedColumn, type ImportSchema } from "./mapping";
 import { coerceColumns, inferDetailed, type ColumnType, type ImportIssue, type InferredColumn } from "./types";
 
 export interface ImportProgress {
@@ -104,6 +104,28 @@ function readCap(options: ImportDatasetOptions): number | undefined {
   const h = options.header ?? "auto";
   const headerArea = h === false ? 0 : typeof h === "number" ? h + 1 : typeof h === "object" ? (h.row === undefined ? DEFAULT_MAX_SCAN : h.row) + h.rows : DEFAULT_MAX_SCAN;
   return headerArea + rows + 1;
+}
+
+/**
+ * Issues after mapping: `field` becomes the key in the rows, issues on
+ * columns the mapping drops go, and a cell with a TYPE issue gets no
+ * REQUIRED issue as well (its value didn't convert; it wasn't empty).
+ */
+function renameIssues(issues: ImportIssue[], sources: Map<string, string>): ImportIssue[] {
+  const cell = (row: number, column: string): string => `${row}\u0000${column}`;
+  const typed = new Set(issues.filter((i) => i.code === "TYPE" && i.column !== undefined).map((i) => cell(i.row, i.column!)));
+  const out: ImportIssue[] = [];
+  for (const i of issues) {
+    if (i.column === undefined) {
+      out.push(i);
+      continue;
+    }
+    const field = sources.get(i.column);
+    if (field === undefined) continue;
+    if (i.code === "REQUIRED" && typed.has(cell(i.row, i.column))) continue;
+    out.push(i.field === field ? i : { ...i, field });
+  }
+  return out;
 }
 
 export async function importDataset(input: string | BinaryInput, options: ImportDatasetOptions = {}): Promise<ImportDatasetResult> {
@@ -274,7 +296,7 @@ export async function importDataset(input: string | BinaryInput, options: Import
         if (!isError(v)) continue;
         row[c.key] = null;
         const ref = `${c.letter}${rowNumbers[i]}`;
-        issues.push({ row: rowNumbers[i]!, field: c.key, ref, code: "ERROR_CELL", message: `${ref} holds the error ${v.error}; read as empty.`, severity: "warning" });
+        issues.push({ row: rowNumbers[i]!, field: c.key, column: c.key, ref, code: "ERROR_CELL", message: `${ref} holds the error ${v.error}; read as empty.`, severity: "warning" });
       }
     }
   }
@@ -311,7 +333,7 @@ export async function importDataset(input: string | BinaryInput, options: Import
       if (mode === "infer") plan[inf.key] = inf;
       typeOf.set(inf.key, inf.type);
       if (inf.ambiguousDates) {
-        issues.push({ row: 0, field: inf.key, code: "DATE_ORDER_AMBIGUOUS", message: `Column "${inf.key}" looks like dates, but the day/month order can't be told from the data; set locale.dateOrder.`, severity: "warning" });
+        issues.push({ row: 0, field: inf.key, column: inf.key, code: "DATE_ORDER_AMBIGUOUS", message: `Column "${inf.key}" looks like dates, but the day/month order can't be told from the data; set locale.dateOrder.`, severity: "warning" });
       }
     }
   }
@@ -323,9 +345,10 @@ export async function importDataset(input: string | BinaryInput, options: Import
   // 6. Mapping.
   let result: { columns: ImportedColumn[]; data: Array<Record<string, unknown>>; rowNumbers: number[] };
   if (mapped) {
-    const m = applyMapping({ columns: typedColumns, data: coerced.data, rowNumbers }, mapped.mapping, o.schema!);
+    const { sources, ...m } = applyMappingDetailed({ columns: typedColumns, data: coerced.data, rowNumbers }, mapped.mapping, o.schema!);
     issues.push(...m.issues);
     result = m;
+    issues.splice(0, issues.length, ...renameIssues(issues, sources));
     meta.mapping = mapped.mapping;
     meta.unmappedColumns = mapped.unmapped;
   } else result = { columns: typedColumns, data: coerced.data, rowNumbers };
