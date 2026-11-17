@@ -1,5 +1,16 @@
 # javascript-excel
 
+## 2.0.0-alpha.7
+
+### Minor Changes
+
+- 252a056: `fromDatasets` blocks take an optional `placement: 'below' | 'right'`. `'below'` (the default) is the existing behaviour. `'right'` puts a block on the previous block's top row, `gap` empty columns after its last column, with `offset.cols` and `offset.rows` adding to that. A `'below'` block after `'right'` blocks starts below the lowest of them, so blocks do not overlap. Existing calls give the same output as before.
+
+### Patch Changes
+
+- 938a6c6: `read` now returns to the event loop about every 16 ms while it parses, and feeds the decompressor in slices, so reading a large file on the main thread no longer freezes the page: frames render, timers and input run, and an abort from a timer or a click takes effect while the read is in flight. The resulting model is unchanged.
+- 33ba222: `toUint8Array` and `toBlob` now return to the event loop about every 16 ms while they write, so a large export on the main thread no longer freezes the page: frames render, timers and input run, and an abort from a timer or a click takes effect while the write is in flight. The output bytes are unchanged.
+
 ## 2.0.0-alpha.6
 
 ### Minor Changes
