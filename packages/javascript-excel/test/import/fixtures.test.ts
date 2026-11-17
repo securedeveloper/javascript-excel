@@ -2,6 +2,8 @@
 // test/fixtures/import, see the README there).
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { toCsv } from "../../src/csv";
+import { fromDataset } from "../../src/dataset";
 import { importDataset } from "../../src/import";
 
 const file = (path: string) => new Uint8Array(readFileSync(new URL(`../fixtures/import/${path}`, import.meta.url)));
@@ -34,5 +36,26 @@ describe("header detection on react-data-import's fixtures", () => {
     const explicit = await importDataset(file("csv/two-header-rows.csv"), { format: "csv", header: { rows: 2 } });
     expect(explicit.columns).toEqual(r.columns);
     expect(explicit.data).toEqual(r.data);
+  });
+});
+
+describe("header groups through CSV", () => {
+  it("toCsv of fromDataset header groups imports back with the original column titles", async () => {
+    const sheet = fromDataset({
+      columns: [
+        { title: "Name", key: "name" },
+        { title: "Q1", children: [{ title: "Jan", key: "jan" }, { title: "Feb", key: "feb" }, { title: "Mar", key: "mar" }] },
+        { title: "Q2", children: [{ title: "Apr", key: "apr" }, { title: "May", key: "may" }] },
+        { title: "Notes", key: "notes" },
+      ],
+      data: [
+        { name: "Ada", jan: 1, feb: 2, mar: 3, apr: 4, may: 5, notes: "first" },
+        { name: "Grace", jan: 6, feb: 7, mar: 8, apr: 9, may: 10, notes: "second" },
+      ],
+    });
+    const r = await importDataset(toCsv(sheet), { format: "csv" });
+    expect(r.meta.header).toEqual({ rows: [0, 1], detected: true, confidence: "high" });
+    expect(r.columns.map((c) => c.key)).toEqual(["Name", "Q1 / Jan", "Q1 / Feb", "Q1 / Mar", "Q2 / Apr", "Q2 / May", "Notes"]);
+    expect({ ...r.data[1] }).toEqual({ Name: "Grace", "Q1 / Jan": 6, "Q1 / Feb": 7, "Q1 / Mar": 8, "Q2 / Apr": 9, "Q2 / May": 10, Notes: "second" });
   });
 });

@@ -677,7 +677,7 @@ export function toDatasetDetailed(sheet: Sheet<Cell> | Sheet, options: ToDataset
   if (typeof join !== "string") throw new TypeError("join must be a string");
   const asCell = options.values === "cell";
 
-  const titleOf = headerRow === false ? undefined : headerRows === 1 ? (c: number) => cellText(s.rows[headerRow]?.[c]).trim() : multiRowTitles(s, headerRow, headerRows, join);
+  const titleOf = headerRow === false ? undefined : headerRows === 1 ? (c: number) => cellText(s.rows[headerRow]?.[c]).trim() : multiRowTitles(s, headerRow, headerRows, join, rng.start.col);
   const columns: DetailedDataset["columns"] = [];
   const used = new Map<string, number>();
   for (let c = rng.start.col; c <= rng.end.col; c++) {
@@ -724,19 +724,41 @@ export function toDatasetDetailed(sheet: Sheet<Cell> | Sheet, options: ToDataset
  * Titles of a header spanning several rows: the text of each row joined,
  * with merged cells expanded (a group title merged across columns prefixes
  * each of them) and a cell merged down through the rows counted once.
+ *
+ * Without merges (CSV), a group title is written once, over the first of its
+ * columns: "Q1," over "Jan,Feb". So an empty, unmerged cell in an upper header
+ * row takes the nearest non-empty cell to its left in that row, as long as
+ * the column has text in a lower header row (it is a sub-column). The fill
+ * stops at the table's first column and at a merged cell, whose extent the
+ * merge already gives.
  */
-function multiRowTitles(s: Sheet<CellInput>, top: number, count: number, join: string): (c: number) => string {
+function multiRowTitles(s: Sheet<CellInput>, top: number, count: number, join: string, firstCol: number): (c: number) => string {
   const bottom = top + count - 1;
   const merges = (s.merges ?? []).map((m) => decodeRange(m)).filter((m) => m.start.row <= bottom && m.end.row >= top);
+  const mergeAt = (r: number, c: number) => merges.find((x) => r >= x.start.row && r <= x.end.row && c >= x.start.col && c <= x.end.col);
+  const textAt = (r: number, c: number) => cellText(s.rows[r]?.[c]).trim();
+  const filledFromLeft = (r: number, c: number): string => {
+    for (let k = c - 1; k >= firstCol; k--) {
+      if (mergeAt(r, k)) return "";
+      const t = textAt(r, k);
+      if (t !== "") return t;
+    }
+    return "";
+  };
   return (c) => {
     const parts: string[] = [];
     let last: unknown;
     for (let r = top; r <= bottom; r++) {
-      const m = merges.find((x) => r >= x.start.row && r <= x.end.row && c >= x.start.col && c <= x.end.col);
+      const m = mergeAt(r, c);
       const id = m ?? `${r}`;
       if (id === last) continue;
       last = id;
-      const text = cellText(m ? s.rows[m.start.row]?.[m.start.col] : s.rows[r]?.[c]).trim();
+      let text = m ? cellText(s.rows[m.start.row]?.[m.start.col]).trim() : textAt(r, c);
+      if (text === "" && !m && r < bottom) {
+        let subColumn = false;
+        for (let q = r + 1; q <= bottom && !subColumn; q++) subColumn = mergeAt(q, c) === undefined && textAt(q, c) !== "";
+        if (subColumn) text = filledFromLeft(r, c);
+      }
       if (text !== "") parts.push(text);
     }
     return parts.join(join);
