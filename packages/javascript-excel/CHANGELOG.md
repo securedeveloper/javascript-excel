@@ -1,5 +1,20 @@
 # javascript-excel
 
+## 2.0.0-beta.1
+
+The conformance corpus was checked by hand in **Excel for Mac** (2026-11-17): every file opens with no repair prompt. The results are in `docs/conformance.md`. Excel for Windows and Apple Numbers were not checked by hand; for them only the automated LibreOffice and openpyxl checks apply. What changes for users:
+
+- **Two-row headers without merges** (CSV) are detected by `header: 'auto'`, and a group title carries right over its sub-columns, so header groups written to CSV import back as `Q1 / Jan`, `Q1 / Feb`.
+- **Built-in number formats 37–40 and 47** use the codes Excel shows, not the ECMA-376 ones. This affects `BUILTIN_NUM_FMTS` and the formatted text; written files are unchanged.
+- **Sheet names** are limited to 31 characters counted as Excel counts them (code points), so a name with an emoji at the limit is no longer rejected.
+
+### Patch Changes
+
+- c100c46: Built-in number formats 37–40 and 47 now use the codes Excel itself shows, checked in Excel for Mac: `#,##0_);(#,##0)`, `#,##0_);[Red](#,##0)`, `#,##0.00_);(#,##0.00)`, `#,##0.00_);[Red](#,##0.00)` and `mm:ss.0`. The ECMA-376 table lists other codes. This changes `BUILTIN_NUM_FMTS` and what `formatValue`/`formatCell` show for those ids: positive numbers keep a trailing space where the `)` would be (`1,234.50 `), and 47 shows `31:00.0` instead of `3100.0`. Files are unaffected, because the writer writes only the id.
+- 5020077: `toDataset` with `headerRows` (and `importDataset` with a multi-row header) now carries a group title right across the empty upper-row cells that follow it when there are no merges, as in CSV: `Name,Q1,` over `,Jan,Feb` gives `Name`, `Q1 / Jan`, `Q1 / Feb` instead of `Name`, `Q1 / Jan`, `Feb`. Merged cells still decide where they are present, and a column with no text in the lower header rows is not filled.
+- 15f8238: Sheet names are limited to 31 code points, as in Excel, instead of 31 UTF-16 units. `validateSheetName`, the writer and `sanitizeSheetName` now accept a name such as 30 letters plus an emoji (Excel for Mac accepts it), and `sanitizeSheetName` cuts long names to 31 code points without splitting a surrogate pair. `History` stays reserved in any case (Excel refuses it), and `sanitizeSheetName` turns it into `Sheet`.
+- f7e976d: `detectHeader` (and `importDataset` with `header: 'auto'`) now recognises a two-row header without merges, as CSV files have: a second all-text row whose text cells all sit on columns of typed data joins the header (`Region,Sales,Sales` over `,Q1,Q2` gives `Sales / Q1`, `Sales / Q2`). Two text rows that only fill the table together (`Name,Q1,` over `,Jan,Feb`) are also a two-row header. When the row under the header is all text but only partly fits, it stays data and the confidence is `'low'`.
+
 ## 2.0.0-beta.0
 
 First beta of 2.0.0, on the `next` dist-tag. The 2.0.0 feature set is complete: everything in the 2.0.0-alpha releases below. Changes before 2.0.0 should be limited to fixes found in testing, including the manual conformance check in Excel and Numbers.
