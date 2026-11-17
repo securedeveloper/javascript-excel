@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fromTable, type FromTableOptions } from "../../src/dom";
 import { isExcelError, type Cell, type CellInput, type ExcelWarning } from "../../src/index";
 import { cssColor } from "../../src/internal/css-color";
@@ -241,6 +241,40 @@ describe("fromTable: computed styles", () => {
     expect(s.rows[0]![0]).toEqual({ value: "h", style: { font: { bold: true, size: 14, italic: true } } });
   });
 
+  it("maps text and background colours given in CSS Color 4 spaces", () => {
+    // happy-dom's CSS parser drops lab()/oklch()/color(), so the computed values Chromium
+    // reports are served from data attributes here; test/browser covers real Chromium.
+    const real = window.getComputedStyle.bind(window);
+    const spy = vi.spyOn(window, "getComputedStyle").mockImplementation((el: Element, pseudo?: string | null) => {
+      const cs = real(el, pseudo);
+      const over: Record<string, string | null> = { color: el.getAttribute("data-color"), "background-color": el.getAttribute("data-bg") };
+      return new Proxy(cs, {
+        get: (t, k) => (k === "getPropertyValue" ? (prop: string) => over[prop] ?? t.getPropertyValue(prop) : Reflect.get(t, k, t)),
+      });
+    });
+    try {
+      const s = read(
+        `<table><tr data-bg="oklch(0.967 0.003 264.542)">
+          <td data-color="oklch(62.8% 0.2577 29.23)">a</td>
+          <td data-bg="lab(54.29% 80.8 69.89)">b</td>
+          <td data-color="color(display-p3 1 0 0)" data-bg="lch(100% 0 0)">c</td>
+          <td data-bg="oklab(0.628 0.2249 0.1258 / 0)">d</td>
+          <td data-color="color(srgb 0 0 0)">e</td>
+        </tr></table>`,
+        { styles: "computed" },
+      );
+      const r = s.rows[0]! as Cell[];
+      expect(r[0]!.style).toEqual({ font: { color: "FF0000" }, fill: "F3F4F6" });
+      expect(r[1]!.style).toEqual({ fill: "FF0000" });
+      expect(r[2]!.style).toEqual({ font: { color: "FF0000" }, fill: "FFFFFF" });
+      // A transparent modern colour shows the row's background; black stays automatic.
+      expect(r[3]!.style).toEqual({ fill: "F3F4F6" });
+      expect(r[4]!.style).toEqual({ fill: "F3F4F6" });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("styles: 'none' (default) maps nothing", () => {
     expect(read(`<table><tr><td class="bold">a</td></tr></table>`, {}, ".bold { font-weight: 700 }").rows[0]).toEqual(["a"]);
   });
@@ -261,7 +295,75 @@ describe("cssColor", () => {
     ["red", "FF0000"],
     ["rebeccapurple", undefined],
     ["", undefined],
+    ["rgb(none 128 none)", "008000"],
+    ["hsl(120, 100%, 25%)", "008000"],
+    ["hwb(0 0% 0%)", "FF0000"],
+    ["hwb(0 60% 60%)", "808080"],
   ])("%j → %j", (input, expected) => {
     expect(cssColor(input)).toBe(expected);
+  });
+});
+
+describe("cssColor: CSS Color 4 spaces", () => {
+  // Reference values: the sRGB primaries, white and black as each space serialises them
+  // (CSS Color 4 sample conversions, rounded as browsers print them).
+  it.each([
+    // OKLab / OKLCH
+    ["oklch(62.8% 0.2577 29.23)", "FF0000"],
+    ["oklch(0.628 0.2577 29.23)", "FF0000"],
+    ["oklch(86.64% 0.2948 142.5)", "00FF00"],
+    ["oklch(45.2% 0.3132 264.05)", "0000FF"],
+    ["oklab(0.628 0.2249 0.1258)", "FF0000"],
+    ["oklab(62.8% 56.225% 31.45%)", "FF0000"],
+    ["oklch(1 0 0)", "FFFFFF"],
+    ["oklch(100% 0 none)", "FFFFFF"],
+    ["oklab(0 0 0)", "000000"],
+    ["oklch(0.6 0 0)", "808080"], // L³ = Y = 0.216,
+    // CIE Lab / LCH (D50, Bradford to D65)
+    ["lab(54.29% 80.8 69.89)", "FF0000"],
+    ["lab(54.29 80.8 69.89)", "FF0000"],
+    ["lch(54.29% 106.84 40.85)", "FF0000"],
+    ["lch(54.29% 106.84 0.7129rad)", "FF0000"],
+    ["lab(87.82 -79.27 80.99)", "00FF00"],
+    ["lab(29.57 68.29 -112.03)", "0000FF"],
+    ["lab(100% 0 0)", "FFFFFF"],
+    ["lab(0 0 0)", "000000"],
+    ["lch(none none none)", "000000"],
+    // color(): predefined spaces
+    ["color(srgb 1 0 0)", "FF0000"],
+    ["color(srgb 100% 50% 0%)", "FF8000"],
+    ["color(srgb-linear 1 0.2158 0)", "FF8000"],
+    ["color(display-p3 1 0 0)", "FF0000"], // outside sRGB: clipped
+    ["color(display-p3 0.9175 0.2003 0.1386)", "FF0000"],
+    ["color(display-p3 1 1 1)", "FFFFFF"],
+    ["color(display-p3 0 0 0)", "000000"],
+    ["color(a98-rgb 1 1 1)", "FFFFFF"],
+    ["color(prophoto-rgb 1 1 1)", "FFFFFF"],
+    ["color(rec2020 1 1 1)", "FFFFFF"],
+    ["color(xyz-d65 0.9505 1 1.089)", "FFFFFF"],
+    ["color(xyz 0.4124 0.2126 0.0193)", "FF0000"],
+    ["color(xyz-d50 0.9642 1 0.8252)", "FFFFFF"],
+    ["color(srgb none 1 none)", "00FF00"],
+    // Tailwind v4 palette values as Chromium reports them
+    ["oklch(0.623 0.214 259.815)", "2B7FFF"], // blue-500
+    ["oklch(0.637 0.237 25.331)", "FB2C36"], // red-500
+    ["oklch(0.967 0.003 264.542)", "F3F4F6"], // gray-100
+  ])("%j → %j", (input, expected) => {
+    expect(cssColor(input)).toBe(expected);
+  });
+
+  it("alpha: any non-zero alpha keeps the colour, zero or none is transparent", () => {
+    expect(cssColor("oklch(0.628 0.2577 29.23 / 0.5)")).toBe("FF0000");
+    expect(cssColor("lab(54.29 80.8 69.89 / 50%)")).toBe("FF0000");
+    expect(cssColor("color(display-p3 1 0 0 / 0.25)")).toBe("FF0000");
+    expect(cssColor("oklab(0.628 0.2249 0.1258 / 0)")).toBeUndefined();
+    expect(cssColor("color(srgb 1 0 0 / 0%)")).toBeUndefined();
+    expect(cssColor("lch(54.29 106.84 40.85 / none)")).toBeUndefined();
+  });
+
+  it("malformed or unknown forms are undefined", () => {
+    for (const v of ["oklch(0.5 0.1)", "lab(1 2 3 4)", "color(unknown 1 0 0)", "color(srgb 1 0)", "oklch(a b c)", "lab(1 2 3 / )", "lab(1 2 3 / 1 / 1)", "color-mix(in srgb, red, blue)"]) {
+      expect(cssColor(v), v).toBeUndefined();
+    }
   });
 });
