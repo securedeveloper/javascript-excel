@@ -155,7 +155,9 @@ const personColumns: Array<ColumnDef<Person> | false> = [
   { title: "Year", value: (p, { rowIndex }) => p.joined.getFullYear() + rowIndex, type: "number", total: ({ range }) => ({ formula: \`MAX(\${range})\` }) },
 ];
 const datasetSheet = fromDataset({ columns: personColumns, data: people }, { freezeHeader: true, autoFilter: true, autoWidth: { max: 40 }, rowStyle: (p) => (p.name ? undefined : { fill: "FFFF00" }), onWarning: (w) => void w.ref });
-const stacked = fromDatasets([{ data: people }, { data: [[1, 2]], offset: { rows: 2, cols: undefined } }], { gap: 1 });
+const stacked = fromDatasets([{ data: people }, { data: [[1, 2]], offset: { rows: 2, cols: undefined } }, { data: [[3]], placement: "right" }, { data: [[4]], placement: undefined }], { gap: 1 });
+// @ts-expect-error placement is 'below' or 'right'
+fromDatasets([{ data: people, placement: "left" }]);
 const imported: DatasetResult = toDataset(stacked, { headerRow: 0, values: "value" });
 void datasetSheet;
 void imported;
