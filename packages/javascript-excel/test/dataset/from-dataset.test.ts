@@ -296,6 +296,24 @@ describe("toDataset", () => {
     expect(() => toDataset(sheet, { headerRows: 0 })).toThrow();
   });
 
+  it("headerRows without merges carries a group title right over its sub-columns (CSV)", () => {
+    // "Name,Q1,,Q2," over ",Jan,Feb,Apr,May": Name isn't filled from the left; Q1 and Q2 cover their columns.
+    const csvLike: Sheet = { name: "S", rows: [["Name", "Q1", "", "Q2", ""], ["", "Jan", "Feb", "Apr", "May"], ["Ada", 1, 2, 3, 4]] };
+    expect(toDataset(csvLike, { headerRows: 2 }).columns.map((c) => c.title)).toEqual(["Name", "Q1 / Jan", "Q1 / Feb", "Q2 / Apr", "Q2 / May"]);
+    // Upper cells left of the first title stay empty; a column with no lower text isn't a sub-column.
+    const leading: Sheet = { name: "S", rows: [["", "", "Q1", "", ""], ["Name", "City", "Jan", "Feb", ""], ["Ada", "Oslo", 1, 2, 3]] };
+    expect(toDataset(leading, { headerRows: 2 }).columns.map((c) => c.title)).toEqual(["Name", "City", "Q1 / Jan", "Q1 / Feb", ""]);
+    // Every upper cell non-empty (a units row): nothing to fill.
+    const units: Sheet = { name: "S", rows: [["Temp", "Pressure"], ["°C", "hPa"], [20, 1013]] };
+    expect(toDataset(units, { headerRows: 2 }).columns.map((c) => c.title)).toEqual(["Temp / °C", "Pressure / hPa"]);
+  });
+
+  it("headerRows: a real merge wins, and a fill never crosses a merged cell", () => {
+    // Q1 merged over B:C; D's upper cell is empty and stays empty instead of taking Q1.
+    const s: Sheet = { name: "S", rows: [["Name", "Q1", null, null], [null, "Jan", "Feb", "Notes"], ["Ada", 1, 2, "x"]], merges: ["B1:C1"] };
+    expect(toDataset(s, { headerRows: 2 }).columns.map((c) => c.title)).toEqual(["Name", "Q1 / Jan", "Q1 / Feb", "Notes"]);
+  });
+
   it("builds keys from header text: deduplicated, letters for empty headers", () => {
     const sheet: Sheet = { name: "S", rows: [["Name", "Name", "", "  Qty "], ["Ada", "x", true, 2], [], ["Grace", "y", false, { formula: "1+1", value: 2 }]] };
     const { columns, data } = toDataset(sheet);
