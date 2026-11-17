@@ -9,6 +9,7 @@ import { throwIfAborted, type SignalLike } from "../zip/bytes";
 import type { ZipEntryInfo, ZipReader } from "../zip/read";
 import { XmlTokenizer, type XmlHandler } from "./xml-reader";
 import { throttleProgress } from "../progress";
+import { createYielder } from "../yield";
 
 export interface ReaderLimits {
   maxXmlDepth: number;
@@ -46,6 +47,8 @@ export class ReadContext {
   }
 
   private readonly onProgress: ((p: ProgressInfo) => void) | undefined;
+  /** Returns to the event loop about every 16 ms between chunks, so a big read does not freeze the page (JSE-24). */
+  private readonly pause = createYielder();
 
   warn(code: ExcelWarningCode, message: string, where?: { part?: string; sheet?: string; ref?: string }): void {
     if (this.warnings.length >= this.limits.maxWarnings) {
@@ -104,6 +107,11 @@ export class ReadContext {
         } else tok.feed(decoder.decode(chunk, { stream: true }));
         onChunk?.(chunk.length);
         this.checkAbort();
+        const pause = this.pause();
+        if (pause) {
+          await pause;
+          this.checkAbort();
+        }
       }
       if (decoder) tok.feed(decoder.decode());
       tok.end();

@@ -36,6 +36,9 @@ export const RATIO_CHECK_FLOOR: number = 1024 * 1024;
 
 const ignore = (): void => {};
 
+/** Compressed bytes written to the decompressor at a time. */
+const INFLATE_SLICE = 256 * 1024;
+
 async function deflateRaw(chunks: ChunkSource, signal?: SignalLike): Promise<Uint8Array> {
   throwIfAborted(signal);
   const stream = createStream("compress");
@@ -73,7 +76,12 @@ async function* inflateRaw(data: Uint8Array, limits: InflateLimits, signal?: Sig
   const writer = stream.writable.getWriter();
   const reader = stream.readable.getReader();
   // Not awaited before reading: the output must be drained while input is consumed.
-  const writing = writer.write(data).then(() => writer.close());
+  // The input goes in slices: Chromium inflates each written chunk in one go, so
+  // one big write can block the main thread for tens of milliseconds (JSE-24).
+  const writing = (async () => {
+    for (let at = 0; at < data.length; at += INFLATE_SLICE) await writer.write(data.subarray(at, at + INFLATE_SLICE));
+    await writer.close();
+  })();
   writing.catch(ignore); // a write failure also errors the readable side, which is where it is reported
   let produced = 0;
   let finished = false;
