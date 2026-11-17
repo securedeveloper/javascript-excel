@@ -109,6 +109,12 @@ export interface MappableDataset extends DatasetLike {
 }
 
 export function applyMapping(dataset: MappableDataset, mapping: ColumnMapping, schema: ImportSchema): MappedDataset {
+  const { sources: _s, ...result } = applyMappingDetailed(dataset, mapping, schema);
+  return result;
+}
+
+/** @internal applyMapping plus each source column key's key in the rows (columns the mapping drops are absent). */
+export function applyMappingDetailed(dataset: MappableDataset, mapping: ColumnMapping, schema: ImportSchema): MappedDataset & { sources: Map<string, string> } {
   const fields = fieldsOf(schema);
   const byKey = new Map(dataset.columns.map((c, i) => [c.key, { ...c, index: i }]));
   for (const [name] of fields) {
@@ -156,10 +162,12 @@ export function applyMapping(dataset: MappableDataset, mapping: ColumnMapping, s
     for (const name of required) {
       const v = out[name];
       if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) {
-        const letter = byKey.get(plan.find((p) => p.out === name)!.from!)?.letter;
+        const from = plan.find((p) => p.out === name)!.from!;
+        const letter = byKey.get(from)?.letter;
         issues.push({
           row: rowNumbers[i]!,
           field: name,
+          column: from,
           ...(letter ? { ref: `${letter}${rowNumbers[i]}` } : {}),
           code: "REQUIRED",
           message: `Row ${rowNumbers[i]}: "${name}" is required.`,
@@ -169,5 +177,7 @@ export function applyMapping(dataset: MappableDataset, mapping: ColumnMapping, s
     }
     return out;
   });
-  return { columns, data, rowNumbers, issues };
+  const sources = new Map<string, string>();
+  for (const p of plan) if (p.from !== null) sources.set(p.from, p.out);
+  return { columns, data, rowNumbers, issues, sources };
 }

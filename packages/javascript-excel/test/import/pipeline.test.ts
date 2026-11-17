@@ -131,13 +131,60 @@ describe("unmapped schema fields (JSE-21)", () => {
   });
 });
 
+describe("issue fields (JSE-22)", () => {
+  const schema = { fields: { name: { required: true }, quantity: { aliases: ["Qty"], type: "number" as const, required: true }, when: {} } };
+
+  it("with a schema, issues name the field and carry the source column", async () => {
+    const bytes = await book([{ name: "S", rows: [["Name", "Qty", "When"], ["Widget", { error: "#N/A" }, "01/02/2024"], ["Gadget", "abc", "03/04/2024"]] }]);
+    const r = await importDataset(bytes, { schema });
+    expect(r.issues.map((i) => [i.code, i.row, i.field, i.column, i.ref])).toEqual([
+      ["ERROR_CELL", 2, "quantity", "Qty", "B2"],
+      ["DATE_ORDER_AMBIGUOUS", 0, "when", "When", undefined],
+      ["TYPE", 3, "quantity", "Qty", "B3"],
+      ["REQUIRED", 2, "quantity", "Qty", "B2"],
+    ]);
+  });
+
+  it("a forced-type failure in a required field gives TYPE only, not REQUIRED as well", async () => {
+    const r = await importDataset("Name,Qty\nWidget,5\nGadget,abc\nGizmo,", { schema });
+    expect(r.issues).toEqual([
+      { row: 3, field: "quantity", column: "Qty", ref: "B3", code: "TYPE", message: 'B3: "abc" is not a number.', severity: "error" },
+      { row: 4, field: "quantity", column: "Qty", ref: "B4", code: "REQUIRED", message: 'Row 4: "quantity" is required.', severity: "error" },
+    ]);
+  });
+
+  it("MAPPING_MISSING has a field and no column", async () => {
+    const r = await importDataset("Qty\n5", { schema });
+    expect(r.issues).toEqual([{ row: 0, field: "name", code: "MAPPING_MISSING", message: 'No column for the required field "name".', severity: "error" }]);
+  });
+
+  it("kept columns: field is the key in the rows, suffix included", async () => {
+    const r = await importDataset("Name,Qty,quantity\nWidget,5,x", { schema: { fields: schema.fields, unmapped: "keep" }, types: { quantity: "number" } });
+    expect(r.columns.map((c) => c.key)).toEqual(["name", "quantity", "when", "quantity_2"]);
+    expect(r.issues.map((i) => [i.code, i.field, i.column, i.ref])).toEqual([["TYPE", "quantity_2", "quantity", "C2"]]);
+  });
+
+  it("issues on columns the mapping drops are dropped", async () => {
+    const bytes = await book([{ name: "S", rows: [["Name", "Qty", "Note"], ["Widget", 5, { error: "#REF!" }]] }]);
+    expect((await importDataset(bytes, { schema })).issues).toEqual([]);
+    const r = await importDataset("Name,Qty,Code\nWidget,5,x", { schema, types: { Code: "number" } });
+    expect(r.issues).toEqual([]);
+    expect(r.data).toHaveLength(1);
+  });
+
+  it("without a schema, field and column are the column key", async () => {
+    const r = await importDataset("Qty\nabc", { types: { Qty: "number" } });
+    expect(r.issues.map((i) => [i.code, i.field, i.column])).toEqual([["TYPE", "Qty", "Qty"]]);
+  });
+});
+
 describe("cells", () => {
   it("error cells become null with ERROR_CELL, or are kept", async () => {
     const xml = `<sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>v</t></is></c></row><row r="2"><c r="A2" t="e"><v>#N/A</v></c></row><row r="3"><c r="A3"><v>2</v></c></row></sheetData>`;
     const bytes = await build({ sheets: [xml] });
     const r = await importDataset(bytes);
     expect(r.data.map((d) => d["v"])).toEqual([null, 2]);
-    expect(r.issues).toEqual([{ row: 2, field: "v", ref: "A2", code: "ERROR_CELL", message: "A2 holds the error #N/A; read as empty.", severity: "warning" }]);
+    expect(r.issues).toEqual([{ row: 2, field: "v", column: "v", ref: "A2", code: "ERROR_CELL", message: "A2 holds the error #N/A; read as empty.", severity: "warning" }]);
     expect((await importDataset(bytes, { errorCells: "keep" })).data[0]!["v"]).toEqual({ error: "#N/A" });
   });
 

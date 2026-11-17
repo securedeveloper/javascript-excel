@@ -1106,7 +1106,8 @@ export interface ImportMeta {
 
 export interface ImportIssue {
   row: number;                                 // spreadsheet row (1-based); 0 for column- or file-level issues
-  field?: string;                              // field name, or column key without a schema
+  field?: string;                              // the key in data rows: field name, or column key without a schema
+  column?: string;                             // source column key, for cell- and column-level issues
   ref?: string;                                // 'C17'
   code: ImportIssueCode;
   message: string;
@@ -1192,7 +1193,7 @@ export interface MappedDataset { columns: ImportedColumn[]; data: Array<Record<s
   - A first part above 12 means DMY; a second part above 12 means MDY.
   - With no evidence, or evidence both ways, the column stays text with one `DATE_ORDER_AMBIGUOUS` issue (row 0, severity `warning`) naming the column. The browser's locale is never consulted.
 
-`coerceColumns(dataset, types, options)` converts the values and returns `{ data, issues }`. With an inferred type every value converts by construction. With a forced type (`types`, or a schema field's `type`), a value that doesn't convert becomes `null` with a `TYPE` issue (severity `error`). `'string'` writes `String(v)`, with dates as ISO 8601. `'mixed'` and `'empty'` leave values alone.
+`coerceColumns(dataset, types, options)` converts the values and returns `{ data, issues }`. With an inferred type every value converts by construction. With a forced type (`types`, or a schema field's `type`), a value that doesn't convert becomes `null` with a `TYPE` issue (severity `error`), whose `field` and `column` are the column key. `'string'` writes `String(v)`, with dates as ISO 8601. `'mixed'` and `'empty'` leave values alone.
 
 **`parseNumber(text, { decimal, group })`**
 
@@ -1225,7 +1226,14 @@ export interface MappedDataset { columns: ImportedColumn[]; data: Array<Record<s
 - Rows are keyed by field names, in schema order, and **every row has every schema field**: a field without a column is `null` in each row (JSE-21), so rows always have the schema's shape and a validator such as Zod's `.nullable()` accepts them. `columns` has one entry per schema field; an unmapped field's entry has `title: ''`, `letter: ''`, `type: 'empty'` and its `field`.
 - With `unmapped: 'keep'`, the file's other columns follow under their own keys, suffixed `_2`, `_3` if a key equals a field name.
 - A required field without a column gives one `MAPPING_MISSING` issue (row 0, severity `error`) and is `null` in the rows; there is no per-row `REQUIRED` issue for it. The rows are still returned, so a UI can fix the mapping and apply it again without reading the file.
-- A required field that is empty in a row gives a `REQUIRED` issue (severity `error`) with the row and cell.
+- A required field that is empty in a row gives a `REQUIRED` issue (severity `error`) with the row, cell and source `column`. `applyMapping` sees only the values it is given, so a value that `coerceColumns` turned into `null` also counts as empty here; `importDataset` reports such a cell once, as `TYPE` (see "Issues" below).
+
+#### Issues
+
+`importDataset` reports problems in `issues`, never by throwing:
+- **`field` is the key the value has in `data` rows**: the schema field with a schema (a kept column's key, `_2` suffix included, with `unmapped: 'keep'`), the column key without one. **`column`** is the source column's key, as in `ColumnMapping` and `meta.unmappedColumns`. It is set on cell- and column-level issues (`TYPE`, `REQUIRED`, `ERROR_CELL`, `DATE_ORDER_AMBIGUOUS`), not on `MAPPING_MISSING` or `EMPTY`. The cell itself is `ref`.
+- **One error per cell.** A value that doesn't convert to a forced type gives `TYPE` only, even in a required field: the cell wasn't empty. An error cell in a required field gives its `ERROR_CELL` warning and the `REQUIRED` error.
+- **Issues on columns the mapping drops** (`unmapped: 'drop'`, the default) are left out: they describe values that are not in the result.
 
 Validation of rows (functions, Standard Schema, async checks) is react-data-import's. javascript-excel reserves its error code, `VALIDATION_FAILED`.
 ### 5.7 Format (`javascript-excel/format`)

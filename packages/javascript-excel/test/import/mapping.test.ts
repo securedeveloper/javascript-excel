@@ -44,7 +44,7 @@ describe("applyMapping", () => {
     expect(r.rowNumbers).toEqual([3, 4]);
     expect(r.issues).toEqual([
       { row: 0, field: "phone", code: "MAPPING_MISSING", message: 'No column for the required field "phone".', severity: "error" },
-      { row: 4, field: "email", ref: "A4", code: "REQUIRED", message: 'Row 4: "email" is required.', severity: "error" },
+      { row: 4, field: "email", column: "E-mail", ref: "A4", code: "REQUIRED", message: 'Row 4: "email" is required.', severity: "error" },
     ]);
   });
 
