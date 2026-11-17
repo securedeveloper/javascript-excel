@@ -1,0 +1,2 @@
+# Byte-exact fixtures: line endings (CRLF, CR), BOMs and encodings are what the tests check.
+* -text
