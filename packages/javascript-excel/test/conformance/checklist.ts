@@ -13,7 +13,7 @@ export function renderChecklist(): string {
     "",
     "## Results",
     "",
-    `Checked on ${MANUAL_CHECK.date} in **${MANUAL_CHECK.checked.join(", ")}**: every file below opens with no repair prompt, and its checks pass. Six of the open items were confirmed. For three, what Excel showed was not recorded, so they stay open (**Not verified** below).`,
+    `Checked on ${MANUAL_CHECK.date} in **${MANUAL_CHECK.checked.join(", ")}**: every file below opens with no repair prompt and was reported as passing. Eight of the open items were confirmed, two of them only in part. One (the Display sheet) was not reported. What was not checked is marked **Not verified** below.`,
     "",
     `**Not checked by hand: ${MANUAL_CHECK.notChecked.join(" and ")}.** For those apps, only the automated checks apply: CI opens the corpus files in LibreOffice and reads them back with openpyxl and with javascript-excel's own reader ([Automated cross-checks](#automated-cross-checks)). Files saved by Excel, Numbers and Google Sheets (reader fixtures) and a file with a \`#SPILL!\` error were not made, so those items stay open.`,
     "",
@@ -53,7 +53,7 @@ export function renderChecklist(): string {
     "| Open item | File | Where | Result |",
     "|---|---|---|---|",
   );
-  for (const e of ALL) for (const c of e.checks) if (c.verifies) out.push(`| ${esc(c.verifies)} | \`${e.id}.xlsx\` | ${esc(c.where)} | ${c.result ? (isConfirmed(c) ? esc(c.result) : `**${esc(c.result)}**`) : "**Open**"} |`);
+  for (const e of ALL) for (const c of e.checks) if (c.verifies) out.push(`| ${esc(c.verifies)} | \`${e.id}.xlsx\` | ${esc(c.where)} | ${c.result ? (isConfirmed(c) ? esc(c.result).replace("Not verified:", "**Not verified:**") : `**${esc(c.result)}**`) : "**Open**"} |`);
   out.push(
     "| how newer Excel errors such as `#SPILL!` are stored (§3.4) | *(make one)* | In Excel 365, enter `=SEQUENCE(3)` in A2 and any value in A3 so it spills into a blocked cell, save as `.xlsx`, and attach the file to the report. The XML is inspected from it. | **Open**: no file was made |",
     "",

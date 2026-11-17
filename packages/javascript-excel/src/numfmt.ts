@@ -5,7 +5,11 @@
 
 import type { NumFmt } from "./model";
 
-/** The built-in number formats ECMA-376 §18.8.30 defines (§11.2). Ids 14–17 and 22 render in the user's locale in Excel. */
+/**
+ * The built-in number formats ECMA-376 §18.8.30 defines (§11.2), with the codes
+ * Excel itself uses for 37–40 and 47, which differ from the spec's table
+ * (checked in Excel for Mac). Ids 14–17 and 22 render in the user's locale in Excel.
+ */
 export const BUILTIN_NUM_FMTS: Readonly<Record<number, string>> = Object.freeze({
   0: "General",
   1: "0",
@@ -26,13 +30,13 @@ export const BUILTIN_NUM_FMTS: Readonly<Record<number, string>> = Object.freeze(
   20: "h:mm",
   21: "h:mm:ss",
   22: "m/d/yy h:mm",
-  37: "#,##0 ;(#,##0)",
-  38: "#,##0 ;[Red](#,##0)",
-  39: "#,##0.00;(#,##0.00)",
-  40: "#,##0.00;[Red](#,##0.00)",
+  37: "#,##0_);(#,##0)",
+  38: "#,##0_);[Red](#,##0)",
+  39: "#,##0.00_);(#,##0.00)",
+  40: "#,##0.00_);[Red](#,##0.00)",
   45: "mm:ss",
   46: "[h]:mm:ss",
-  47: "mmss.0",
+  47: "mm:ss.0",
   48: "##0.0E+0",
   49: "@",
 });

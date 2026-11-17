@@ -88,9 +88,9 @@ const BUILTIN: Array<[number, string, number | Date]> = [
   [9, "0%", 0.256], [10, "0.00%", 0.256], [11, "0.00E+00", 1234.5678], [12, "# ?/?", 1.25], [13, "# ??/??", 1.3125],
   [14, "short date (mm-dd-yy; locale)", new Date(2024, 0, 15)], [15, "d-mmm-yy", new Date(2024, 0, 15)], [16, "d-mmm", new Date(2024, 0, 15)],
   [17, "mmm-yy", new Date(2024, 0, 15)], [18, "h:mm AM/PM", 0.6458333], [19, "h:mm:ss AM/PM", 0.6458333], [20, "h:mm", 0.6458333],
-  [21, "h:mm:ss", 0.6458333], [22, "m/d/yy h:mm (locale)", new Date(2024, 0, 15, 15, 30)], [37, "#,##0 ;(#,##0)", -1234], [38, "#,##0 ;[Red](#,##0)", -1234],
-  [39, "#,##0.00;(#,##0.00)", -1234.5], [40, "#,##0.00;[Red](#,##0.00)", -1234.5], [45, "mm:ss", 0.0215278], [46, "[h]:mm:ss", 1.5215278],
-  [47, "mmss.0", 0.0215278], [48, "##0.0E+0", 12345.678], [49, "@ (text)", 1234.5678],
+  [21, "h:mm:ss", 0.6458333], [22, "m/d/yy h:mm (locale)", new Date(2024, 0, 15, 15, 30)], [37, "#,##0_);(#,##0)", -1234], [38, "#,##0_);[Red](#,##0)", -1234],
+  [39, "#,##0.00_);(#,##0.00)", -1234.5], [40, "#,##0.00_);[Red](#,##0.00)", -1234.5], [45, "mm:ss", 0.0215278], [46, "[h]:mm:ss", 1.5215278],
+  [47, "mm:ss.0", 0.0215278], [48, "##0.0E+0", 12345.678], [49, "@ (text)", 1234.5678],
 ];
 
 export const CORPUS: CorpusEntry[] = [
@@ -386,9 +386,9 @@ export const CORPUS: CorpusEntry[] = [
       ],
     }),
     checks: [
-      { where: "Built-in!C2:C29", look: "For each row, open Format Cells > Number > Custom and read the selected code.", expect: "The code matches column B (ids 14 and 22 may show your locale's date format). Write down the exact code Excel shows for ids 37, 38, 39, 40 and 47, including spaces.", verifies: "codes and spacing of built-in formats 37–40 and 47 (§11.2)", result: "Confirmed, with Excel's own codes: 37 `#,##0_);(#,##0)`, 38 `#,##0_);[Red](#,##0)`, 39 `#,##0.00_);(#,##0.00)`, 40 `#,##0.00_);[Red](#,##0.00)`, 47 `mm:ss.0`. (37 was reported as `#,##0_);#,##0)`, read as a transcription slip for the opening parenthesis; to be confirmed.) Excel uses these codes; the ECMA-376 table in column B and docs/api.md §11.2 differs for all five; aligned in JSE-F4." },
+      { where: "Built-in!C2:C29", look: "For each row, open Format Cells > Number > Custom and read the selected code.", expect: "The code matches column B (ids 14 and 22 may show your locale's date format). Write down the exact code Excel shows for ids 37, 38, 39, 40 and 47, including spaces.", verifies: "codes and spacing of built-in formats 37–40 and 47 (§11.2)", result: "Confirmed, with Excel's own codes: 37 `#,##0_);(#,##0)`, 38 `#,##0_);[Red](#,##0)`, 39 `#,##0.00_);(#,##0.00)`, 40 `#,##0.00_);[Red](#,##0.00)`, 47 `mm:ss.0`. These are the codes copied from Format Cells, and they are the record. Column B then held the ECMA-376 codes (`#,##0 ;(#,##0)`, `#,##0 ;[Red](#,##0)`, `#,##0.00;(#,##0.00)`, `#,##0.00;[Red](#,##0.00)`, `mmss.0`), so the separate answer that the codes matched column B is not relied on. Column B, `BUILTIN_NUM_FMTS` and docs/api.md §11.2 now use Excel's codes." },
       { where: "Custom!B2:B7", look: "Compare column B with column C.", expect: "Everything matches." },
-      { where: "Display!B2:B17", look: "Compare column B with column C. Widen column B if a value shows ####.", expect: "Everything matches. Write down every row that differs.", verifies: "how Excel displays day 0, rounded times, General, a dangling decimal point, am/pm case, conditional sections, built-in id 32 and bbbb (§5.7.4)", result: "Not verified: the rows that differ were not recorded." },
+      { where: "Display!B2:B17", look: "Compare column B with column C. Widen column B if a value shows ####.", expect: "Everything matches. Write down every row that differs.", verifies: "how Excel displays day 0, rounded times, General, a dangling decimal point, am/pm case, conditional sections, built-in id 32 and bbbb (§5.7.4)", result: "Not verified: no result was reported for the Display sheet." },
     ],
   },
   {
@@ -418,7 +418,7 @@ export const CORPUS: CorpusEntry[] = [
         look: "Note what each row shows, in your Excel locale. If you can, switch Excel or Windows to Japanese or Chinese and look again at ids 27–36 and 50–58.",
         expect: "No repair prompt. In an East Asian locale, ids 27–36 and 50–58 show dates; elsewhere they may show General. Record the result for each id.",
         verifies: "ids 27–36 and 50–58 are date formats (§3.4.1)",
-        result: "Not verified: what these ids show, and in which locale, was not recorded; no East Asian locale was tried.",
+        result: "Confirmed in de-DE: ids 27–36 and 50–58 display as dates, not General. Columns B and C showed different values with the same pattern, as expected in de-DE (locale separators and date order). Not verified: an East Asian locale (Japanese, Chinese) was not tried.",
       },
     ],
   },
@@ -657,7 +657,7 @@ export const CORPUS: CorpusEntry[] = [
         look: "Rename a sheet to History. Then rename one to 31 characters made of 30 x's and one emoji (😀).",
         expect: "Record whether Excel refuses 'History' and whether it accepts the 31-character emoji name (if it does, Excel counts characters, not UTF-16 code units).",
         verifies: "'History' is reserved; how the 31-character limit counts astral characters (§3.3)",
-        result: "Not verified: the renames were not recorded.",
+        result: "Confirmed: Excel accepts a name of 30 x's and 😀, 31 code points (32 UTF-16 units), so the limit counts code points. Not verified: renaming a sheet to History was not tried.",
       },
     ],
   },

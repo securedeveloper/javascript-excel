@@ -227,10 +227,10 @@ export type ColumnWidth = number | { wch: number } | { wpx: number } | 'auto';
 
 **Sheet names.** The writer throws `INVALID_SHEET_NAME` unless the name:
 
-- is 1 to 31 characters long `[to verify: whether Excel counts UTF-16 code units or code points for astral characters; conformance.md, 17-workbook]`;
+- is 1 to 31 characters long. Excel counts code points: it accepts 30 x's and 😀, which is 31 code points and 32 UTF-16 units *(confirmed in Excel for Mac, 2026-11-17; conformance.md, 17-workbook)*. The writer still counts UTF-16 units (`name.length`), so it rejects such a name although Excel accepts it;
 - contains none of `\ / ? * [ ] :`;
 - does not start or end with an apostrophe `'`;
-- is not `History`, which Excel reserves `[to verify: conformance.md, 17-workbook]`.
+- is not `History`, which Excel reserves `[to verify: not tried in the Excel for Mac check; conformance.md, 17-workbook]`.
 
 Names must be unique, compared case-insensitively (`DUPLICATE_SHEET_NAME`). `sanitizeSheetName()` (§4.6) makes any string valid.
 
@@ -303,7 +303,7 @@ Excel stores dates as serial numbers. The writer converts `Date` to a serial and
 **Date detection on read.** A numeric cell is returned as `type: 'date'` with a `Date` value when its number format is a date or time format:
 
 - built-in ids 14–22, 45 and 47 (46 is `[h]:mm:ss`, an elapsed time);
-- built-in ids 27–36 and 50–58 (locale-dependent East Asian date formats) `[to verify: conformance.md, 11-number-formats-locale]`;
+- built-in ids 27–36 and 50–58 (locale-dependent East Asian date formats). Excel for Mac in de-DE displays them as dates *(confirmed in Excel for Mac, 2026-11-17)*; in an East Asian locale `[to verify: not tried; conformance.md, 11-number-formats-locale]`;
 - custom codes that, after removing quoted literals, backslash escapes and bracketed sections other than the elapsed-time tokens `[h]`, `[m]`, `[s]`, contain a date/time token (`y`, `m`, `d`, `h`, `s`, `AM/PM`, `A/P`, `e`, `g`, `b`) `[to verify against more real-world files; the reader tests cover the common codes]`.
 
 Elapsed-time formats (`[h]:mm:ss`) are durations, not dates. The reader returns them as `type: 'number'` and leaves formatting to the caller. With `ReadOptions.dates: 'serial'`, no conversion happens and date cells come back as `type: 'number'`.
@@ -1319,7 +1319,7 @@ Excel is the authority; LibreOffice is the automated reference.
 - **The check.** The `LibreOffice` CI job writes every case of `test/format/cases.ts`, plus every number-formatted cell of the conformance files `10-number-formats` and `11-number-formats-locale`, to one workbook. It has LibreOffice export the workbook to CSV with "save cell contents as shown" in en-US, and compares each cell with `formatCell(cell, { locale: 'en-US' })` (`test/format/libreoffice.test.ts`).
 - **Where LibreOffice differs.** Every case where LibreOffice is known to differ is listed in that test with LibreOffice's output. The table below records it, with what this module does and why. Each is `[to verify]` against Excel in the conformance checklist.
 
-Result in CI (LibreOffice 26.2, en-US): 439 probes, 344 identical, 95 different for a known reason (1900 calendar 27, time rounding 27, General 12, dangling point 7, built-in ids 39/40/47 7, `?` padding 9, am/pm case 5, Buddhist year 1), 0 unexplained. Every difference has one of the known causes below. Any other difference fails the job.
+Result in CI (LibreOffice 26.2, en-US): 439 probes, 350 identical, 89 different for a known reason (1900 calendar 27, time rounding 28, General 12, dangling point 7, `?` padding 9, am/pm case 5, Buddhist year 1), 0 unexplained. Built-in ids 39, 40 and 47 no longer differ: both use Excel's codes (§11.2). One `mm:ss.0` probe now counts under time rounding. Every difference has one of the known causes below. Any other difference fails the job.
 
 | Difference | LibreOffice | `formatValue` (Excel's behaviour, `[to verify]`) |
 |---|---|---|
@@ -1328,7 +1328,6 @@ Result in CI (LibreOffice 26.2, en-US): 439 probes, 344 identical, 95 different 
 | General | Up to 15 significant digits, no width limit, 3-digit exponents (`0.333333333333333`, `1E+021`) | Fits 11 characters (`0.333333333`, `1E+21`, `1.23457E+11`) |
 | A decimal point with no digits after it | Dropped: `#,##0.###` shows `7` | Kept: `7.` |
 | `?` padding | U+2007 FIGURE SPACE | A plain space, as text copied from Excel has |
-| Built-in ids 39, 40, 47 | Excel's actual codes, `#,##0.00_);(#,##0.00)` and `mm:ss.0` | The ECMA-376 codes in §11.2 (`#,##0.00;(#,##0.00)`, `mmss.0`). Excel uses LibreOffice's codes *(confirmed in Excel for Mac, 2026-11-17)*; aligned in JSE-F4 |
 | `am/pm` and `A/P` case | `AM/PM` upper-cased, `A/P` lower-cased | As written in the code |
 | `b`, `bb`, `bbbb` | Not known; printed as text | The Buddhist-era year (Gregorian + 543) |
 
@@ -1880,7 +1879,7 @@ const bytes = await client.write(workbook, {
 
 ### 11.2 Built-in number formats (ECMA-376 §18.8.30)
 
-Ids defined by the spec. Ids 14–17 and 22 render according to the user's locale in Excel even though the spec lists these codes.
+Ids defined by the spec. Ids 14–17 and 22 render according to the user's locale in Excel even though the spec lists these codes. For 37–40 and 47 the table has the codes Excel itself uses *(confirmed in Excel for Mac, 2026-11-17; conformance.md, 10-number-formats)*. ECMA-376 lists `#,##0 ;(#,##0)`, `#,##0 ;[Red](#,##0)`, `#,##0.00;(#,##0.00)`, `#,##0.00;[Red](#,##0.00)` and `mmss.0` for them. `BUILTIN_NUM_FMTS` and `formatValue` use Excel's codes from 2.0.0-beta.1. The writer writes only the id for a built-in format, so files are unaffected.
 
 | Id | Code | Id | Code |
 |---|---|---|---|
@@ -1889,17 +1888,17 @@ Ids defined by the spec. Ids 14–17 and 22 render according to the user's local
 | 2 | `0.00` | 20 | `h:mm` |
 | 3 | `#,##0` | 21 | `h:mm:ss` |
 | 4 | `#,##0.00` | 22 | `m/d/yy h:mm` |
-| 9 | `0%` | 37 | `#,##0 ;(#,##0)` |
-| 10 | `0.00%` | 38 | `#,##0 ;[Red](#,##0)` |
-| 11 | `0.00E+00` | 39 | `#,##0.00;(#,##0.00)` |
-| 12 | `# ?/?` | 40 | `#,##0.00;[Red](#,##0.00)` |
+| 9 | `0%` | 37 | `#,##0_);(#,##0)` |
+| 10 | `0.00%` | 38 | `#,##0_);[Red](#,##0)` |
+| 11 | `0.00E+00` | 39 | `#,##0.00_);(#,##0.00)` |
+| 12 | `# ?/?` | 40 | `#,##0.00_);[Red](#,##0.00)` |
 | 13 | `# ??/??` | 45 | `mm:ss` |
 | 14 | `mm-dd-yy` | 46 | `[h]:mm:ss` |
-| 15 | `d-mmm-yy` | 47 | `mmss.0` |
+| 15 | `d-mmm-yy` | 47 | `mm:ss.0` |
 | 16 | `d-mmm` | 48 | `##0.0E+0` |
 | 17 | `mmm-yy` | 49 | `@` |
 
-Ids 5–8, 23–36, 41–44 and 50–163 are not in this table: they are reserved or locale-specific (currency, accounting, East Asian dates). The writer accepts them as numbers, but their rendering depends on the user's Excel locale. Prefer custom codes. Excel itself uses different codes for 37–40 and 47 than this ECMA-376 table: `#,##0_);(#,##0)`, `#,##0_);[Red](#,##0)`, `#,##0.00_);(#,##0.00)`, `#,##0.00_);[Red](#,##0.00)` and `mm:ss.0` *(confirmed in Excel for Mac, 2026-11-17; conformance.md, 10-number-formats)*. The engine is aligned with Excel's codes in JSE-F4.
+Ids 5–8, 23–36, 41–44 and 50–163 are not in this table: they are reserved or locale-specific (currency, accounting, East Asian dates). The writer accepts them as numbers, but their rendering depends on the user's Excel locale. Prefer custom codes.
 
 ### 11.3 Mapping from xlsx-style keys
 

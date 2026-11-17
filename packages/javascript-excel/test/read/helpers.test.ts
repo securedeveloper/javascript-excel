@@ -77,6 +77,8 @@ describe("BUILTIN_NUM_FMTS", () => {
   it("is the §11.2 table, frozen", () => {
     expect(Object.keys(BUILTIN_NUM_FMTS).map(Number)).toEqual([0, 1, 2, 3, 4, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 37, 38, 39, 40, 45, 46, 47, 48, 49]);
     expect(BUILTIN_NUM_FMTS[14]).toBe("mm-dd-yy");
+    // Excel's own codes for 37–40 and 47 (checked in Excel for Mac), not the ECMA-376 table's.
+    expect([37, 38, 39, 40, 47].map((id) => BUILTIN_NUM_FMTS[id])).toEqual(["#,##0_);(#,##0)", "#,##0_);[Red](#,##0)", "#,##0.00_);(#,##0.00)", "#,##0.00_);[Red](#,##0.00)", "mm:ss.0"]);
     expect(Object.isFrozen(BUILTIN_NUM_FMTS)).toBe(true);
     for (const [id, code] of Object.entries(BUILTIN_NUM_FMTS)) expect(isDateFormat(code), code).toBe(isDateFormat(Number(id)));
   });
