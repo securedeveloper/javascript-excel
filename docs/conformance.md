@@ -6,7 +6,7 @@ This checklist is for a one-time manual check of the conformance corpus in **Mic
 
 ## Results
 
-Checked on 2026-11-17 in **Excel for Mac**: every file below opens with no repair prompt, and its checks pass. Six of the open items were confirmed. For three, what Excel showed was not recorded, so they stay open (**Not verified** below).
+Checked on 2026-11-17 in **Excel for Mac**: every file below opens with no repair prompt and was reported as passing. Eight of the open items were confirmed, two of them only in part. One (the Display sheet) was not reported. What was not checked is marked **Not verified** below.
 
 **Not checked by hand: Excel for Windows and Apple Numbers.** For those apps, only the automated checks apply: CI opens the corpus files in LibreOffice and reads them back with openpyxl and with javascript-excel's own reader ([Automated cross-checks](#automated-cross-checks)). Files saved by Excel, Numbers and Google Sheets (reader fixtures) and a file with a `#SPILL!` error were not made, so those items stay open.
 
@@ -144,7 +144,7 @@ Covers built-in ids the spec does not list: 5–8, 23–36, 41–44, 50–58.
 
 | Where | Look at | Expected | Excel Win | Excel Mac | Numbers |
 |---|---|---|---|---|---|
-| Locale ids!B2:C32 | Note what each row shows, in your Excel locale. If you can, switch Excel or Windows to Japanese or Chinese and look again at ids 27–36 and 50–58. | No repair prompt. In an East Asian locale, ids 27–36 and 50–58 show dates; elsewhere they may show General. Record the result for each id. **(open item)** | not checked | opened; result not recorded | not checked |
+| Locale ids!B2:C32 | Note what each row shows, in your Excel locale. If you can, switch Excel or Windows to Japanese or Chinese and look again at ids 27–36 and 50–58. | No repair prompt. In an East Asian locale, ids 27–36 and 50–58 show dates; elsewhere they may show General. Record the result for each id. **(open item)** | not checked | see [Open items](#open-items-this-check-resolves) | not checked |
 
 ### 12-colours.xlsx: Colours: theme order, tints, indexed palette
 
@@ -202,7 +202,7 @@ Covers document properties (core, app, custom), a non-default workbook font, she
 |---|---|---|---|---|---|
 | File > Info > Properties (Advanced Properties > Summary and Custom) | Read the properties. | Title 'Conformance: workbook', subject, author 'Conformance corpus', keywords, comments, category, company 'Example Co', manager. Custom: Project, Build 42, Ratio 0.25, Released No, Checked on 2026-11-16. | not checked | pass | not checked |
 | Properties!A1 | Look at the font. | Arial 10; Home > Cell Styles > Normal is Arial 10. | not checked | pass | not checked |
-| Any sheet tab | Rename a sheet to History. Then rename one to 31 characters made of 30 x's and one emoji (😀). | Record whether Excel refuses 'History' and whether it accepts the 31-character emoji name (if it does, Excel counts characters, not UTF-16 code units). **(open item)** | not checked | opened; result not recorded | not checked |
+| Any sheet tab | Rename a sheet to History. Then rename one to 31 characters made of 30 x's and one emoji (😀). | Record whether Excel refuses 'History' and whether it accepts the 31-character emoji name (if it does, Excel counts characters, not UTF-16 code units). **(open item)** | not checked | see [Open items](#open-items-this-check-resolves) | not checked |
 
 ### 18-limits.xlsx: Format limits
 
@@ -237,13 +237,13 @@ These facts were marked `[to verify]` in `docs/api.md`. Each one is checked by t
 | Open item | File | Where | Result |
 |---|---|---|---|
 | indent maximum 250 (§3.5.4) | `09-alignment.xlsx` | Alignment!B20 | Confirmed: the cell shows indent 250 and Excel refuses 251. |
-| codes and spacing of built-in formats 37–40 and 47 (§11.2) | `10-number-formats.xlsx` | Built-in!C2:C29 | Confirmed, with Excel's own codes: 37 `#,##0_);(#,##0)`, 38 `#,##0_);[Red](#,##0)`, 39 `#,##0.00_);(#,##0.00)`, 40 `#,##0.00_);[Red](#,##0.00)`, 47 `mm:ss.0`. (37 was reported as `#,##0_);#,##0)`, read as a transcription slip for the opening parenthesis; to be confirmed.) They differ from the ECMA-376 table for all five; column B, `BUILTIN_NUM_FMTS` and docs/api.md §11.2 now use Excel's codes. |
-| how Excel displays day 0, rounded times, General, a dangling decimal point, am/pm case, conditional sections, built-in id 32 and bbbb (§5.7.4) | `10-number-formats.xlsx` | Display!B2:B17 | **Not verified: the rows that differ were not recorded.** |
-| ids 27–36 and 50–58 are date formats (§3.4.1) | `11-number-formats-locale.xlsx` | Locale ids!B2:C32 | **Not verified: what these ids show, and in which locale, was not recorded; no East Asian locale was tried.** |
+| codes and spacing of built-in formats 37–40 and 47 (§11.2) | `10-number-formats.xlsx` | Built-in!C2:C29 | Confirmed, with Excel's own codes: 37 `#,##0_);(#,##0)`, 38 `#,##0_);[Red](#,##0)`, 39 `#,##0.00_);(#,##0.00)`, 40 `#,##0.00_);[Red](#,##0.00)`, 47 `mm:ss.0`. These are the codes copied from Format Cells, and they are the record. Column B then held the ECMA-376 codes (`#,##0 ;(#,##0)`, `#,##0 ;[Red](#,##0)`, `#,##0.00;(#,##0.00)`, `#,##0.00;[Red](#,##0.00)`, `mmss.0`), so the separate answer that the codes matched column B is not relied on. Column B, `BUILTIN_NUM_FMTS` and docs/api.md §11.2 now use Excel's codes. |
+| how Excel displays day 0, rounded times, General, a dangling decimal point, am/pm case, conditional sections, built-in id 32 and bbbb (§5.7.4) | `10-number-formats.xlsx` | Display!B2:B17 | **Not verified: no result was reported for the Display sheet.** |
+| ids 27–36 and 50–58 are date formats (§3.4.1) | `11-number-formats-locale.xlsx` | Locale ids!B2:C32 | Confirmed in de-DE: ids 27–36 and 50–58 display as dates, not General. Columns B and C showed different values with the same pattern, as expected in de-DE (locale separators and date order). **Not verified:** an East Asian locale (Japanese, Chinese) was not tried. |
 | theme index order: 0 = lt1, 1 = dk1, 2 = lt2, 3 = dk2 (§3.5.6) | `12-colours.xlsx` | Theme!B2:B13 | Confirmed: 0 Background 1, 1 Text 1, 2 Background 2, 3 Text 2, 4–9 Accent 1–6, 10 Hyperlink, 11 Followed Hyperlink. |
 | indexed 64 = system foreground, 65 = system background (§3.5.6) | `12-colours.xlsx` | Indexed!C66:C67 | Confirmed: 64 is black, 65 is white. |
 | maximum digit width 7 px for Calibri 11 (§3.3) | `13-columns-rows.xlsx` | Widths!A:F | Confirmed in characters: A 8.43, B 10, C 20, D 12, E 8.43, F 13.57. Pixel widths are Windows values and were not checked. |
-| 'History' is reserved; how the 31-character limit counts astral characters (§3.3) | `17-workbook.xlsx` | Any sheet tab | **Not verified: the renames were not recorded.** |
+| 'History' is reserved; how the 31-character limit counts astral characters (§3.3) | `17-workbook.xlsx` | Any sheet tab | Confirmed: Excel accepts a name of 30 x's and 😀, 31 code points (32 UTF-16 units), so the limit counts code points. **Not verified:** renaming a sheet to History was not tried. |
 | 64,000 unique cell formats (§7.2, §11.1) | `18-limits.xlsx` | Opening the file | Confirmed: the file with 64,000 cell formats opens with no repair prompt, and Cmd+End goes to XFD1048576. A file over the limit was not tried. |
 | how newer Excel errors such as `#SPILL!` are stored (§3.4) | *(make one)* | In Excel 365, enter `=SEQUENCE(3)` in A2 and any value in A3 so it spills into a blocked cell, save as `.xlsx`, and attach the file to the report. The XML is inspected from it. | **Open**: no file was made |
 

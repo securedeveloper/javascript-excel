@@ -227,10 +227,10 @@ export type ColumnWidth = number | { wch: number } | { wpx: number } | 'auto';
 
 **Sheet names.** The writer throws `INVALID_SHEET_NAME` unless the name:
 
-- is 1 to 31 characters long `[to verify: whether Excel counts UTF-16 code units or code points for astral characters; conformance.md, 17-workbook]`;
+- is 1 to 31 characters long. Excel counts code points: it accepts 30 x's and 😀, which is 31 code points and 32 UTF-16 units *(confirmed in Excel for Mac, 2026-11-17; conformance.md, 17-workbook)*. The writer still counts UTF-16 units (`name.length`), so it rejects such a name although Excel accepts it;
 - contains none of `\ / ? * [ ] :`;
 - does not start or end with an apostrophe `'`;
-- is not `History`, which Excel reserves `[to verify: conformance.md, 17-workbook]`.
+- is not `History`, which Excel reserves `[to verify: not tried in the Excel for Mac check; conformance.md, 17-workbook]`.
 
 Names must be unique, compared case-insensitively (`DUPLICATE_SHEET_NAME`). `sanitizeSheetName()` (§4.6) makes any string valid.
 
@@ -303,7 +303,7 @@ Excel stores dates as serial numbers. The writer converts `Date` to a serial and
 **Date detection on read.** A numeric cell is returned as `type: 'date'` with a `Date` value when its number format is a date or time format:
 
 - built-in ids 14–22, 45 and 47 (46 is `[h]:mm:ss`, an elapsed time);
-- built-in ids 27–36 and 50–58 (locale-dependent East Asian date formats) `[to verify: conformance.md, 11-number-formats-locale]`;
+- built-in ids 27–36 and 50–58 (locale-dependent East Asian date formats). Excel for Mac in de-DE displays them as dates *(confirmed in Excel for Mac, 2026-11-17)*; in an East Asian locale `[to verify: not tried; conformance.md, 11-number-formats-locale]`;
 - custom codes that, after removing quoted literals, backslash escapes and bracketed sections other than the elapsed-time tokens `[h]`, `[m]`, `[s]`, contain a date/time token (`y`, `m`, `d`, `h`, `s`, `AM/PM`, `A/P`, `e`, `g`, `b`) `[to verify against more real-world files; the reader tests cover the common codes]`.
 
 Elapsed-time formats (`[h]:mm:ss`) are durations, not dates. The reader returns them as `type: 'number'` and leaves formatting to the caller. With `ReadOptions.dates: 'serial'`, no conversion happens and date cells come back as `type: 'number'`.
