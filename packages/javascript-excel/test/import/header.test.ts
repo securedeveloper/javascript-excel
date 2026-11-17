@@ -50,6 +50,30 @@ describe("detectHeader", () => {
     expect(detectHeader(s)).toEqual({ rows: [0, 1], confidence: "high" });
   });
 
+  it("reads two stacked text rows over typed data as a two-row header (CSV has no merges)", () => {
+    // Every text cell of the second row sits on a column of numbers, so it can't be a data row.
+    expect(detectHeader(sheet([["Region", "Sales", "Sales"], ["", "Q1", "Q2"], ["North", "10", "20"], ["South", "30", "40"]]))).toEqual({ rows: [0, 1], confidence: "high" });
+    // A units row.
+    expect(detectHeader(sheet([["Temp", "Pressure"], ["°C", "hPa"], ["20", "1013"]]))).toEqual({ rows: [0, 1], confidence: "high" });
+  });
+
+  it("reads a group row over its columns as a two-row header when neither row fills the table", () => {
+    // toCsv of react-data-export's header groups: "Name,Q1," over ",Jan,Feb".
+    const s = sheet([["Name", "Q1", ""], ["", "Jan", "Feb"], ["Ada", "1", "2"], ["Bob", "3", "4"]]);
+    expect(detectHeader(s)).toEqual({ rows: [0, 1], confidence: "high" });
+  });
+
+  it("keeps a first data row with text in text columns as data", () => {
+    expect(detectHeader(sheet([["Name", "City", "Amount"], ["Bob", "Paris", ""], ["Ada", "Oslo", "10"]]))).toEqual({ rows: [0], confidence: "high" });
+  });
+
+  it("gives low confidence when the row under the header is all text and only partly fits a header", () => {
+    // "n/a" in a numeric column could be a sub-header or a data value; "Ada" is clearly data.
+    expect(detectHeader(sheet([["Name", "Amount"], ["Ada", "n/a"], ["Bob", "10"]]))).toEqual({ rows: [0], confidence: "low" });
+    // A second header row whose first cell sits on a text column.
+    expect(detectHeader(sheet([["Region", "Sales", "Sales"], ["Area", "Q1", "Q2"], ["North", "10", "20"]]))).toEqual({ rows: [0], confidence: "low" });
+  });
+
   it("respects range and maxScan", () => {
     const s = sheet([["x"], ["y"], ["Name", "Age"], ["Ada", 1]]);
     expect(detectHeader(s, { range: "A3:B4" })).toEqual({ rows: [2], confidence: "high" });

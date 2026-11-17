@@ -140,6 +140,35 @@ export function detectHeader(sheet: Sheet<CellInput>, options: DetectHeaderOptio
     return false;
   };
 
+  // The first LOOKAHEAD non-empty values of column k below rows[idx]: true when
+  // there is at least one and none is text (the column holds typed data).
+  const typedBelow = (idx: number, k: number): boolean => {
+    let seen = 0;
+    for (let j = idx + 1; j < rows.length && seen < LOOKAHEAD; j++) {
+      const kind = rows[j]!.kinds[k];
+      if (kind === 0) continue;
+      if (kind === 1) return false;
+      seen++;
+    }
+    return seen > 0;
+  };
+  // A row stacked directly under a header row (no merges, as in CSV): all
+  // text, and every non-empty cell sits on a column of typed data. A data row
+  // can't be that: it would make each of those columns mixed.
+  const stacksBelow = (idx: number): boolean => {
+    const y = rows[idx + 1];
+    if (!y || y.r !== rows[idx]!.r + 1 || !y.allText) return false;
+    for (let k = 0; k < width; k++) if (y.kinds[k] === 1 && !typedBelow(idx + 1, k)) return false;
+    return true;
+  };
+  // The row under a header looks like data but puts text on a column of typed data.
+  const textOnTypedBelow = (idx: number): boolean => {
+    const y = rows[idx + 1];
+    if (!y || y.r !== rows[idx]!.r + 1 || !y.allText) return false;
+    for (let k = 0; k < width; k++) if (y.kinds[k] === 1 && typedBelow(idx + 1, k)) return true;
+    return false;
+  };
+
   let header: RowInfo | undefined;
   let confidence: "high" | "low" = "low";
   for (const x of candidates) {
@@ -147,6 +176,18 @@ export function detectHeader(sheet: Sheet<CellInput>, options: DetectHeaderOptio
       header = x;
       confidence = "high";
       break;
+    }
+  }
+  // Two stacked text rows that only fill the table together, such as a group
+  // row over its columns in CSV ("Name,Q1," over ",Jan,Feb").
+  if (!header) {
+    for (const x of candidates) {
+      const i = rows.indexOf(x);
+      const y = rows[i + 1];
+      if (!x.allText || !y || isTitle(y) || !stacksBelow(i)) continue;
+      let union = 0;
+      for (let k = 0; k < width; k++) if (x.kinds[k] !== 0 || y.kinds[k] !== 0) union++;
+      if (union >= tableWidth) return { rows: [x.r, y.r], confidence: "high" };
     }
   }
   if (!header) header = candidates.find((x) => x.allText && x.filled >= tableWidth);
@@ -163,6 +204,12 @@ export function detectHeader(sheet: Sheet<CellInput>, options: DetectHeaderOptio
   while (at + 1 < rows.length && joinsBelow(rows[at]!) && rows[at + 1]!.allText && rows[at + 1]!.r === rows[at]!.r + 1) {
     at++;
     result.push(rows[at]!.r);
+  }
+  // Without merges: a second header row stacked under the first ("Region,Sales,Sales"
+  // over ",Q1,Q2"). A text row that only partly fits makes the header uncertain.
+  if (confidence === "high" && result.length === 1) {
+    if (stacksBelow(at)) result.push(rows[at + 1]!.r);
+    else if (textOnTypedBelow(at)) confidence = "low";
   }
   for (let i = rows.indexOf(header) - 1; i >= 0; i--) {
     const x = rows[i]!;
