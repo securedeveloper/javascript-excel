@@ -38,6 +38,31 @@ describe("fromTable in Chromium", () => {
     expect(c!.style).toEqual({ font: { italic: true }, fill: "DDEBF7", alignment: { horizontal: "right", vertical: "top", wrapText: true } });
   });
 
+  it("maps lab(), lch(), oklab(), oklch() and color() as Chromium serialises them", () => {
+    const s = fromTable(
+      table(
+        `<table><tr class="band"><td class="a">a</td><td class="b">b</td><td class="c">c</td><td class="d">d</td><td class="e">e</td></tr></table>`,
+        `.band { background-color: oklch(0.967 0.003 264.542) }
+         .a { color: oklch(62.8% 0.2577 29.23) } .b { background-color: lab(54.29% 80.8 69.89) }
+         .c { color: color(display-p3 1 0 0); background-color: lch(100% 0 0) } .d { background-color: oklab(0.628 0.2249 0.1258 / 0) }
+         .e { background-color: color-mix(in oklab, white 50%, black) }`,
+      ),
+      { styles: "computed" },
+    );
+    const cells = s.rows[0]! as Cell[];
+    // The cells really computed to modern forms, not rgb().
+    const tds = [...document.querySelectorAll("td")].map((td) => getComputedStyle(td));
+    expect(tds[0]!.color).toMatch(/^oklch\(/);
+    expect(tds[1]!.backgroundColor).toMatch(/^lab\(/);
+    expect(tds[2]!.color).toMatch(/^color\(display-p3/);
+    const [a, b, c, d, e] = cells;
+    expect(a!.style).toEqual({ font: { color: "FF0000" }, fill: "F3F4F6" });
+    expect(b!.style).toEqual({ fill: "FF0000" });
+    expect(c!.style).toEqual({ font: { color: "FF0000" }, fill: "FFFFFF" });
+    expect(d!.style).toEqual({ fill: "F3F4F6" });
+    expect(e!.style).toEqual({ fill: "636363" });
+  });
+
   it("skips rows hidden by CSS, resolves relative links, and reads RTL from computed direction", () => {
     const s = fromTable(
       table(`<div class="rtl"><table><tr class="gone"><td>x</td></tr><tr><td><a href="page?q=1">link</a></td></tr></table></div>`, `.gone { display: none } .rtl { direction: rtl }`),
