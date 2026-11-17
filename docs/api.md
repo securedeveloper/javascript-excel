@@ -1328,7 +1328,6 @@ Result in CI (LibreOffice 26.2, en-US): 439 probes, 344 identical, 95 different 
 | General | Up to 15 significant digits, no width limit, 3-digit exponents (`0.333333333333333`, `1E+021`) | Fits 11 characters (`0.333333333`, `1E+21`, `1.23457E+11`) |
 | A decimal point with no digits after it | Dropped: `#,##0.###` shows `7` | Kept: `7.` |
 | `?` padding | U+2007 FIGURE SPACE | A plain space, as text copied from Excel has |
-| Built-in ids 39, 40, 47 | Excel's actual codes, `#,##0.00_);(#,##0.00)` and `mm:ss.0` | The ECMA-376 codes in §11.2 (`#,##0.00;(#,##0.00)`, `mmss.0`). Excel uses LibreOffice's codes *(confirmed in Excel for Mac, 2026-11-17)*; aligned in JSE-F4 |
 | `am/pm` and `A/P` case | `AM/PM` upper-cased, `A/P` lower-cased | As written in the code |
 | `b`, `bb`, `bbbb` | Not known; printed as text | The Buddhist-era year (Gregorian + 543) |
 
@@ -1880,7 +1879,7 @@ const bytes = await client.write(workbook, {
 
 ### 11.2 Built-in number formats (ECMA-376 §18.8.30)
 
-Ids defined by the spec. Ids 14–17 and 22 render according to the user's locale in Excel even though the spec lists these codes.
+Ids defined by the spec. Ids 14–17 and 22 render according to the user's locale in Excel even though the spec lists these codes. For 37–40 and 47 the table has the codes Excel itself uses *(confirmed in Excel for Mac, 2026-11-17; conformance.md, 10-number-formats)*. ECMA-376 lists `#,##0 ;(#,##0)`, `#,##0 ;[Red](#,##0)`, `#,##0.00;(#,##0.00)`, `#,##0.00;[Red](#,##0.00)` and `mmss.0` for them. `BUILTIN_NUM_FMTS` and `formatValue` use Excel's codes from 2.0.0-beta.1. The writer writes only the id for a built-in format, so files are unaffected.
 
 | Id | Code | Id | Code |
 |---|---|---|---|
@@ -1889,17 +1888,17 @@ Ids defined by the spec. Ids 14–17 and 22 render according to the user's local
 | 2 | `0.00` | 20 | `h:mm` |
 | 3 | `#,##0` | 21 | `h:mm:ss` |
 | 4 | `#,##0.00` | 22 | `m/d/yy h:mm` |
-| 9 | `0%` | 37 | `#,##0 ;(#,##0)` |
-| 10 | `0.00%` | 38 | `#,##0 ;[Red](#,##0)` |
-| 11 | `0.00E+00` | 39 | `#,##0.00;(#,##0.00)` |
-| 12 | `# ?/?` | 40 | `#,##0.00;[Red](#,##0.00)` |
+| 9 | `0%` | 37 | `#,##0_);(#,##0)` |
+| 10 | `0.00%` | 38 | `#,##0_);[Red](#,##0)` |
+| 11 | `0.00E+00` | 39 | `#,##0.00_);(#,##0.00)` |
+| 12 | `# ?/?` | 40 | `#,##0.00_);[Red](#,##0.00)` |
 | 13 | `# ??/??` | 45 | `mm:ss` |
 | 14 | `mm-dd-yy` | 46 | `[h]:mm:ss` |
-| 15 | `d-mmm-yy` | 47 | `mmss.0` |
+| 15 | `d-mmm-yy` | 47 | `mm:ss.0` |
 | 16 | `d-mmm` | 48 | `##0.0E+0` |
 | 17 | `mmm-yy` | 49 | `@` |
 
-Ids 5–8, 23–36, 41–44 and 50–163 are not in this table: they are reserved or locale-specific (currency, accounting, East Asian dates). The writer accepts them as numbers, but their rendering depends on the user's Excel locale. Prefer custom codes. Excel itself uses different codes for 37–40 and 47 than this ECMA-376 table: `#,##0_);(#,##0)`, `#,##0_);[Red](#,##0)`, `#,##0.00_);(#,##0.00)`, `#,##0.00_);[Red](#,##0.00)` and `mm:ss.0` *(confirmed in Excel for Mac, 2026-11-17; conformance.md, 10-number-formats)*. The engine is aligned with Excel's codes in JSE-F4.
+Ids 5–8, 23–36, 41–44 and 50–163 are not in this table: they are reserved or locale-specific (currency, accounting, East Asian dates). The writer accepts them as numbers, but their rendering depends on the user's Excel locale. Prefer custom codes.
 
 ### 11.3 Mapping from xlsx-style keys
 
