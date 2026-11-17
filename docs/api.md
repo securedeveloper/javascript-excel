@@ -1328,7 +1328,7 @@ Result in CI (LibreOffice 26.2, en-US): 439 probes, 344 identical, 95 different 
 | General | Up to 15 significant digits, no width limit, 3-digit exponents (`0.333333333333333`, `1E+021`) | Fits 11 characters (`0.333333333`, `1E+21`, `1.23457E+11`) |
 | A decimal point with no digits after it | Dropped: `#,##0.###` shows `7` | Kept: `7.` |
 | `?` padding | U+2007 FIGURE SPACE | A plain space, as text copied from Excel has |
-| Built-in ids 39, 40, 47 | Excel's actual codes, `#,##0.00_);(#,##0.00)` and `mm:ss.0` | The ECMA-376 codes in §11.2 (`#,##0.00;(#,##0.00)`, `mmss.0`); conformance file 10 asks for the codes Excel shows |
+| Built-in ids 39, 40, 47 | Excel's actual codes, `#,##0.00_);(#,##0.00)` and `mm:ss.0` | The ECMA-376 codes in §11.2 (`#,##0.00;(#,##0.00)`, `mmss.0`). Excel uses LibreOffice's codes *(confirmed in Excel for Mac, 2026-11-17)*; aligned in JSE-F4 |
 | `am/pm` and `A/P` case | `AM/PM` upper-cased, `A/P` lower-cased | As written in the code |
 | `b`, `bb`, `bbbb` | Not known; printed as text | The Buddhist-era year (Gregorian + 543) |
 
@@ -1899,7 +1899,7 @@ Ids defined by the spec. Ids 14–17 and 22 render according to the user's local
 | 16 | `d-mmm` | 48 | `##0.0E+0` |
 | 17 | `mmm-yy` | 49 | `@` |
 
-Ids 5–8, 23–36, 41–44 and 50–163 are not in this table: they are reserved or locale-specific (currency, accounting, East Asian dates). The writer accepts them as numbers, but their rendering depends on the user's Excel locale. Prefer custom codes. `[to verify: the exact codes and spacing for 37–40 and 47; not recorded in the Excel for Mac check of 2026-11-17. Open question: LibreOffice gives Excel's codes for 39, 40 and 47 as #,##0.00_);(#,##0.00), #,##0.00_);[Red](#,##0.00) and mm:ss.0, not the ECMA-376 codes above; conformance.md, 10-number-formats]`
+Ids 5–8, 23–36, 41–44 and 50–163 are not in this table: they are reserved or locale-specific (currency, accounting, East Asian dates). The writer accepts them as numbers, but their rendering depends on the user's Excel locale. Prefer custom codes. Excel itself uses different codes for 37–40 and 47 than this ECMA-376 table: `#,##0_);(#,##0)`, `#,##0_);[Red](#,##0)`, `#,##0.00_);(#,##0.00)`, `#,##0.00_);[Red](#,##0.00)` and `mm:ss.0` *(confirmed in Excel for Mac, 2026-11-17; conformance.md, 10-number-formats)*. The engine is aligned with Excel's codes in JSE-F4.
 
 ### 11.3 Mapping from xlsx-style keys
 

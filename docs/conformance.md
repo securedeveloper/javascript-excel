@@ -6,7 +6,7 @@ This checklist is for a one-time manual check of the conformance corpus in **Mic
 
 ## Results
 
-Checked on 2026-11-17 in **Excel for Mac**: every file below opens with no repair prompt, and its checks pass. Five of the open items were confirmed. For four, what Excel showed was not recorded, so they stay open (**Not verified** below).
+Checked on 2026-11-17 in **Excel for Mac**: every file below opens with no repair prompt, and its checks pass. Six of the open items were confirmed. For three, what Excel showed was not recorded, so they stay open (**Not verified** below).
 
 **Not checked by hand: Excel for Windows and Apple Numbers.** For those apps, only the automated checks apply: CI opens the corpus files in LibreOffice and reads them back with openpyxl and with javascript-excel's own reader ([Automated cross-checks](#automated-cross-checks)). Files saved by Excel, Numbers and Google Sheets (reader fixtures) and a file with a `#SPILL!` error were not made, so those items stay open.
 
@@ -126,7 +126,7 @@ Covers horizontal and vertical alignment, rotation, vertical text, indent (inclu
 | Where | Look at | Expected | Excel Win | Excel Mac | Numbers |
 |---|---|---|---|---|---|
 | Alignment!B2:B26 | Compare with Format Cells > Alignment and Protection. | Everything matches column C. | not checked | pass | not checked |
-| Alignment!B20 | Open Format Cells > Alignment and try to set Indent to 251. | Excel shows 250 for this cell and refuses 251. **(open item)** | not checked | pass | not checked |
+| Alignment!B20 | Open Format Cells > Alignment and try to set Indent to 251. | Excel shows 250 for this cell and refuses 251. **(open item)** | not checked | see [Open items](#open-items-this-check-resolves) | not checked |
 
 ### 10-number-formats.xlsx: Built-in and custom number formats
 
@@ -134,7 +134,7 @@ Covers every built-in id the spec defines (0–4, 9–22, 37–40, 45–49) and 
 
 | Where | Look at | Expected | Excel Win | Excel Mac | Numbers |
 |---|---|---|---|---|---|
-| Built-in!C2:C29 | For each row, open Format Cells > Number > Custom and read the selected code. | The code matches column B (ids 14 and 22 may show your locale's date format). Write down the exact code Excel shows for ids 37, 38, 39, 40 and 47, including spaces. **(open item)** | not checked | opened; result not recorded | not checked |
+| Built-in!C2:C29 | For each row, open Format Cells > Number > Custom and read the selected code. | The code matches column B (ids 14 and 22 may show your locale's date format). Write down the exact code Excel shows for ids 37, 38, 39, 40 and 47, including spaces. **(open item)** | not checked | see [Open items](#open-items-this-check-resolves) | not checked |
 | Custom!B2:B7 | Compare column B with column C. | Everything matches. | not checked | pass | not checked |
 | Display!B2:B17 | Compare column B with column C. Widen column B if a value shows ####. | Everything matches. Write down every row that differs. **(open item)** | not checked | opened; result not recorded | not checked |
 
@@ -152,8 +152,8 @@ Covers theme indices 0–11, tints, indexed colours 0–65 (including 64/65), au
 
 | Where | Look at | Expected | Excel Win | Excel Mac | Numbers |
 |---|---|---|---|---|---|
-| Theme!B2:B13 | Select each fill and open Fill Color > Theme Colors; note which swatch is highlighted. | Row 0 is Background 1 (white), 1 is Text 1 (black), 2 is Background 2, 3 is Text 2, 4–9 are Accent 1–6, 10 Hyperlink, 11 Followed Hyperlink. Columns D and E are lighter and darker versions. **(open item)** | not checked | pass | not checked |
-| Indexed!C66:C67 | Look at the text colour of 'Aa' for indexed 64 and 65. | 64 is black (system foreground), 65 is white (system background). **(open item)** | not checked | pass | not checked |
+| Theme!B2:B13 | Select each fill and open Fill Color > Theme Colors; note which swatch is highlighted. | Row 0 is Background 1 (white), 1 is Text 1 (black), 2 is Background 2, 3 is Text 2, 4–9 are Accent 1–6, 10 Hyperlink, 11 Followed Hyperlink. Columns D and E are lighter and darker versions. **(open item)** | not checked | see [Open items](#open-items-this-check-resolves) | not checked |
+| Indexed!C66:C67 | Look at the text colour of 'Aa' for indexed 64 and 65. | 64 is black (system foreground), 65 is white (system background). **(open item)** | not checked | see [Open items](#open-items-this-check-resolves) | not checked |
 
 ### 13-columns-rows.xlsx: Column widths, row heights, hidden and outline
 
@@ -161,7 +161,7 @@ Covers widths in characters, {wch}, {wpx}, 'auto', width 0; row heights; hidden 
 
 | Where | Look at | Expected | Excel Win | Excel Mac | Numbers |
 |---|---|---|---|---|---|
-| Widths!A:F | Hover over the right edge of each column header (or Format > Column Width) and note the width Excel shows. | A 8.43 (64 px), B 10 (75 px), C 20 (145 px), D 12 (89 px), E 8.43 (64 px), F 13.57 (100 px). On a Mac the pixel values may differ; the character widths must match. **(open item)** | not checked | pass | not checked |
+| Widths!A:F | Hover over the right edge of each column header (or Format > Column Width) and note the width Excel shows. | A 8.43 (64 px), B 10 (75 px), C 20 (145 px), D 12 (89 px), E 8.43 (64 px), F 13.57 (100 px). On a Mac the pixel values may differ; the character widths must match. **(open item)** | not checked | see [Open items](#open-items-this-check-resolves) | not checked |
 | Widths!G:J | Look at columns G to J. | G is wide enough for its text; H and I are hidden (no header visible); J has the default width. | not checked | pass | not checked |
 | Widths!rows 3–9, columns K:L | Look at the rows and the outline buttons. | Row 3 is tall (30 pt), row 5 is hidden, rows 7–8 and columns K–L have outline (group) buttons, row 9 is green across the whole row, columns K–L are light orange. | not checked | pass | not checked |
 
@@ -210,7 +210,7 @@ Covers the last cell (XFD1048576), 32,767-character text, 64,000 distinct cell f
 
 | Where | Look at | Expected | Excel Win | Excel Mac | Numbers |
 |---|---|---|---|---|---|
-| Opening the file | Open it and wait (it is large). | No repair prompt. Ctrl/Cmd+End jumps to XFD1048576. The writer emits 64,000 cell formats (the default one plus 63,999), the most it allows; Excel's documented limit is 64,000. **(open item)** | not checked | pass | not checked |
+| Opening the file | Open it and wait (it is large). | No repair prompt. Ctrl/Cmd+End jumps to XFD1048576. The writer emits 64,000 cell formats (the default one plus 63,999), the most it allows; Excel's documented limit is 64,000. **(open item)** | not checked | see [Open items](#open-items-this-check-resolves) | not checked |
 
 ### 19-builders.xlsx: Dataset builders (fromDataset, fromDatasets)
 
@@ -237,7 +237,7 @@ These facts were marked `[to verify]` in `docs/api.md`. Each one is checked by t
 | Open item | File | Where | Result |
 |---|---|---|---|
 | indent maximum 250 (§3.5.4) | `09-alignment.xlsx` | Alignment!B20 | Confirmed: the cell shows indent 250 and Excel refuses 251. |
-| codes and spacing of built-in formats 37–40 and 47 (§11.2) | `10-number-formats.xlsx` | Built-in!C2:C29 | **Not verified: the codes Excel shows were not recorded. Open question: LibreOffice gives Excel's codes for 39, 40 and 47 as `#,##0.00_);(#,##0.00)`, `#,##0.00_);[Red](#,##0.00)` and `mm:ss.0`; this corpus and docs/api.md §11.2 use the ECMA-376 codes `#,##0.00;(#,##0.00)`, `#,##0.00;[Red](#,##0.00)` and `mmss.0`.** |
+| codes and spacing of built-in formats 37–40 and 47 (§11.2) | `10-number-formats.xlsx` | Built-in!C2:C29 | Confirmed, with Excel's own codes: 37 `#,##0_);(#,##0)`, 38 `#,##0_);[Red](#,##0)`, 39 `#,##0.00_);(#,##0.00)`, 40 `#,##0.00_);[Red](#,##0.00)`, 47 `mm:ss.0`. (37 was reported as `#,##0_);#,##0)`, read as a transcription slip for the opening parenthesis; to be confirmed.) Excel uses these codes; the ECMA-376 table in column B and docs/api.md §11.2 differs for all five; aligned in JSE-F4. |
 | how Excel displays day 0, rounded times, General, a dangling decimal point, am/pm case, conditional sections, built-in id 32 and bbbb (§5.7.4) | `10-number-formats.xlsx` | Display!B2:B17 | **Not verified: the rows that differ were not recorded.** |
 | ids 27–36 and 50–58 are date formats (§3.4.1) | `11-number-formats-locale.xlsx` | Locale ids!B2:C32 | **Not verified: what these ids show, and in which locale, was not recorded; no East Asian locale was tried.** |
 | theme index order: 0 = lt1, 1 = dk1, 2 = lt2, 3 = dk2 (§3.5.6) | `12-colours.xlsx` | Theme!B2:B13 | Confirmed: 0 Background 1, 1 Text 1, 2 Background 2, 3 Text 2, 4–9 Accent 1–6, 10 Hyperlink, 11 Followed Hyperlink. |

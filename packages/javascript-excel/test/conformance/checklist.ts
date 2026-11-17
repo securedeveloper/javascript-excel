@@ -13,7 +13,7 @@ export function renderChecklist(): string {
     "",
     "## Results",
     "",
-    `Checked on ${MANUAL_CHECK.date} in **${MANUAL_CHECK.checked.join(", ")}**: every file below opens with no repair prompt, and its checks pass. Five of the open items were confirmed. For four, what Excel showed was not recorded, so they stay open (**Not verified** below).`,
+    `Checked on ${MANUAL_CHECK.date} in **${MANUAL_CHECK.checked.join(", ")}**: every file below opens with no repair prompt, and its checks pass. Six of the open items were confirmed. For three, what Excel showed was not recorded, so they stay open (**Not verified** below).`,
     "",
     `**Not checked by hand: ${MANUAL_CHECK.notChecked.join(" and ")}.** For those apps, only the automated checks apply: CI opens the corpus files in LibreOffice and reads them back with openpyxl and with javascript-excel's own reader ([Automated cross-checks](#automated-cross-checks)). Files saved by Excel, Numbers and Google Sheets (reader fixtures) and a file with a \`#SPILL!\` error were not made, so those items stay open.`,
     "",
@@ -75,7 +75,8 @@ export function renderChecklist(): string {
 
 function app(name: string, c: Check): string {
   if (!(MANUAL_CHECK.checked as readonly string[]).includes(name)) return "not checked";
-  return c.result !== undefined && !isConfirmed(c) ? "opened; result not recorded" : "pass";
+  if (c.result === undefined) return "pass";
+  return isConfirmed(c) ? "see [Open items](#open-items-this-check-resolves)" : "opened; result not recorded";
 }
 
 function isConfirmed(c: Check): boolean {
