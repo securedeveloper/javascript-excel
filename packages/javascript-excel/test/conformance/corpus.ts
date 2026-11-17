@@ -17,7 +17,16 @@ export interface Check {
   expect: string;
   /** The docs/api.md `[to verify]` item this check resolves, if any. */
   verifies?: string;
+  /** For an open item: what the manual check found (see MANUAL_CHECK). */
+  result?: string;
 }
+
+/** The manual check that was done: who, where and when. */
+export const MANUAL_CHECK = {
+  date: "2026-11-17",
+  checked: ["Excel for Mac"],
+  notChecked: ["Excel for Windows", "Apple Numbers"],
+} as const;
 
 export interface CorpusEntry {
   /** File name without extension. */
@@ -328,7 +337,7 @@ export const CORPUS: CorpusEntry[] = [
     },
     checks: [
       { where: "Alignment!B2:B26", look: "Compare with Format Cells > Alignment and Protection.", expect: "Everything matches column C." },
-      { where: "Alignment!B20", look: "Open Format Cells > Alignment and try to set Indent to 251.", expect: "Excel shows 250 for this cell and refuses 251.", verifies: "indent maximum 250 (§3.5.4)" },
+      { where: "Alignment!B20", look: "Open Format Cells > Alignment and try to set Indent to 251.", expect: "Excel shows 250 for this cell and refuses 251.", verifies: "indent maximum 250 (§3.5.4)", result: "Confirmed: the cell shows indent 250 and Excel refuses 251." },
     ],
   },
   {
@@ -377,9 +386,9 @@ export const CORPUS: CorpusEntry[] = [
       ],
     }),
     checks: [
-      { where: "Built-in!C2:C29", look: "For each row, open Format Cells > Number > Custom and read the selected code.", expect: "The code matches column B (ids 14 and 22 may show your locale's date format). Write down the exact code Excel shows for ids 37, 38, 39, 40 and 47, including spaces.", verifies: "codes and spacing of built-in formats 37–40 and 47 (§11.2)" },
+      { where: "Built-in!C2:C29", look: "For each row, open Format Cells > Number > Custom and read the selected code.", expect: "The code matches column B (ids 14 and 22 may show your locale's date format). Write down the exact code Excel shows for ids 37, 38, 39, 40 and 47, including spaces.", verifies: "codes and spacing of built-in formats 37–40 and 47 (§11.2)", result: "Confirmed, with Excel's own codes: 37 `#,##0_);(#,##0)`, 38 `#,##0_);[Red](#,##0)`, 39 `#,##0.00_);(#,##0.00)`, 40 `#,##0.00_);[Red](#,##0.00)`, 47 `mm:ss.0`. (37 was reported as `#,##0_);#,##0)`, read as a transcription slip for the opening parenthesis; to be confirmed.) Excel uses these codes; the ECMA-376 table in column B and docs/api.md §11.2 differs for all five; aligned in JSE-F4." },
       { where: "Custom!B2:B7", look: "Compare column B with column C.", expect: "Everything matches." },
-      { where: "Display!B2:B17", look: "Compare column B with column C. Widen column B if a value shows ####.", expect: "Everything matches. Write down every row that differs.", verifies: "how Excel displays day 0, rounded times, General, a dangling decimal point, am/pm case, conditional sections, built-in id 32 and bbbb (§5.7.4)" },
+      { where: "Display!B2:B17", look: "Compare column B with column C. Widen column B if a value shows ####.", expect: "Everything matches. Write down every row that differs.", verifies: "how Excel displays day 0, rounded times, General, a dangling decimal point, am/pm case, conditional sections, built-in id 32 and bbbb (§5.7.4)", result: "Not verified: the rows that differ were not recorded." },
     ],
   },
   {
@@ -409,6 +418,7 @@ export const CORPUS: CorpusEntry[] = [
         look: "Note what each row shows, in your Excel locale. If you can, switch Excel or Windows to Japanese or Chinese and look again at ids 27–36 and 50–58.",
         expect: "No repair prompt. In an East Asian locale, ids 27–36 and 50–58 show dates; elsewhere they may show General. Record the result for each id.",
         verifies: "ids 27–36 and 50–58 are date formats (§3.4.1)",
+        result: "Not verified: what these ids show, and in which locale, was not recorded; no East Asian locale was tried.",
       },
     ],
   },
@@ -453,8 +463,9 @@ export const CORPUS: CorpusEntry[] = [
         look: "Select each fill and open Fill Color > Theme Colors; note which swatch is highlighted.",
         expect: "Row 0 is Background 1 (white), 1 is Text 1 (black), 2 is Background 2, 3 is Text 2, 4–9 are Accent 1–6, 10 Hyperlink, 11 Followed Hyperlink. Columns D and E are lighter and darker versions.",
         verifies: "theme index order: 0 = lt1, 1 = dk1, 2 = lt2, 3 = dk2 (§3.5.6)",
+        result: "Confirmed: 0 Background 1, 1 Text 1, 2 Background 2, 3 Text 2, 4–9 Accent 1–6, 10 Hyperlink, 11 Followed Hyperlink.",
       },
-      { where: "Indexed!C66:C67", look: "Look at the text colour of 'Aa' for indexed 64 and 65.", expect: "64 is black (system foreground), 65 is white (system background).", verifies: "indexed 64 = system foreground, 65 = system background (§3.5.6)" },
+      { where: "Indexed!C66:C67", look: "Look at the text colour of 'Aa' for indexed 64 and 65.", expect: "64 is black (system foreground), 65 is white (system background).", verifies: "indexed 64 = system foreground, 65 = system background (§3.5.6)", result: "Confirmed: 64 is black, 65 is white." },
     ],
   },
   {
@@ -502,6 +513,7 @@ export const CORPUS: CorpusEntry[] = [
         look: "Hover over the right edge of each column header (or Format > Column Width) and note the width Excel shows.",
         expect: "A 8.43 (64 px), B 10 (75 px), C 20 (145 px), D 12 (89 px), E 8.43 (64 px), F 13.57 (100 px). On a Mac the pixel values may differ; the character widths must match.",
         verifies: "maximum digit width 7 px for Calibri 11 (§3.3)",
+        result: "Confirmed in characters: A 8.43, B 10, C 20, D 12, E 8.43, F 13.57. Pixel widths are Windows values and were not checked.",
       },
       { where: "Widths!G:J", look: "Look at columns G to J.", expect: "G is wide enough for its text; H and I are hidden (no header visible); J has the default width." },
       { where: "Widths!rows 3–9, columns K:L", look: "Look at the rows and the outline buttons.", expect: "Row 3 is tall (30 pt), row 5 is hidden, rows 7–8 and columns K–L have outline (group) buttons, row 9 is green across the whole row, columns K–L are light orange." },
@@ -645,6 +657,7 @@ export const CORPUS: CorpusEntry[] = [
         look: "Rename a sheet to History. Then rename one to 31 characters made of 30 x's and one emoji (😀).",
         expect: "Record whether Excel refuses 'History' and whether it accepts the 31-character emoji name (if it does, Excel counts characters, not UTF-16 code units).",
         verifies: "'History' is reserved; how the 31-character limit counts astral characters (§3.3)",
+        result: "Not verified: the renames were not recorded.",
       },
     ],
   },
@@ -670,6 +683,7 @@ export const CORPUS: CorpusEntry[] = [
         look: "Open it and wait (it is large).",
         expect: "No repair prompt. Ctrl/Cmd+End jumps to XFD1048576. The writer emits 64,000 cell formats (the default one plus 63,999), the most it allows; Excel's documented limit is 64,000.",
         verifies: "64,000 unique cell formats (§7.2, §11.1)",
+        result: "Confirmed: the file with 64,000 cell formats opens with no repair prompt, and Cmd+End goes to XFD1048576. A file over the limit was not tried.",
       },
     ],
   },

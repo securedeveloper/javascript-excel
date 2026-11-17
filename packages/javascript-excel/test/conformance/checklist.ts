@@ -1,6 +1,6 @@
 // Renders docs/conformance.md from the corpus metadata, so the checklist and
 // the files can never disagree. Regenerate with `npm run conformance:doc`.
-import { ALL } from "./corpus";
+import { ALL, MANUAL_CHECK, type Check } from "./corpus";
 
 export function renderChecklist(): string {
   const out: string[] = [];
@@ -10,6 +10,12 @@ export function renderChecklist(): string {
     "<!-- Generated from packages/javascript-excel/test/conformance/corpus.ts by `npm run conformance:doc`. Do not edit by hand. -->",
     "",
     "This checklist is for a one-time manual check of the conformance corpus in **Microsoft Excel (Windows and Mac)** and **Apple Numbers**. The automated checks already open every file in LibreOffice and read it back with openpyxl and with javascript-excel's own reader. Only a person with Excel and Numbers can confirm what those apps show.",
+    "",
+    "## Results",
+    "",
+    `Checked on ${MANUAL_CHECK.date} in **${MANUAL_CHECK.checked.join(", ")}**: every file below opens with no repair prompt, and its checks pass. Six of the open items were confirmed. For three, what Excel showed was not recorded, so they stay open (**Not verified** below).`,
+    "",
+    `**Not checked by hand: ${MANUAL_CHECK.notChecked.join(" and ")}.** For those apps, only the automated checks apply: CI opens the corpus files in LibreOffice and reads them back with openpyxl and with javascript-excel's own reader ([Automated cross-checks](#automated-cross-checks)). Files saved by Excel, Numbers and Google Sheets (reader fixtures) and a file with a \`#SPILL!\` error were not made, so those items stay open.`,
     "",
     "## Getting the files",
     "",
@@ -36,20 +42,20 @@ export function renderChecklist(): string {
   out.push("");
   for (const e of ALL) {
     out.push(`### ${e.id}.xlsx: ${e.title}`, "", `Covers ${e.covers}.`, "", "| Where | Look at | Expected | Excel Win | Excel Mac | Numbers |", "|---|---|---|---|---|---|");
-    for (const c of e.checks) out.push(`| ${esc(c.where)} | ${esc(c.look)} | ${esc(c.expect)}${c.verifies ? " **(open item)**" : ""} | | | |`);
+    for (const c of e.checks) out.push(`| ${esc(c.where)} | ${esc(c.look)} | ${esc(c.expect)}${c.verifies ? " **(open item)**" : ""} | ${app("Excel for Windows", c)} | ${app("Excel for Mac", c)} | ${app("Apple Numbers", c)} |`);
     out.push("");
   }
   out.push(
     "## Open items this check resolves",
     "",
-    "These facts are marked `[to verify]` in `docs/api.md`. Each one is checked by the file named here; record the result, and the doc is updated from it.",
+    `These facts were marked \`[to verify]\` in \`docs/api.md\`. Each one is checked by the file named here. The result is from ${MANUAL_CHECK.checked.join(", ")} on ${MANUAL_CHECK.date}; \`docs/api.md\` was updated from it. An item without a result is still open.`,
     "",
-    "| Open item | File | Where |",
-    "|---|---|---|",
+    "| Open item | File | Where | Result |",
+    "|---|---|---|---|",
   );
-  for (const e of ALL) for (const c of e.checks) if (c.verifies) out.push(`| ${esc(c.verifies)} | \`${e.id}.xlsx\` | ${esc(c.where)} |`);
+  for (const e of ALL) for (const c of e.checks) if (c.verifies) out.push(`| ${esc(c.verifies)} | \`${e.id}.xlsx\` | ${esc(c.where)} | ${c.result ? (isConfirmed(c) ? esc(c.result) : `**${esc(c.result)}**`) : "**Open**"} |`);
   out.push(
-    "| how newer Excel errors such as `#SPILL!` are stored (§3.4) | *(make one)* | In Excel 365, enter `=SEQUENCE(3)` in A2 and any value in A3 so it spills into a blocked cell, save as `.xlsx`, and attach the file to the report. The XML is inspected from it. |",
+    "| how newer Excel errors such as `#SPILL!` are stored (§3.4) | *(make one)* | In Excel 365, enter `=SEQUENCE(3)` in A2 and any value in A3 so it spills into a blocked cell, save as `.xlsx`, and attach the file to the report. The XML is inspected from it. | **Open**: no file was made |",
     "",
     "Not covered by a manual check: date detection for custom formats (§3.4.1) is checked automatically by the reader tests, and the maximum digit width for default fonts other than Calibri 11 stays open.",
     "",
@@ -61,10 +67,20 @@ export function renderChecklist(): string {
     "- **LibreOffice** (headless) opens every corpus file except the large `18-limits.xlsx` and re-saves it as `.xlsx`; javascript-excel's reader then checks that every sheet and text cell survived. Files written by LibreOffice are reader fixtures too.",
     "- **Python's standard library** cross-checks the zip layer (`zipfile`, `packages/javascript-excel/test/interop/zip_interop.py`) and CSV (`csv`, `packages/javascript-excel/test/interop/csv_interop.py`) in both directions.",
     "",
-    "The original plan (JSE-9) also called for a cross-check against SheetJS as a devDependency. It was replaced by the openpyxl tests above. openpyxl is a separate implementation in another language and exposes the whole style model, so a test can compare fonts, fills, borders, alignment and number formats cell by cell; SheetJS's community edition reads little of the styling. The SheetJS package on the npm registry is also no longer its current release (newer versions are distributed from the SheetJS CDN), and javascript-excel replaces a SheetJS fork, so a SheetJS comparison would check against the predecessor's lineage rather than an independent reading of the format. Python and openpyxl are CI tools only: the package keeps zero dependencies and no new devDependency was added. Files from Excel, Numbers and Google Sheets come from the manual check above.",
+    "The original plan (JSE-9) also called for a cross-check against SheetJS as a devDependency. It was replaced by the openpyxl tests above. openpyxl is a separate implementation in another language and exposes the whole style model, so a test can compare fonts, fills, borders, alignment and number formats cell by cell; SheetJS's community edition reads little of the styling. The SheetJS package on the npm registry is also no longer its current release (newer versions are distributed from the SheetJS CDN), and javascript-excel replaces a SheetJS fork, so a SheetJS comparison would check against the predecessor's lineage rather than an independent reading of the format. Python and openpyxl are CI tools only: the package keeps zero dependencies and no new devDependency was added. Files saved by Excel, Numbers and Google Sheets are not part of the tests yet.",
     "",
   );
   return out.join("\n");
+}
+
+function app(name: string, c: Check): string {
+  if (!(MANUAL_CHECK.checked as readonly string[]).includes(name)) return "not checked";
+  if (c.result === undefined) return "pass";
+  return isConfirmed(c) ? "see [Open items](#open-items-this-check-resolves)" : "opened; result not recorded";
+}
+
+function isConfirmed(c: Check): boolean {
+  return c.result !== undefined && c.result.startsWith("Confirmed");
 }
 
 function esc(s: string): string {
