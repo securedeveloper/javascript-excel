@@ -66,7 +66,7 @@ Measured by `npm run bench` (`packages/javascript-excel/bench/run.mjs`) in the n
 | CSV read (`readCsv`) | unique strings | 2 ms | 20 ms | 120 ms | 71 MB | 23 ms | 12.4 MB |
 
 - **numbers**: `k * 1.5`. **repeated strings**: 100 distinct labels. **unique strings**: a different string in every cell, so the shared strings table is as large as the sheet. **styled**: 8 styles with font, colour and number format, given either as 8 shared objects or as a new object literal per cell (how most app code writes them).
-- The xlsx writer and reader never block the Node event loop for long (22–28 ms when writing and 7–18 ms when reading 1M cells). In the browser the writer returns to the event loop about every 16 ms, so the page keeps rendering during an export (in Chromium 150 the longest gap between frames was 18 ms at 300k rows, against 1.6 s before). `toCsv` is synchronous by design and blocks for its whole run. For big jobs where the UI must stay smooth, use `javascript-excel/worker`.
+- The xlsx writer and reader never block the Node event loop for long (22–28 ms when writing and 7–18 ms when reading 1M cells). In the browser the writer and the reader return to the event loop about every 16 ms, so the page keeps rendering during an export or an import (in Chromium 150 the longest gap between frames was 18 ms at 300k rows for both, against about 1.6 s before). `toCsv` is synchronous by design and blocks for its whole run. For big jobs where the UI must stay smooth, use `javascript-excel/worker`.
 - Numbers from other machines differ. Rerun with `npm run build && npm run bench` (add `-- --sizes 10000,100000` for a quick run).
 
 ## Releasing
