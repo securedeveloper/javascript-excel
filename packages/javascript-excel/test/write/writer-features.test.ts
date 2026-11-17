@@ -292,7 +292,29 @@ describe("sheet names (§4.6)", () => {
     expect(out[1]).toBe("quoted");
     expect([out[2], out[3], out[6]]).toEqual(["Sheet", "Sheet", "Sheet"]);
     expect(out[4]).toHaveLength(31);
-    expect(out[5]).toBe("x".repeat(30)); // a surrogate pair is never split
+    expect(out[5]).toBe(`${"x".repeat(30)}😀`); // 31 code points: already valid
     for (const name of out) expect(validateSheetName(name)).toBeNull();
+  });
+
+  it("counts code points, as Excel does: 30 x's and an emoji fit, 31 x's and an emoji don't", () => {
+    expect(validateSheetName(`${"x".repeat(30)}😀`)).toBeNull(); // 31 code points, 32 UTF-16 units
+    expect(validateSheetName(`${"x".repeat(31)}😀`)).toBe("too-long");
+    expect(validateSheetName("😀".repeat(31))).toBeNull();
+    expect(validateSheetName("😀".repeat(32))).toBe("too-long");
+  });
+
+  it("sanitizeSheetName cuts to 31 code points without splitting a surrogate pair", () => {
+    expect(sanitizeSheetName(`${"x".repeat(31)}😀`)).toBe("x".repeat(31));
+    expect(sanitizeSheetName(`${"x".repeat(30)}😀😀`)).toBe(`${"x".repeat(30)}😀`);
+    expect(sanitizeSheetName("😀".repeat(40))).toBe("😀".repeat(31));
+    expect(sanitizeSheetName(`${"x".repeat(30)}'y`)).toBe("x".repeat(30)); // the cut leaves a trailing apostrophe, which goes
+    for (const name of ["History", "HISTORY", "history"]) expect(sanitizeSheetName(name)).toBe("Sheet");
+  });
+
+  it("the writer accepts a 31-code-point name with an emoji", async () => {
+    const name = `${"x".repeat(30)}😀`;
+    const bytes = await toUint8Array({ sheets: [{ name, rows: [["a"]] }] });
+    expect(bytes.length).toBeGreaterThan(0);
+    await expect(toUint8Array({ sheets: [{ name: `${name}x`, rows: [] }] })).rejects.toMatchObject({ code: "INVALID_SHEET_NAME" });
   });
 });

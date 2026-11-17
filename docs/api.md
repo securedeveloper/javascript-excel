@@ -227,7 +227,7 @@ export type ColumnWidth = number | { wch: number } | { wpx: number } | 'auto';
 
 **Sheet names.** The writer throws `INVALID_SHEET_NAME` unless the name:
 
-- is 1 to 31 characters long. Excel counts code points: it accepts 30 x's and 😀, which is 31 code points and 32 UTF-16 units *(confirmed in Excel for Mac, 2026-11-17; conformance.md, 17-workbook)*. The writer still counts UTF-16 units (`name.length`), so it rejects such a name although Excel accepts it;
+- is 1 to 31 characters long. Excel counts code points: it accepts 30 x's and 😀, which is 31 code points and 32 UTF-16 units *(confirmed in Excel for Mac, 2026-11-17; conformance.md, 17-workbook)*. `validateSheetName`, the writer and `sanitizeSheetName` count code points too (from 2.0.0-beta.1; before, they counted UTF-16 units and rejected such names);
 - contains none of `\ / ? * [ ] :`;
 - does not start or end with an apostrophe `'`;
 - is not `History`, which Excel reserves: renaming a tab to it gives "History is a reserve word" *(confirmed in Excel for Mac, 2026-11-17; conformance.md, 17-workbook)*. The check ignores case (`history`, `HISTORY`); only `History` itself was tried in Excel.
@@ -724,7 +724,7 @@ export function serialToDate(serial: number, opts?: { date1904?: boolean; dateZo
 ### 4.6 Names
 
 ```ts
-/** Replaces forbidden characters with '_', trims apostrophes, truncates to 31, falls back to 'Sheet'. */
+/** Replaces forbidden characters with '_', trims apostrophes, truncates to 31 code points (never splitting a surrogate pair), falls back to 'Sheet' (also for 'History'). */
 export function sanitizeSheetName(name: string): string;
 /** Returns null when valid, or the reason. */
 export function validateSheetName(name: string): null | 'empty' | 'too-long' | 'forbidden-char' | 'apostrophe' | 'reserved';
