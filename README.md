@@ -19,7 +19,7 @@ Types are tested with TypeScript 5.0–7. Your `tsconfig.json` must use `moduleR
 | path | what |
 |---|---|
 | `packages/javascript-excel` | the published npm package |
-| `apps/playground` | Vite playground (work in progress) |
+| `apps/playground` | Vite dev sandbox, tested in CI and not deployed (the public playground is [`securedeveloper/javascript-excel-playground`](https://github.com/securedeveloper/javascript-excel-playground), https://javascript-excel-playground.vercel.app/) |
 | `examples/` | runnable examples used by the guides (Node, vanilla, React, Vue 3) and the README snippets; checked in CI |
 | `docs/` | `api.md` (design and API) and `guides/` |
 | `tools/api-docs` | API reference generator (TypeDoc) |
