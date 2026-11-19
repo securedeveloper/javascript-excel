@@ -2,10 +2,10 @@
 
 Read and write `.xlsx` and `.csv` files in browsers, Web Workers and Node.js. TypeScript, no runtime dependencies, tree-shakable entry points.
 
-> **Beta.** `2.0.0-beta.x` is a from-scratch rewrite. Everything listed below ships today. The 2.0.0 feature set is complete; changes before 2.0.0 should be limited to fixes found in testing. The last 1.x release is `javascript-excel@1.0.3`.
+> 2.0 is a from-scratch rewrite. It shares nothing with 1.x (`javascript-excel@1.0.3`); see the [2.0.0 changelog](https://github.com/securedeveloper/javascript-excel/blob/main/packages/javascript-excel/CHANGELOG.md#200) for the breaking changes.
 
 ```sh
-npm install javascript-excel@next
+npm install javascript-excel
 ```
 
 **Try it in the browser:** the [playground](https://javascript-excel-playground.vercel.app/) writes, reads and previews workbooks with the published package, and shows the code for what you build.

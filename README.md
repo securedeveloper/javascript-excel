@@ -1,8 +1,8 @@
 # javascript-excel
 
-> **2.0 is a from-scratch rewrite, now in beta** (`2.0.0-beta.x` on the `next` dist-tag). The beta builds sheets from `{ columns, data }` datasets (`fromDataset`, `fromDatasets`, and `toDataset` for the way back), writes complete `.xlsx` files (cells, styles and sheet features), reads `.xlsx` files (`javascript-excel/read`), parses and serializes CSV (`javascript-excel/csv`), turns HTML tables into sheets and downloads files (`javascript-excel/dom`), runs big jobs in a Web Worker (`javascript-excel/worker`), renders values with Excel number formats (`javascript-excel/format`), computes what a sheet viewer draws (`javascript-excel/render`), and imports users' `.xlsx`/`.csv` files as datasets (`javascript-excel/import`). The 2.0.0 feature set is complete; changes before 2.0.0 should be limited to fixes found in testing.
+> **2.0 is a from-scratch rewrite** (`2.0.0` on the `latest` dist-tag). It builds sheets from `{ columns, data }` datasets (`fromDataset`, `fromDatasets`, and `toDataset` for the way back), writes complete `.xlsx` files (cells, styles and sheet features), reads `.xlsx` files (`javascript-excel/read`), parses and serializes CSV (`javascript-excel/csv`), turns HTML tables into sheets and downloads files (`javascript-excel/dom`), runs big jobs in a Web Worker (`javascript-excel/worker`), renders values with Excel number formats (`javascript-excel/format`), computes what a sheet viewer draws (`javascript-excel/render`), and imports users' `.xlsx`/`.csv` files as datasets (`javascript-excel/import`).
 >
-> The last 1.x release is [`javascript-excel@1.0.3`](https://www.npmjs.com/package/javascript-excel/v/1.0.3) on npm. Keep using it until 2.0 is released.
+> The last 1.x release is [`javascript-excel@1.0.3`](https://www.npmjs.com/package/javascript-excel/v/1.0.3). 2.0 does not share its API; the [2.0.0 changelog](packages/javascript-excel/CHANGELOG.md#200) lists the breaking changes.
 
 ## Goal
 

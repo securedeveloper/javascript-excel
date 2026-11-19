@@ -1684,7 +1684,7 @@ The limits are on by default. Raising them is an explicit `limits` option, and t
 
 ### 9.1 Versioning
 
-- Semantic Versioning. 2.0.0 is a breaking rewrite of 1.0.3. Prereleases ship on the `next` dist-tag: `2.0.0-alpha.1` to `2.0.0-alpha.7` while the API was still changing, then `2.0.0-beta.n` from `2.0.0-beta.0`, with the 2.0.0 feature set complete and only fixes expected. `latest` stays on 1.0.3 until 2.0.0 is final.
+- Semantic Versioning. 2.0.0 is a breaking rewrite of 1.0.3. Prereleases ship on the `next` dist-tag: `2.0.0-alpha.1` to `2.0.0-alpha.7` while the API was still changing, then `2.0.0-beta.0` and `2.0.0-beta.1`, with the 2.0.0 feature set complete and only fixes. `2.0.0` is on `latest`; later prereleases (for example of 2.1) ship on `next`.
 - **Public API:** the exports of the five entry points, their TypeScript types, the error codes and warning codes, and the behaviour documented here. `ZipCodec` and everything not exported are internal.
 - **Breaking (major):** removing or renaming an export, option or code; a narrower accepted input type; a different default that changes output (for example the injection guard or `dateZone`); dropping a runtime from §9.3; required fields added to input types.
 - **Not breaking (minor):** new exports, options and optional model fields; the reader populating new optional fields (consumers must tolerate unknown fields); new warning codes; new error codes for inputs that were previously undefined behaviour.
